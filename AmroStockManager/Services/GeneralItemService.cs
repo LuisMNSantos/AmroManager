@@ -74,6 +74,17 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
         await db.SaveChangesAsync();
     }
 
+    public async Task DeleteItemAsync(int id)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var item = await db.GeneralItems.FindAsync(id);
+        if (item is not null)
+        {
+            db.GeneralItems.Remove(item);
+            await db.SaveChangesAsync();
+        }
+    }
+
     public async Task<GeneralItem> AddOrUpdateItemAsync(GeneralItem item)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

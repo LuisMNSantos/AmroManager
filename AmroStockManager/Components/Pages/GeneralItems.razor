@@ -24,146 +24,114 @@ else if (_items.Count == 0)
 }
 else
 {
-    <MudGrid Spacing="3">
-        @foreach (var item in _items)
+    <MudPaper Elevation="2" Class="overflow-hidden">
+        @for (int idx = 0; idx < _items.Count; idx++)
         {
-            <MudItem xs="12" sm="6" lg="4">
-                <MudCard Elevation="2">
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h6">@item.Name</MudText>
-                            @if (!string.IsNullOrEmpty(item.Description))
-                            {
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@item.Description</MudText>
-                            }
-                        </CardHeaderContent>
-                        <CardHeaderActions>
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                           Size="Size.Small"
-                                           OnClick="@(() => OpenEditDialog(item))" />
-                        </CardHeaderActions>
-                    </MudCardHeader>
-                    <MudCardContent Class="pt-0">
-                        <div class="d-flex gap-2 mb-3">
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small">
-                                ✓ @item.AvailableCount disponível
-                            </MudChip>
-                            @if (item.ActiveLoansCount > 0)
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">
-                                    ↑ @item.ActiveLoansCount em empréstimo
-                                </MudChip>
-                            }
-                            <MudChip T="string" Color="Color.Default" Size="Size.Small">
-                                Total: @item.TotalQuantity
-                            </MudChip>
-                        </div>
+            var item = _items[idx];
+            var isLastItem = idx == _items.Count - 1;
+            var activeLoans = item.Loans.Where(l => !l.IsReturned).OrderByDescending(l => l.LoanDate).ToList();
 
-                        @if (item.ActiveLoansCount > 0)
-                        {
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Empréstimos Ativos</MudText>
-                            @foreach (var loan in item.Loans.Where(l => !l.IsReturned).OrderByDescending(l => l.LoanDate))
-                            {
-                                <MudPaper Outlined="true" Class="pa-2 mb-1 d-flex align-center justify-space-between">
-                                    <div>
-                                        <MudText Typo="Typo.body2">
-                                            <b>Quarto @loan.RoomNumber</b>
-                                            — por @loan.GivenBy
-                                            @if (loan.Quantity > 1)
-                                            {
-                                                <span> · @loan.Quantity unid.</span>
-                                            }
-                                        </MudText>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            @loan.LoanDate.ToLocalTime().ToString("dd/MM/yy HH:mm")
-                                            @if (!string.IsNullOrEmpty(loan.Notes))
-                                            {
-                                                <span> · @loan.Notes</span>
-                                            }
-                                        </MudText>
-                                    </div>
-                                    <MudButton Variant="Variant.Outlined"
-                                               Color="Color.Success"
-                                               Size="Size.Small"
-                                               OnClick="@(() => ReturnItem(loan))">
-                                        Devolver
-                                    </MudButton>
-                                </MudPaper>
-                            }
-                        }
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudButton StartIcon="@Icons.Material.Filled.ArrowUpward"
-                                   Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   Disabled="@(!item.HasAvailable)"
-                                   OnClick="@(() => OpenLendDialog(item))">
-                            Emprestar
-                        </MudButton>
-                        <MudButton StartIcon="@Icons.Material.Filled.History"
-                                   Variant="Variant.Text"
-                                   Size="Size.Small"
-                                   OnClick="@(() => ToggleHistory(item.Id))">
-                            Histórico
-                        </MudButton>
-                    </MudCardActions>
+            <!-- ── Main item row ── -->
+            <div class="d-flex align-center gap-3 px-4 py-3 flex-wrap"
+                 style="border-bottom: 1px solid rgba(0,0,0,0.08);">
 
-                    @if (_expandedHistoryId == item.Id)
+                <!-- Name + description -->
+                <div style="flex:1; min-width:160px;">
+                    <MudText Typo="Typo.body1" Style="font-weight:600;">@item.Name</MudText>
+                    @if (!string.IsNullOrEmpty(item.Description))
                     {
-                        <MudDivider />
-                        <MudCardContent>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Histórico de Empréstimos</MudText>
-                            @if (!_historyCache.TryGetValue(item.Id, out var history) || history.Count == 0)
-                            {
-                                <MudText Typo="Typo.body2" Color="Color.Secondary">Ainda sem histórico.</MudText>
-                            }
-                            else
-                            {
-                                @foreach (var loan in history)
-                                {
-                                    <MudPaper Outlined="true" Class="pa-2 mb-1"
-                                              Style="@(loan.IsReturned ? "opacity:0.6" : "")">
-                                        <div class="d-flex align-center justify-space-between">
-                                            <MudText Typo="Typo.body2">
-                                                <b>Quarto @loan.RoomNumber</b> · por @loan.GivenBy
-                                                @if (loan.Quantity > 1)
-                                                {
-                                                    <span> · @loan.Quantity unid.</span>
-                                                }
-                                            </MudText>
-                                            @if (loan.IsReturned)
-                                            {
-                                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Devolvido</MudChip>
-                                            }
-                                            else
-                                            {
-                                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Em Empréstimo</MudChip>
-                                            }
-                                        </div>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            Emprestado: @loan.LoanDate.ToLocalTime().ToString("dd/MM/yy HH:mm")
-                                            @if (loan.IsReturned)
-                                            {
-                                                <span> · Devolvido: @loan.ReturnDate!.Value.ToLocalTime().ToString("dd/MM/yy HH:mm")</span>
-                                            }
-                                        </MudText>
-                                    </MudPaper>
-                                }
-                            }
-                        </MudCardContent>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@item.Description</MudText>
                     }
-                </MudCard>
-            </MudItem>
+                </div>
+
+                <!-- Status chips -->
+                <div class="d-flex gap-2 flex-wrap align-center">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(item.AvailableCount > 0 ? Color.Success : Color.Error)">
+                        @item.AvailableCount disp.
+                    </MudChip>
+                    @if (item.ActiveLoansCount > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                            @item.ActiveLoansCount empr.
+                        </MudChip>
+                    }
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        / @item.TotalQuantity
+                    </MudText>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="d-flex gap-1 align-center">
+                    <MudButton StartIcon="@Icons.Material.Filled.ArrowUpward"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               Disabled="@(!item.HasAvailable)"
+                               OnClick="@(() => OpenLendDialog(item))">
+                        Emprestar
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.History"
+                                   Size="Size.Small"
+                                   Color="Color.Default"
+                                   OnClick="@(() => OpenHistoryDialog(item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteItem(item))" />
+                </div>
+            </div>
+
+            <!-- ── Active loan sub-rows ── -->
+            @foreach (var loan in activeLoans)
+            {
+                <div class="d-flex align-center justify-space-between px-4 py-2"
+                     style="background:rgba(0,0,0,0.025); border-bottom:1px solid rgba(0,0,0,0.06); padding-left:2rem !important;">
+                    <div>
+                        <MudText Typo="Typo.body2">
+                            <MudIcon Icon="@Icons.Material.Filled.SubdirectoryArrowRight"
+                                     Size="Size.Small" Style="vertical-align:middle; opacity:0.4; margin-right:4px;" />
+                            <b>Q. @loan.RoomNumber</b>
+                            — @loan.GivenBy
+                            @if (loan.Quantity > 1)
+                            {
+                                <span style="color:var(--mud-palette-text-secondary)"> · @loan.Quantity unid.</span>
+                            }
+                            <span style="color:var(--mud-palette-text-secondary); font-size:0.78em; margin-left:8px;">
+                                @loan.LoanDate.ToLocalTime().ToString("dd/MM HH:mm")
+                            </span>
+                        </MudText>
+                        @if (!string.IsNullOrEmpty(loan.Notes))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="padding-left:24px;">
+                                @loan.Notes
+                            </MudText>
+                        }
+                    </div>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Success"
+                               Size="Size.Small"
+                               OnClick="@(() => ReturnItem(loan))">
+                        Devolver
+                    </MudButton>
+                </div>
+            }
+
+            <!-- Divider between items (but not after loan sub-rows, and not after last item) -->
+            @if (!isLastItem && activeLoans.Count == 0)
+            {
+                <!-- border-bottom on main row already acts as divider -->
+            }
         }
-    </MudGrid>
+    </MudPaper>
 }
 
 @code {
     private bool _loading = true;
     private List<GeneralItem> _items = [];
-    private int _expandedHistoryId = -1;
-    private Dictionary<int, List<GeneralItemLoan>> _historyCache = [];
 
     protected override async Task OnInitializedAsync() => await LoadItems();
 
@@ -185,8 +153,7 @@ else
             { x => x.LinkedItem, linkedItem }
         };
         var dialog = await DialogService.ShowAsync<LendItemDialog>($"Emprestar — {item.Name}", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false }) await LoadItems();
+        if ((await dialog.Result) is { Canceled: false }) await LoadItems();
     }
 
     private async Task ReturnItem(GeneralItemLoan loan)
@@ -198,32 +165,37 @@ else
             : $"Marcar o empréstimo do quarto {loan.RoomNumber} como devolvido?";
 
         var confirmed = await DialogService.ShowMessageBox(
-            "Devolver Artigo",
-            message,
-            yesText: "Sim, devolvido",
-            cancelText: "Cancelar");
+            "Devolver Artigo", message, yesText: "Sim, devolvido", cancelText: "Cancelar");
 
         if (confirmed == true)
         {
             await ItemSvc.ReturnItemAsync(loan.Id);
             await LoadItems();
-            _historyCache.Remove(loan.GeneralItemId);
         }
     }
 
-    private static string SpaceLabel(ReservationSpace space) =>
-        space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
-
-    private async Task ToggleHistory(int itemId)
+    private async Task DeleteItem(GeneralItem item)
     {
-        if (_expandedHistoryId == itemId)
+        var hasActive = item.Loans.Any(l => !l.IsReturned);
+        var msg = hasActive
+            ? $"Eliminar '{item.Name}'? Existem empréstimos activos que também serão eliminados."
+            : $"Eliminar '{item.Name}' e todo o histórico associado?";
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Artigo", msg, yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (confirmed == true)
         {
-            _expandedHistoryId = -1;
-            return;
+            await ItemSvc.DeleteItemAsync(item.Id);
+            Snackbar.Add($"'{item.Name}' eliminado.", Severity.Success);
+            await LoadItems();
         }
-        _expandedHistoryId = itemId;
-        if (!_historyCache.ContainsKey(itemId))
-            _historyCache[itemId] = await ItemSvc.GetHistoryAsync(itemId);
+    }
+
+    private async Task OpenHistoryDialog(GeneralItem item)
+    {
+        var parameters = new DialogParameters<ItemHistoryDialog> { { x => x.Item, item } };
+        await DialogService.ShowAsync<ItemHistoryDialog>($"Histórico — {item.Name}", parameters);
     }
 
     private async Task OpenAddDialog() => await OpenItemFormDialog(new GeneralItem());
@@ -231,10 +203,10 @@ else
     private async Task OpenEditDialog(GeneralItem item) =>
         await OpenItemFormDialog(new GeneralItem
         {
-            Id = item.Id,
-            Name = item.Name,
+            Id            = item.Id,
+            Name          = item.Name,
             TotalQuantity = item.TotalQuantity,
-            Description = item.Description
+            Description   = item.Description
         });
 
     private async Task OpenItemFormDialog(GeneralItem item)
@@ -242,7 +214,9 @@ else
         var parameters = new DialogParameters<ItemTypeFormDialog> { { x => x.Item, item } };
         var dialog = await DialogService.ShowAsync<ItemTypeFormDialog>(
             item.Id == 0 ? "Adicionar Artigo" : "Editar Artigo", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false }) await LoadItems();
+        if ((await dialog.Result) is { Canceled: false }) await LoadItems();
     }
+
+    private static string SpaceLabel(ReservationSpace space) =>
+        space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
 }

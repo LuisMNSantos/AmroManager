@@ -1,0 +1,75 @@
+@inject GeneralItemService ItemSvc
+
+<MudDialog Style="min-width:480px;">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Histórico — @Item.Name</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_history.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Ainda sem histórico de empréstimos.</MudText>
+        }
+        else
+        {
+            <MudList T="GeneralItemLoan" Dense="true">
+                @foreach (var loan in _history)
+                {
+                    <MudListItem Style="@(loan.IsReturned ? "opacity:0.65" : "")">
+                        <div class="d-flex align-center justify-space-between gap-2">
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    <b>Quarto @loan.RoomNumber</b> · por @loan.GivenBy
+                                    @if (loan.Quantity > 1)
+                                    {
+                                        <span> · @loan.Quantity unid.</span>
+                                    }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Emprestado: @loan.LoanDate.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                                    @if (loan.IsReturned)
+                                    {
+                                        <span> · Devolvido: @loan.ReturnDate!.Value.ToLocalTime().ToString("dd/MM/yy HH:mm")</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(loan.Notes))
+                                    {
+                                        <span> · @loan.Notes</span>
+                                    }
+                                </MudText>
+                            </div>
+                            @if (loan.IsReturned)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">Devolvido</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Em Empréstimo</MudChip>
+                            }
+                        </div>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Fechar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public GeneralItem Item { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<GeneralItemLoan> _history = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _history = await ItemSvc.GetHistoryAsync(Item.Id);
+        _loading = false;
+    }
+}
