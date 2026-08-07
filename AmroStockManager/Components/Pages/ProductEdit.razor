@@ -7,22 +7,22 @@
 <div class="d-flex align-center gap-3 mb-4">
     <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
                    OnClick="@(() => Nav.NavigateTo("/products"))" />
-    <MudText Typo="Typo.h4">@(Id == null ? "Add Product" : "Edit Product")</MudText>
+    <MudText Typo="Typo.h4">@(Id == null ? "Adicionar Produto" : "Editar Produto")</MudText>
 </div>
 
 <MudPaper Elevation="2" Class="pa-6">
     <MudForm @ref="_form" @bind-IsValid="_isValid">
-        <MudText Typo="Typo.h6" Class="mb-3">Product Details</MudText>
+        <MudText Typo="Typo.h6" Class="mb-3">Detalhes do Produto</MudText>
         <MudGrid>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_product.Name"
-                              Label="Product Name"
+                              Label="Nome do Produto"
                               Required="true"
-                              RequiredError="Name is required"
+                              RequiredError="O nome é obrigatório"
                               Immediate="true" />
             </MudItem>
             <MudItem xs="12" sm="3">
-                <MudSelect T="string" @bind-Value="_product.Type" Label="Type" Required="true" RequiredError="Type is required">
+                <MudSelect T="string" @bind-Value="_product.Type" Label="Tipo" Required="true" RequiredError="O tipo é obrigatório">
                     @foreach (var t in ProductService.ProductTypes)
                     {
                         <MudSelectItem T="string" Value="@t">@t</MudSelectItem>
@@ -30,7 +30,7 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="3">
-                <MudTextField @bind-Value="_product.Color" Label="Color" />
+                <MudTextField @bind-Value="_product.Color" Label="Cor" />
             </MudItem>
             <MudItem xs="12" sm="4">
                 <MudTextField @bind-Value="_product.SKU" Label="SKU" />
@@ -40,28 +40,28 @@
         <MudDivider Class="my-5" />
 
         <div class="d-flex align-center justify-space-between mb-3">
-            <MudText Typo="Typo.h6">Size Variants</MudText>
+            <MudText Typo="Typo.h6">Variantes de Tamanho</MudText>
             <MudButton StartIcon="@Icons.Material.Filled.Add"
                        Variant="Variant.Outlined"
                        Size="Size.Small"
                        OnClick="AddVariant">
-                Add Size
+                Adicionar Tamanho
             </MudButton>
         </div>
 
         @if (_product.SizeVariants.Count == 0)
         {
             <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                No sizes defined yet. Click "Add Size" to add stock per size.
+                Nenhum tamanho definido. Clique em "Adicionar Tamanho" para adicionar stock por tamanho.
             </MudAlert>
         }
         else
         {
             <MudTable Items="@_product.SizeVariants" Dense="true" Hover="false" Elevation="0">
                 <HeaderContent>
-                    <MudTh Style="width:150px">Size</MudTh>
-                    <MudTh Style="width:160px">Initial Qty</MudTh>
-                    <MudTh Style="width:200px">Low Stock Alert (min)</MudTh>
+                    <MudTh Style="width:150px">Tamanho</MudTh>
+                    <MudTh Style="width:160px">Qtd. Inicial</MudTh>
+                    <MudTh Style="width:220px">Alerta de Stock (mín.)</MudTh>
                     <MudTh Style="width:60px"></MudTh>
                 </HeaderContent>
                 <RowTemplate>
@@ -81,13 +81,13 @@
                         }
                         else
                         {
-                            <MudText Class="pl-2">@context.Quantity <MudText Typo="Typo.caption" Color="Color.Secondary">(adjust on Products page)</MudText></MudText>
+                            <MudText Class="pl-2">@context.Quantity <MudText Typo="Typo.caption" Color="Color.Secondary">(ajustar na página de Produtos)</MudText></MudText>
                         }
                     </MudTd>
                     <MudTd>
                         <MudNumericField T="int" @bind-Value="context.MinStockAlert"
                                         Min="0" Margin="Margin.Dense"
-                                        HelperText="0 = no alert" />
+                                        HelperText="0 = sem alerta" />
                     </MudTd>
                     <MudTd>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
@@ -106,11 +106,11 @@
                        Color="Color.Primary"
                        OnClick="Save"
                        Disabled="!_isValid">
-                @(Id == null ? "Create Product" : "Save Changes")
+                @(Id == null ? "Criar Produto" : "Guardar Alterações")
             </MudButton>
             <MudButton Variant="Variant.Text"
                        OnClick="@(() => Nav.NavigateTo("/products"))">
-                Cancel
+                Cancelar
             </MudButton>
         </div>
     </MudForm>
@@ -157,7 +157,7 @@
         else
             await ProductSvc.CreateAsync(_product);
 
-        Snackbar.Add(Id.HasValue ? "Product updated!" : "Product created!", Severity.Success);
+        Snackbar.Add(Id.HasValue ? "Produto atualizado!" : "Produto criado!", Severity.Success);
         Nav.NavigateTo("/products");
     }
 }

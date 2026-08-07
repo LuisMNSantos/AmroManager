@@ -4,49 +4,49 @@
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">
-            Adjust Stock — @VariantItem.Product?.Name @VariantItem.Size
+            Ajustar Stock — @VariantItem.Product?.Name @VariantItem.Size
         </MudText>
     </TitleContent>
     <DialogContent>
         <MudGrid>
             <MudItem xs="12">
-                <MudSelect T="MovementReason" @bind-Value="_reason" Label="Reason" FullWidth="true">
-                    <MudSelectItem Value="MovementReason.Sale">Sale / Loan</MudSelectItem>
-                    <MudSelectItem Value="MovementReason.Restock">Restock / Return</MudSelectItem>
-                    <MudSelectItem Value="MovementReason.Adjustment">Manual Adjustment</MudSelectItem>
+                <MudSelect T="MovementReason" @bind-Value="_reason" Label="Motivo" FullWidth="true">
+                    <MudSelectItem Value="MovementReason.Sale">Venda / Saída</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Restock">Reposição / Devolução</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Adjustment">Ajuste Manual</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem xs="12">
                 <MudNumericField T="int"
                                  @bind-Value="_amount"
-                                 Label="Change Amount (negative to reduce)"
+                                 Label="Quantidade (negativo para reduzir)"
                                  FullWidth="true" />
             </MudItem>
             @if (_reason == MovementReason.Sale || _reason == MovementReason.Trade)
             {
                 <MudItem xs="12">
                     <MudTextField @bind-Value="_roomNumber"
-                                  Label="Room Number"
+                                  Label="Número do Quarto"
                                   Required="true"
-                                  RequiredError="Room number is required for a sale"
+                                  RequiredError="Número do quarto obrigatório para uma venda"
                                   Immediate="true"
                                   FullWidth="true"
-                                  Placeholder="e.g. 405, 404A" />
+                                  Placeholder="ex: 405, 404A" />
                 </MudItem>
             }
             <MudItem xs="12">
-                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+                <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
             </MudItem>
             <MudItem xs="12">
                 <MudAlert Severity="Severity.Info" Dense="true">
-                    Current: <b>@VariantItem.Quantity</b> → New: <b>@Math.Max(0, VariantItem.Quantity + _amount)</b>
+                    Atual: <b>@VariantItem.Quantity</b> → Novo: <b>@Math.Max(0, VariantItem.Quantity + _amount)</b>
                 </MudAlert>
             </MudItem>
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Apply">Apply</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Apply">Aplicar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -71,18 +71,18 @@
     {
         if (_amount == 0)
         {
-            Snackbar.Add("Amount cannot be zero.", Severity.Warning);
+            Snackbar.Add("A quantidade não pode ser zero.", Severity.Warning);
             return;
         }
         if ((_reason == MovementReason.Sale || _reason == MovementReason.Trade)
             && string.IsNullOrWhiteSpace(_roomNumber))
         {
-            Snackbar.Add("Room number is required for a sale.", Severity.Warning);
+            Snackbar.Add("Número do quarto obrigatório para uma venda.", Severity.Warning);
             return;
         }
 
         await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, _roomNumber?.Trim());
-        Snackbar.Add($"Stock updated for {VariantItem.Size}.", Severity.Success);
+        Snackbar.Add($"Stock atualizado para {VariantItem.Size}.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
 

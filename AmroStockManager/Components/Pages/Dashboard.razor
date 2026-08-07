@@ -3,20 +3,20 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-6">Dashboard</MudText>
+<MudText Typo="Typo.h4" Class="mb-6">Painel</MudText>
 
 <MudGrid Spacing="3" Class="mb-6">
     <MudItem xs="12" sm="4">
         <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
             <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Total Products</MudText>
+            <MudText Typo="Typo.overline" Color="Color.Secondary">Total de Produtos</MudText>
             <MudText Typo="Typo.h3"><b>@_stats.totalProducts</b></MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="4">
         <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
             <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Total Units in Stock</MudText>
+            <MudText Typo="Typo.overline" Color="Color.Secondary">Total em Stock</MudText>
             <MudText Typo="Typo.h3"><b>@_stats.totalUnits</b></MudText>
         </MudPaper>
     </MudItem>
@@ -26,7 +26,7 @@
             <MudIcon Icon="@Icons.Material.Filled.Warning"
                      Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Primary)"
                      Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Low Stock Alerts</MudText>
+            <MudText Typo="Typo.overline" Color="Color.Secondary">Alertas de Stock</MudText>
             <MudText Typo="Typo.h3" Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Default)">
                 <b>@_stats.lowStockCount</b>
             </MudText>
@@ -37,23 +37,23 @@
 @if (_lowStockVariants.Count > 0)
 {
     <MudAlert Severity="Severity.Warning" Class="mb-4" Icon="@Icons.Material.Filled.Warning">
-        <b>@_lowStockVariants.Count</b> size variant(s) are running low on stock.
+        <b>@_lowStockVariants.Count</b> variante(s) de tamanho com stock baixo.
         <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small"
                    OnClick="@(() => Nav.NavigateTo("/products?lowstock=1"))" Class="ml-2">
-            View All
+            Ver Todos
         </MudButton>
     </MudAlert>
 
     <MudTable Items="_lowStockVariants" Dense="true" Hover="true" Elevation="1" Class="mb-6">
         <ToolBarContent>
-            <MudText Typo="Typo.h6">Low Stock Items</MudText>
+            <MudText Typo="Typo.h6">Artigos com Stock Baixo</MudText>
         </ToolBarContent>
         <HeaderContent>
-            <MudTh>Product</MudTh>
-            <MudTh>Type</MudTh>
-            <MudTh>Size</MudTh>
-            <MudTh>Qty</MudTh>
-            <MudTh>Threshold</MudTh>
+            <MudTh>Produto</MudTh>
+            <MudTh>Tipo</MudTh>
+            <MudTh>Tamanho</MudTh>
+            <MudTh>Qtd.</MudTh>
+            <MudTh>Mínimo</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd>@context.Product.Name</MudTd>
@@ -66,29 +66,29 @@
 }
 
 <div class="d-flex align-center justify-space-between mb-3">
-    <MudText Typo="Typo.h6">Recent Stock Movements</MudText>
+    <MudText Typo="Typo.h6">Movimentos Recentes de Stock</MudText>
     <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
                Variant="Variant.Outlined" Size="Size.Small"
                OnClick="ExportCsv">
-        Export CSV
+        Exportar CSV
     </MudButton>
 </div>
 
 @if (_movements.Count == 0)
 {
-    <MudText Color="Color.Secondary" Class="ml-2">No stock movements yet.</MudText>
+    <MudText Color="Color.Secondary" Class="ml-2">Ainda sem movimentos de stock.</MudText>
 }
 else
 {
     <MudTable Items="_movements" Dense="true" Hover="true" Elevation="1">
         <HeaderContent>
-            <MudTh>Date</MudTh>
-            <MudTh>Product</MudTh>
-            <MudTh>Size</MudTh>
-            <MudTh>Room</MudTh>
-            <MudTh>Change</MudTh>
-            <MudTh>Reason</MudTh>
-            <MudTh>Notes</MudTh>
+            <MudTh>Data</MudTh>
+            <MudTh>Produto</MudTh>
+            <MudTh>Tamanho</MudTh>
+            <MudTh>Quarto</MudTh>
+            <MudTh>Movimento</MudTh>
+            <MudTh>Motivo</MudTh>
+            <MudTh>Notas</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd>@context.Date.ToLocalTime().ToString("dd/MM/yy HH:mm")</MudTd>
@@ -107,7 +107,7 @@ else
                     @(context.ChangeAmount >= 0 ? "+" : "")@context.ChangeAmount
                 </MudChip>
             </MudTd>
-            <MudTd>@context.Reason</MudTd>
+            <MudTd>@TraducirMotivo(context.Reason)</MudTd>
             <MudTd>@context.Notes</MudTd>
         </RowTemplate>
     </MudTable>
@@ -130,6 +130,15 @@ else
         _lowStockVariants = await StockSvc.GetLowStockVariantsAsync();
     }
 
+    private static string TraducirMotivo(MovementReason r) => r switch
+    {
+        MovementReason.Sale       => "Venda",
+        MovementReason.Restock    => "Reposição",
+        MovementReason.Adjustment => "Ajuste",
+        MovementReason.Trade      => "Troca",
+        _                         => r.ToString()
+    };
+
     private async Task ExportCsv()
     {
         try
@@ -138,11 +147,11 @@ else
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 $"stock_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
             await StockSvc.ExportToCsvAsync(path);
-            Snackbar.Add($"Exported to: {path}", Severity.Success);
+            Snackbar.Add($"Exportado para: {path}", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Erro na exportação: {ex.Message}", Severity.Error);
         }
     }
 }

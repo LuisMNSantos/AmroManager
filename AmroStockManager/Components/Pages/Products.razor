@@ -6,19 +6,19 @@
 @inject ISnackbar Snackbar
 
 <div class="d-flex align-center justify-space-between mb-4">
-    <MudText Typo="Typo.h4">Products</MudText>
+    <MudText Typo="Typo.h4">Produtos</MudText>
     <div class="d-flex gap-2">
         <MudButton StartIcon="@Icons.Material.Filled.SwapHoriz"
                    Variant="Variant.Outlined"
                    Color="Color.Secondary"
                    OnClick="OpenTradeDialog">
-            Trade
+            Troca
         </MudButton>
         <MudButton StartIcon="@Icons.Material.Filled.Add"
                    Variant="Variant.Filled"
                    Color="Color.Primary"
                    OnClick="@(() => Nav.NavigateTo("/products/new"))">
-            Add Product
+            Adicionar Produto
         </MudButton>
     </div>
 </div>
@@ -27,7 +27,7 @@
     <MudGrid>
         <MudItem xs="12" sm="5">
             <MudTextField @bind-Value="_search"
-                          Label="Search by name, color or SKU"
+                          Label="Pesquisar por nome, cor ou SKU"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Search"
                           Immediate="true"
@@ -35,8 +35,8 @@
                           OnDebounceIntervalElapsed="LoadProducts" />
         </MudItem>
         <MudItem xs="12" sm="4">
-            <MudSelect T="string" @bind-Value="_typeFilter" Label="Type" SelectedValuesChanged="@((_) => LoadProducts())">
-                <MudSelectItem T="string" Value="@("All")">All Types</MudSelectItem>
+            <MudSelect T="string" @bind-Value="_typeFilter" Label="Tipo" SelectedValuesChanged="@((_) => LoadProducts())">
+                <MudSelectItem T="string" Value="@("All")">Todos os Tipos</MudSelectItem>
                 @foreach (var t in ProductService.ProductTypes)
                 {
                     <MudSelectItem T="string" Value="@t">@t</MudSelectItem>
@@ -44,7 +44,7 @@
             </MudSelect>
         </MudItem>
         <MudItem xs="12" sm="3">
-            <MudSwitch T="bool" Value="_lowStockOnly" Label="Low Stock Only" Color="Color.Warning"
+            <MudSwitch T="bool" Value="_lowStockOnly" Label="Apenas Stock Baixo" Color="Color.Warning"
                        ValueChanged="@((bool v) => { _lowStockOnly = v; _ = LoadProducts(); })" />
         </MudItem>
     </MudGrid>
@@ -57,7 +57,7 @@
 else if (_products.Count == 0)
 {
     <MudAlert Severity="Severity.Info">
-        No products found. <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/products/new"))">Add your first product.</MudButton>
+        Nenhum produto encontrado. <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/products/new"))">Adicione o seu primeiro produto.</MudButton>
     </MudAlert>
 }
 else
@@ -72,7 +72,7 @@ else
                         @if (product.HasLowStock)
                         {
                             <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">
-                                Low Stock
+                                Stock Baixo
                             </MudChip>
                         }
                     </div>
@@ -80,17 +80,17 @@ else
                         @product.Type
                         @if (!string.IsNullOrEmpty(product.Color)) { <span> · @product.Color</span> }
                         @if (!string.IsNullOrEmpty(product.SKU)) { <span> · SKU: @product.SKU</span> }
-                        <span> · Total: @product.TotalStock units</span>
+                        <span> · Total: @product.TotalStock un.</span>
                     </MudText>
                 </CardHeaderContent>
                 <CardHeaderActions>
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    OnClick="@(() => Nav.NavigateTo($"/products/{product.Id}/edit"))"
-                                   Tooltip="Edit product" />
+                                   Tooltip="Editar produto" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                    Color="Color.Error"
                                    OnClick="@(() => DeleteProduct(product))"
-                                   Tooltip="Delete product" />
+                                   Tooltip="Eliminar produto" />
                 </CardHeaderActions>
             </MudCardHeader>
 
@@ -100,9 +100,9 @@ else
                     <MudTable Items="@product.SizeVariants.OrderBy(sv => ProductService.SizeOrder(sv.Size))"
                               Dense="true" Hover="false" Elevation="0">
                         <HeaderContent>
-                            <MudTh>Size</MudTh>
-                            <MudTh Style="text-align:center; width:80px;">Qty</MudTh>
-                            <MudTh>Actions</MudTh>
+                            <MudTh>Tamanho</MudTh>
+                            <MudTh Style="text-align:center; width:80px;">Qtd.</MudTh>
+                            <MudTh>Ações</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd>
@@ -128,17 +128,17 @@ else
                                                Size="Size.Small"
                                                OnClick="@(() => OpenSaleDialog(context))"
                                                Disabled="@(context.Quantity == 0)">
-                                        − Sale
+                                        − Saída
                                     </MudButton>
                                     <MudButton Variant="Variant.Outlined"
                                                Color="Color.Success"
                                                Size="Size.Small"
                                                OnClick="@(() => QuickRestock(context))">
-                                        + Restock
+                                        + Entrada
                                     </MudButton>
                                     <MudIconButton Icon="@Icons.Material.Filled.Tune"
                                                    Size="Size.Small"
-                                                   Tooltip="Custom adjustment"
+                                                   Tooltip="Ajuste personalizado"
                                                    OnClick="@(() => OpenAdjustDialog(context))" />
                                 </div>
                             </MudTd>
@@ -149,10 +149,10 @@ else
             else
             {
                 <MudCardContent Class="pt-0">
-                    <MudText Color="Color.Secondary">No size variants defined.
+                    <MudText Color="Color.Secondary">Sem tamanhos definidos.
                         <MudButton Variant="Variant.Text" Size="Size.Small"
                                    OnClick="@(() => Nav.NavigateTo($"/products/{product.Id}/edit"))">
-                            Add sizes
+                            Adicionar tamanhos
                         </MudButton>
                     </MudText>
                 </MudCardContent>
@@ -185,7 +185,7 @@ else
             { x => x.DefaultReason, MovementReason.Sale },
             { x => x.DefaultAmount, -1 }
         };
-        var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Record Sale / Loan", parameters);
+        var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Registar Saída", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadProducts();
     }
@@ -195,7 +195,7 @@ else
         await StockSvc.AdjustStockAsync(variant.Id, 1, MovementReason.Restock);
         variant.Quantity += 1;
         StateHasChanged();
-        Snackbar.Add($"{variant.Size} restocked.", Severity.Success);
+        Snackbar.Add($"{variant.Size} reposto.", Severity.Success);
     }
 
     private async Task OpenAdjustDialog(SizeVariant variant)
@@ -204,7 +204,7 @@ else
         {
             { x => x.VariantItem, variant }
         };
-        var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Adjust Stock", parameters);
+        var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Ajustar Stock", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadProducts();
     }
@@ -215,7 +215,7 @@ else
         {
             { x => x.AllProducts, _products }
         };
-        var dialog = await DialogService.ShowAsync<TradeDialog>("Trade Items", parameters,
+        var dialog = await DialogService.ShowAsync<TradeDialog>("Troca de Artigos", parameters,
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadProducts();
@@ -224,16 +224,16 @@ else
     private async Task DeleteProduct(Product product)
     {
         var confirmed = await DialogService.ShowMessageBox(
-            "Delete Product",
-            $"Delete '{product.Name}' and all its stock data?",
-            yesText: "Delete",
-            cancelText: "Cancel");
+            "Eliminar Produto",
+            $"Eliminar '{product.Name}' e todos os dados de stock associados?",
+            yesText: "Eliminar",
+            cancelText: "Cancelar");
 
         if (confirmed == true)
         {
             await ProductSvc.DeleteAsync(product.Id);
             _products.Remove(product);
-            Snackbar.Add($"'{product.Name}' deleted.", Severity.Info);
+            Snackbar.Add($"'{product.Name}' eliminado.", Severity.Info);
             StateHasChanged();
         }
     }

@@ -15,22 +15,41 @@
         <MudSpacer />
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always">
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always"
+               Style="display:flex; flex-direction:column;">
         <MudDrawerHeader>
-            <MudText Typo="Typo.subtitle1" Class="mt-1"><b>Navigation</b></MudText>
+            <MudText Typo="Typo.subtitle1" Class="mt-1"><b>Navegação</b></MudText>
         </MudDrawerHeader>
-        <MudNavMenu>
-            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
-                Dashboard
-            </MudNavLink>
-            <MudNavLink Href="/products" Icon="@Icons.Material.Filled.Inventory2">
-                Products
-            </MudNavLink>
-            <MudDivider Class="my-2" />
-            <MudNavLink Href="/general-items" Icon="@Icons.Material.Filled.Category">
-                General Items
-            </MudNavLink>
-        </MudNavMenu>
+
+        <div style="flex:1; overflow-y:auto;">
+            <MudNavMenu>
+                <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" Match="NavLinkMatch.All">
+                    Painel
+                </MudNavLink>
+                <MudNavLink Href="/products" Icon="@Icons.Material.Filled.Inventory2">
+                    Produtos
+                </MudNavLink>
+                <MudDivider Class="my-2" />
+                <MudNavLink Href="/general-items" Icon="@Icons.Material.Filled.Category">
+                    Artigos Gerais
+                </MudNavLink>
+            </MudNavMenu>
+        </div>
+
+        <div style="padding: 14px 16px 18px; border-top: 1px solid rgba(0,0,0,0.10);">
+            <div class="d-flex align-center gap-2 mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.Inventory" Color="Color.Primary" Size="Size.Small" />
+                <MudText Typo="Typo.caption" Style="font-weight:700; letter-spacing:0.04em;">
+                    AMRO Stock Manager
+                </MudText>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block" Style="padding-left:2px;">
+                Versão 1.0 &nbsp;·&nbsp; 2026
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1" Style="padding-left:2px;">
+                Desenvolvido por <span style="font-weight:600; color:var(--mud-palette-primary);">Luis Santos</span>
+            </MudText>
+        </div>
     </MudDrawer>
 
     <MudMainContent>

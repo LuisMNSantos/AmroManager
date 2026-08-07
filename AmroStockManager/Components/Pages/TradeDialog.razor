@@ -3,40 +3,40 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Trade Items</MudText>
+        <MudText Typo="Typo.h6">Troca de Artigos</MudText>
     </TitleContent>
     <DialogContent>
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            The outgoing item leaves stock (must have qty &gt; 0). The incoming item returns to stock.
+            O artigo que sai abandona o stock (deve ter qtd. &gt; 0). O artigo que entra volta ao stock.
         </MudText>
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">Going OUT ↑</MudText>
+                <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">A Sair ↑</MudText>
                 <MudSelect T="int" Value="_outProductId" ValueChanged="OnOutProductChanged"
-                           Label="Product" FullWidth="true">
+                           Label="Produto" FullWidth="true">
                     @foreach (var p in AllProducts.Where(p => p.SizeVariants.Any(sv => sv.Quantity > 0)))
                     {
                         <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="_outVariantId" Label="Size" FullWidth="true" Class="mt-2">
+                <MudSelect T="int" @bind-Value="_outVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
                     @foreach (var sv in _outVariants)
                     {
-                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size — @sv.Quantity in stock</MudSelectItem>
+                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size — @sv.Quantity em stock</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
 
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.subtitle2" Color="Color.Success" Class="mb-1">Coming IN ↓</MudText>
+                <MudText Typo="Typo.subtitle2" Color="Color.Success" Class="mb-1">A Entrar ↓</MudText>
                 <MudSelect T="int" Value="_inProductId" ValueChanged="OnInProductChanged"
-                           Label="Product" FullWidth="true">
+                           Label="Produto" FullWidth="true">
                     @foreach (var p in AllProducts)
                     {
                         <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="_inVariantId" Label="Size" FullWidth="true" Class="mt-2">
+                <MudSelect T="int" @bind-Value="_inVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
                     @foreach (var sv in _inVariants)
                     {
                         <MudSelectItem T="int" Value="@sv.Id">@sv.Size (stock: @sv.Quantity)</MudSelectItem>
@@ -46,21 +46,21 @@
 
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_roomNumber"
-                              Label="Room Number"
+                              Label="Número do Quarto"
                               Required="true"
-                              RequiredError="Required"
-                              Placeholder="e.g. 405, 404A"
+                              RequiredError="Obrigatório"
+                              Placeholder="ex: 405, 404A"
                               FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+                <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
             </MudItem>
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ExecuteTrade">
-            Confirm Trade
+            Confirmar Troca
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -118,28 +118,28 @@
     {
         if (string.IsNullOrWhiteSpace(_roomNumber))
         {
-            Snackbar.Add("Room number is required.", Severity.Warning);
+            Snackbar.Add("Número do quarto obrigatório.", Severity.Warning);
             return;
         }
         if (_outVariantId == 0 || _inVariantId == 0)
         {
-            Snackbar.Add("Please select both items.", Severity.Warning);
+            Snackbar.Add("Selecione ambos os artigos.", Severity.Warning);
             return;
         }
         if (_outVariantId == _inVariantId)
         {
-            Snackbar.Add("Outgoing and incoming items must be different.", Severity.Warning);
+            Snackbar.Add("Os artigos de saída e entrada devem ser diferentes.", Severity.Warning);
             return;
         }
 
         var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, _roomNumber.Trim(), _notes);
         if (!ok)
         {
-            Snackbar.Add("Outgoing item is out of stock.", Severity.Error);
+            Snackbar.Add("O artigo de saída está sem stock.", Severity.Error);
             return;
         }
 
-        Snackbar.Add("Trade recorded successfully.", Severity.Success);
+        Snackbar.Add("Troca registada com sucesso.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
 

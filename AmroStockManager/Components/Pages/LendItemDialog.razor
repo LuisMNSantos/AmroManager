@@ -3,40 +3,40 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Lend — @ItemType.Name</MudText>
+        <MudText Typo="Typo.h6">Emprestar — @ItemType.Name</MudText>
     </TitleContent>
     <DialogContent>
         <MudGrid>
             <MudItem xs="12">
                 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-                    Available: <b>@ItemType.AvailableCount</b> / @ItemType.TotalQuantity total
+                    Disponível: <b>@ItemType.AvailableCount</b> / @ItemType.TotalQuantity no total
                 </MudAlert>
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_roomNumber"
-                              Label="Room Number"
+                              Label="Número do Quarto"
                               Required="true"
-                              RequiredError="Required"
-                              Placeholder="e.g. 405, 404A"
+                              RequiredError="Obrigatório"
+                              Placeholder="ex: 405, 404A"
                               Immediate="true"
                               FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_givenBy"
-                              Label="Given By (staff / person)"
+                              Label="Entregue Por (funcionário / pessoa)"
                               Required="true"
-                              RequiredError="Required"
+                              RequiredError="Obrigatório"
                               Immediate="true"
                               FullWidth="true" />
             </MudItem>
             <MudItem xs="12">
-                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+                <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
             </MudItem>
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">Lend</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">Emprestar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -52,16 +52,16 @@
     {
         if (string.IsNullOrWhiteSpace(_roomNumber) || string.IsNullOrWhiteSpace(_givenBy))
         {
-            Snackbar.Add("Room number and given-by are required.", Severity.Warning);
+            Snackbar.Add("Número do quarto e entregue por são obrigatórios.", Severity.Warning);
             return;
         }
         var ok = await ItemSvc.LendItemAsync(ItemType.Id, _roomNumber, _givenBy, _notes);
         if (!ok)
         {
-            Snackbar.Add("No units available to lend.", Severity.Error);
+            Snackbar.Add("Sem unidades disponíveis para emprestar.", Severity.Error);
             return;
         }
-        Snackbar.Add($"{ItemType.Name} lent to room {_roomNumber}.", Severity.Success);
+        Snackbar.Add($"{ItemType.Name} emprestado ao quarto {_roomNumber}.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
 
