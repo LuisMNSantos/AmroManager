@@ -37,6 +37,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ReservationService>();
         builder.Services.AddSingleton<DeliveryService>();
         builder.Services.AddSingleton<MaintenanceService>();
+        builder.Services.AddSingleton<BackupService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -45,6 +46,15 @@ public static class MauiProgram
 
         var app = builder.Build();
         InitialiseDatabase(app);
+
+        // Startup backup — runs in background so it doesn't delay app launch
+        var backupSvc = app.Services.GetRequiredService<BackupService>();
+        _ = Task.Run(async () =>
+        {
+            try { await backupSvc.RunBackupAsync(); }
+            catch { /* Never block startup due to backup failure */ }
+        });
+
         return app;
     }
 
