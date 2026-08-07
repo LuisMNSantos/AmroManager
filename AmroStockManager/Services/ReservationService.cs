@@ -9,6 +9,29 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
     private const string KitchenCardName = "Cartão de Acesso – Cozinha";
     private const string CinemaCardName  = "Cartão de Acesso – Cinema";
 
+    // Returns a count of non-cancelled reservations per day for the given month.
+    public async Task<Dictionary<int, int>> GetCountsByMonthAsync(int year, int month)
+    {
+        var utcStart = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
+        var utcEnd   = utcStart.AddMonths(1);
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var reservations = await db.Reservations
+            .Where(r => !r.IsCancelled && r.StartTime < utcEnd && r.EndTime > utcStart)
+            .Select(r => new { r.StartTime, r.EndTime })
+            .ToListAsync();
+
+        var counts = new Dictionary<int, int>();
+        int daysInMonth = DateTime.DaysInMonth(year, month);
+        for (int day = 1; day <= daysInMonth; day++)
+        {
+            var dayStart = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
+            var dayEnd   = dayStart.AddDays(1);
+            counts[day]  = reservations.Count(r => r.StartTime < dayEnd && r.EndTime > dayStart);
+        }
+        return counts;
+    }
+
     // Returns all non-cancelled reservations that overlap with the given local date.
     public async Task<List<Reservation>> GetByDateAsync(DateTime localDate)
     {

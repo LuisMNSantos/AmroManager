@@ -4,121 +4,300 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
+<style>
+    .cal-cell       { transition: background 0.12s; }
+    .cal-cell:hover { background: rgba(21,101,192,0.07) !important; }
+    .cal-cell-today:hover { background: rgba(21,101,192,0.18) !important; }
+</style>
+
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Calendário de Reservas</MudText>
-    <MudButton StartIcon="@Icons.Material.Filled.Add"
-               Variant="Variant.Filled"
-               Color="Color.Primary"
-               OnClick="@(() => OpenAddDialog(_selectedDate))">
-        Nova Reserva
-    </MudButton>
+    @if (_view == "day")
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="@(() => OpenAddDialog(_selectedDate))">
+            Nova Reserva
+        </MudButton>
+    }
 </div>
 
-<MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-2 flex-wrap">
-    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PrevDay" />
-    <MudText Typo="Typo.h6" Style="min-width:260px; text-align:center;">
-        @_selectedDate.ToString("dddd, d 'de' MMMM yyyy", _ptCulture)
-    </MudText>
-    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextDay" />
-    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="GoToToday">Hoje</MudButton>
-</MudPaper>
-
-@if (_loading)
+@if (_view == "month")
 {
-    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    <!-- Month navigation bar -->
+    <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-2">
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PrevMonth" />
+        <MudText Typo="Typo.h6" Style="flex:1; text-align:center;">
+            @_currentMonth.ToString("MMMM yyyy", _ptCulture)
+        </MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="GoToCurrentMonth">Hoje</MudButton>
+    </MudPaper>
+
+    @if (_loadingMonth)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="overflow-hidden">
+            <!-- Weekday headers -->
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid rgba(0,0,0,0.12);">
+                @foreach (var h in new[] { "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom" })
+                {
+                    <div style="padding:8px 0; text-align:center; background:#f5f5f5;">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary"
+                                 Style="font-weight:700; letter-spacing:0.04em;">@h</MudText>
+                    </div>
+                }
+            </div>
+
+            <!-- Day cells -->
+            <div style="display:grid; grid-template-columns:repeat(7,1fr);">
+                @for (int i = 0; i < _calendarCells.Count; i++)
+                {
+                    var cell = _calendarCells[i];
+                    bool inMonth = cell.Date.Month == _currentMonth.Month;
+                    bool isToday = cell.Date == DateTime.Today;
+                    bool isLastCol = (i % 7) == 6;
+                    bool isLastRow = i >= _calendarCells.Count - 7;
+
+                    string bg = isToday ? "rgba(21,101,192,0.10)" : inMonth ? "transparent" : "#fafafa";
+                    string boxShadow = isToday ? "inset 0 0 0 2px #1565C0" : "none";
+                    string borderRight = isLastCol ? "none" : "1px solid rgba(0,0,0,0.08)";
+                    string borderBottom = isLastRow ? "none" : "1px solid rgba(0,0,0,0.08)";
+                    string dayColor = !inMonth ? "#bdbdbd" : isToday ? "#1565C0" : "inherit";
+                    string dayWeight = isToday ? "700" : "400";
+
+                    <div @onclick="@(() => SelectDay(cell.Date))"
+                         class="@(isToday ? "cal-cell-today" : "cal-cell")"
+                         style="min-height:80px; padding:8px 10px; background:@bg; box-shadow:@boxShadow;
+                                border-right:@borderRight; border-bottom:@borderBottom;
+                                cursor:pointer; display:flex; flex-direction:column;">
+                        <span style="font-size:0.875rem; font-weight:@dayWeight; color:@dayColor;">
+                            @cell.Date.Day
+                        </span>
+                        @if (inMonth && cell.Count > 0)
+                        {
+                            <div style="margin-top:auto;">
+                                <span style="@BadgeStyle(cell.Count)">@cell.Count</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </MudPaper>
+
+        <div class="d-flex align-center gap-4 mt-3" style="padding-left:4px;">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Reservas:</MudText>
+            <div class="d-flex align-center gap-1">
+                <span style="@BadgeStyle(1)">1</span>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">1</MudText>
+            </div>
+            <div class="d-flex align-center gap-1">
+                <span style="@BadgeStyle(2)">2</span>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">2</MudText>
+            </div>
+            <div class="d-flex align-center gap-1">
+                <span style="@BadgeStyle(3)">3+</span>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">3+</MudText>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">
+                · Clique num dia para ver e gerir reservas
+            </MudText>
+        </div>
+    }
 }
 else
 {
-    <MudGrid Spacing="3">
+    <!-- Day view navigation -->
+    <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-2 flex-wrap">
+        <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" OnClick="BackToMonth" />
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PrevDay" />
+        <MudText Typo="Typo.h6" Style="flex:1; text-align:center;">
+            @_selectedDate.ToString("dddd, d 'de' MMMM yyyy", _ptCulture)
+        </MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextDay" />
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="GoToTodayDay">Hoje</MudButton>
+    </MudPaper>
 
-        <!-- Cozinha MasterChef -->
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2" Class="pa-4" Style="min-height:220px;">
-                <div class="d-flex align-center mb-3">
-                    <MudIcon Icon="@Icons.Material.Filled.Restaurant" Color="Color.Primary" Class="mr-2" />
-                    <MudText Typo="Typo.h6">Cozinha MasterChef</MudText>
-                    <MudSpacer />
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">08:00 – 22:00</MudText>
-                </div>
+    @if (_loadingDay)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Spacing="3">
 
-                @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cozinha))
-                {
-                    var r = res;
-                    <ReservationCard Reservation="r"
-                                     OnActivate="ActivateReservation"
-                                     OnComplete="CompleteReservation"
-                                     OnCancel="CancelReservation" />
-                }
+            <!-- Cozinha MasterChef -->
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="2" Class="pa-4" Style="min-height:220px;">
+                    <div class="d-flex align-center mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Restaurant" Color="Color.Primary" Class="mr-2" />
+                        <MudText Typo="Typo.h6">Cozinha MasterChef</MudText>
+                        <MudSpacer />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">08:00 – 22:00</MudText>
+                    </div>
 
-                @if (!_reservations.Any(r => r.Space == ReservationSpace.Cozinha))
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                        Sem reservas para este dia.
-                    </MudText>
-                }
+                    @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cozinha))
+                    {
+                        var r = res;
+                        <ReservationCard Reservation="r"
+                                         OnActivate="ActivateReservation"
+                                         OnComplete="CompleteReservation"
+                                         OnCancel="CancelReservation" />
+                    }
 
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
-                           Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
-                           OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cozinha))">
-                    Adicionar reserva
-                </MudButton>
-            </MudPaper>
-        </MudItem>
+                    @if (!_reservations.Any(r => r.Space == ReservationSpace.Cozinha))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            Sem reservas para este dia.
+                        </MudText>
+                    }
 
-        <!-- Cinema -->
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2" Class="pa-4" Style="min-height:220px;">
-                <div class="d-flex align-center mb-3">
-                    <MudIcon Icon="@Icons.Material.Filled.Theaters" Color="Color.Primary" Class="mr-2" />
-                    <MudText Typo="Typo.h6">Cinema</MudText>
-                </div>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
+                               Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
+                               OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cozinha))">
+                        Adicionar reserva
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
 
-                @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cinema))
-                {
-                    var r = res;
-                    <ReservationCard Reservation="r"
-                                     OnActivate="ActivateReservation"
-                                     OnComplete="CompleteReservation"
-                                     OnCancel="CancelReservation" />
-                }
+            <!-- Cinema -->
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="2" Class="pa-4" Style="min-height:220px;">
+                    <div class="d-flex align-center mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.Theaters" Color="Color.Primary" Class="mr-2" />
+                        <MudText Typo="Typo.h6">Cinema</MudText>
+                    </div>
 
-                @if (!_reservations.Any(r => r.Space == ReservationSpace.Cinema))
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                        Sem reservas para este dia.
-                    </MudText>
-                }
+                    @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cinema))
+                    {
+                        var r = res;
+                        <ReservationCard Reservation="r"
+                                         OnActivate="ActivateReservation"
+                                         OnComplete="CompleteReservation"
+                                         OnCancel="CancelReservation" />
+                    }
 
-                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
-                           Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
-                           OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cinema))">
-                    Adicionar reserva
-                </MudButton>
-            </MudPaper>
-        </MudItem>
+                    @if (!_reservations.Any(r => r.Space == ReservationSpace.Cinema))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            Sem reservas para este dia.
+                        </MudText>
+                    }
 
-    </MudGrid>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
+                               Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
+                               OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cinema))">
+                        Adicionar reserva
+                    </MudButton>
+                </MudPaper>
+            </MudItem>
+
+        </MudGrid>
+    }
 }
 
 @code {
+    private record CalendarCell(DateTime Date, int Count);
     private static readonly CultureInfo _ptCulture = new("pt-PT");
 
-    private bool _loading = true;
+    private string _view = "month";
+    private DateTime _currentMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _selectedDate = DateTime.Today;
+    private bool _loadingMonth = true;
+    private bool _loadingDay;
     private List<Reservation> _reservations = [];
+    private List<CalendarCell> _calendarCells = [];
+    private Dictionary<int, int> _monthlyCounts = [];
 
-    protected override async Task OnInitializedAsync() => await LoadReservations();
+    protected override async Task OnInitializedAsync() => await LoadMonth();
 
-    private async Task LoadReservations()
+    private async Task LoadMonth()
     {
-        _loading = true;
-        _reservations = await ReservaSvc.GetByDateAsync(_selectedDate);
-        _loading = false;
+        _loadingMonth = true;
+        _monthlyCounts = await ReservaSvc.GetCountsByMonthAsync(_currentMonth.Year, _currentMonth.Month);
+        BuildCalendarCells();
+        _loadingMonth = false;
     }
 
-    private async Task PrevDay()  { _selectedDate = _selectedDate.AddDays(-1); await LoadReservations(); }
-    private async Task NextDay()  { _selectedDate = _selectedDate.AddDays(1);  await LoadReservations(); }
-    private async Task GoToToday(){ _selectedDate = DateTime.Today;            await LoadReservations(); }
+    private void BuildCalendarCells()
+    {
+        _calendarCells = [];
+        int offset = ((int)_currentMonth.DayOfWeek + 6) % 7; // 0=Mon … 6=Sun
+        var gridStart = _currentMonth.AddDays(-offset);
+        int daysInMonth = DateTime.DaysInMonth(_currentMonth.Year, _currentMonth.Month);
+        int rows = (offset + daysInMonth + 6) / 7;
+
+        for (int i = 0; i < rows * 7; i++)
+        {
+            var date = gridStart.AddDays(i);
+            int count = 0;
+            if (date.Month == _currentMonth.Month)
+                _monthlyCounts.TryGetValue(date.Day, out count);
+            _calendarCells.Add(new CalendarCell(date, count));
+        }
+    }
+
+    private static string BadgeStyle(int count)
+    {
+        var bg = count >= 3 ? "#c62828" : count >= 2 ? "#e65100" : "#1565C0";
+        return $"display:inline-block; background:{bg}; color:#fff; border-radius:12px; " +
+               $"padding:2px 8px; font-size:0.70rem; font-weight:700; line-height:1.4;";
+    }
+
+    private async Task SelectDay(DateTime date)
+    {
+        _selectedDate = date;
+        _currentMonth = new DateTime(date.Year, date.Month, 1);
+        _view = "day";
+        await LoadDay();
+    }
+
+    private async Task LoadDay()
+    {
+        _loadingDay = true;
+        _reservations = await ReservaSvc.GetByDateAsync(_selectedDate);
+        _loadingDay = false;
+    }
+
+    private async Task BackToMonth()
+    {
+        _view = "month";
+        await LoadMonth();
+    }
+
+    private async Task PrevMonth() { _currentMonth = _currentMonth.AddMonths(-1); await LoadMonth(); }
+    private async Task NextMonth() { _currentMonth = _currentMonth.AddMonths(1);  await LoadMonth(); }
+
+    private async Task GoToCurrentMonth()
+    {
+        _currentMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        await LoadMonth();
+    }
+
+    private async Task PrevDay()
+    {
+        _selectedDate = _selectedDate.AddDays(-1);
+        _currentMonth = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
+        await LoadDay();
+    }
+
+    private async Task NextDay()
+    {
+        _selectedDate = _selectedDate.AddDays(1);
+        _currentMonth = new DateTime(_selectedDate.Year, _selectedDate.Month, 1);
+        await LoadDay();
+    }
+
+    private async Task GoToTodayDay()
+    {
+        _selectedDate = DateTime.Today;
+        _currentMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        await LoadDay();
+    }
 
     private async Task OpenAddDialog(DateTime date, ReservationSpace space = ReservationSpace.Cozinha)
     {
@@ -128,20 +307,15 @@ else
             { x => x.DefaultSpace, space }
         };
         var dialog = await DialogService.ShowAsync<ReservationDialog>("Nova Reserva", parameters);
-        var result = await dialog.Result;
-        if (result is { Canceled: false }) await LoadReservations();
+        if ((await dialog.Result) is { Canceled: false }) await LoadDay();
     }
 
     private async Task ActivateReservation(Reservation res)
     {
         var (ok, error) = await ReservaSvc.ActivateAsync(res.Id);
-        if (!ok)
-        {
-            Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error);
-            return;
-        }
+        if (!ok) { Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error); return; }
         Snackbar.Add("Cartão de acesso emitido. Reserva activa.", Severity.Success);
-        await LoadReservations();
+        await LoadDay();
     }
 
     private async Task CompleteReservation(Reservation res)
@@ -149,14 +323,12 @@ else
         var confirmed = await DialogService.ShowMessageBox(
             "Devolver Cartão",
             $"Confirmar devolução do cartão do quarto {res.RoomNumber}? A reserva ficará concluída.",
-            yesText: "Sim, devolvido",
-            cancelText: "Cancelar");
-
+            yesText: "Sim, devolvido", cancelText: "Cancelar");
         if (confirmed == true)
         {
             await ReservaSvc.CompleteAsync(res.Id);
             Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
-            await LoadReservations();
+            await LoadDay();
         }
     }
 
@@ -166,14 +338,12 @@ else
         var confirmed = await DialogService.ShowMessageBox(
             "Cancelar Reserva",
             $"Cancelar a reserva do quarto {res.RoomNumber} na {spaceLabel}?",
-            yesText: "Sim, cancelar",
-            cancelText: "Fechar");
-
+            yesText: "Sim, cancelar", cancelText: "Fechar");
         if (confirmed == true)
         {
             await ReservaSvc.CancelAsync(res.Id);
             Snackbar.Add("Reserva cancelada.", Severity.Success);
-            await LoadReservations();
+            await LoadDay();
         }
     }
 }
