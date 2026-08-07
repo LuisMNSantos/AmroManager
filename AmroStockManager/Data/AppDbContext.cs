@@ -8,6 +8,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Product> Products => Set<Product>();
     public DbSet<SizeVariant> SizeVariants => Set<SizeVariant>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<GeneralItem> GeneralItems => Set<GeneralItem>();
+    public DbSet<GeneralItemLoan> GeneralItemLoans => Set<GeneralItemLoan>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +23,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasMany(sv => sv.StockMovements)
             .WithOne(sm => sm.SizeVariant)
             .HasForeignKey(sm => sm.SizeVariantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<GeneralItem>()
+            .HasMany(gi => gi.Loans)
+            .WithOne(l => l.GeneralItem)
+            .HasForeignKey(l => l.GeneralItemId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -11,18 +11,29 @@
         <MudGrid>
             <MudItem xs="12">
                 <MudSelect T="MovementReason" @bind-Value="_reason" Label="Reason" FullWidth="true">
-                    <MudSelectItem Value="MovementReason.Sale">Sale</MudSelectItem>
-                    <MudSelectItem Value="MovementReason.Restock">Restock</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Sale">Sale / Loan</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Restock">Restock / Return</MudSelectItem>
                     <MudSelectItem Value="MovementReason.Adjustment">Manual Adjustment</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem xs="12">
                 <MudNumericField T="int"
                                  @bind-Value="_amount"
-                                 Label="Change Amount (use negative to reduce)"
-                                 FullWidth="true"
-                                 HideSpinButtons="false" />
+                                 Label="Change Amount (negative to reduce)"
+                                 FullWidth="true" />
             </MudItem>
+            @if (_reason == MovementReason.Sale || _reason == MovementReason.Trade)
+            {
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_roomNumber"
+                                  Label="Room Number"
+                                  Required="true"
+                                  RequiredError="Room number is required for a sale"
+                                  Immediate="true"
+                                  FullWidth="true"
+                                  Placeholder="e.g. 405, 404A" />
+                </MudItem>
+            }
             <MudItem xs="12">
                 <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
             </MudItem>
@@ -42,10 +53,19 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public SizeVariant VariantItem { get; set; } = null!;
+    [Parameter] public MovementReason DefaultReason { get; set; } = MovementReason.Sale;
+    [Parameter] public int DefaultAmount { get; set; } = -1;
 
-    private MovementReason _reason = MovementReason.Sale;
-    private int _amount = -1;
+    private MovementReason _reason;
+    private int _amount;
+    private string? _roomNumber;
     private string? _notes;
+
+    protected override void OnParametersSet()
+    {
+        _reason = DefaultReason;
+        _amount = DefaultAmount;
+    }
 
     private async Task Apply()
     {
@@ -54,7 +74,14 @@
             Snackbar.Add("Amount cannot be zero.", Severity.Warning);
             return;
         }
-        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes);
+        if ((_reason == MovementReason.Sale || _reason == MovementReason.Trade)
+            && string.IsNullOrWhiteSpace(_roomNumber))
+        {
+            Snackbar.Add("Room number is required for a sale.", Severity.Warning);
+            return;
+        }
+
+        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, _roomNumber?.Trim());
         Snackbar.Add($"Stock updated for {VariantItem.Size}.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }

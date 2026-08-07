@@ -1,0 +1,69 @@
+@inject GeneralItemService ItemSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Lend — @ItemType.Name</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                    Available: <b>@ItemType.AvailableCount</b> / @ItemType.TotalQuantity total
+                </MudAlert>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_roomNumber"
+                              Label="Room Number"
+                              Required="true"
+                              RequiredError="Required"
+                              Placeholder="e.g. 405, 404A"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_givenBy"
+                              Label="Given By (staff / person)"
+                              Required="true"
+                              RequiredError="Required"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">Lend</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public GeneralItem ItemType { get; set; } = null!;
+
+    private string _roomNumber = string.Empty;
+    private string _givenBy = string.Empty;
+    private string? _notes;
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(_roomNumber) || string.IsNullOrWhiteSpace(_givenBy))
+        {
+            Snackbar.Add("Room number and given-by are required.", Severity.Warning);
+            return;
+        }
+        var ok = await ItemSvc.LendItemAsync(ItemType.Id, _roomNumber, _givenBy, _notes);
+        if (!ok)
+        {
+            Snackbar.Add("No units available to lend.", Severity.Error);
+            return;
+        }
+        Snackbar.Add($"{ItemType.Name} lent to room {_roomNumber}.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

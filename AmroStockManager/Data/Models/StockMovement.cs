@@ -1,6 +1,6 @@
 namespace AmroStockManager.Data.Models;
 
-public enum MovementReason { Sale, Restock, Adjustment }
+public enum MovementReason { Sale, Restock, Adjustment, Trade }
 
 public class StockMovement
 {
@@ -9,6 +9,7 @@ public class StockMovement
     public SizeVariant SizeVariant { get; set; } = null!;
     public int ChangeAmount { get; set; }
     public MovementReason Reason { get; set; }
+    public string? RoomNumber { get; set; }
     public string? Notes { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
 }

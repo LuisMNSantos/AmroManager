@@ -30,6 +30,9 @@ artifacts/
 *.pfx
 *.snk
 
+## Distribution zips
+*.zip
+
 ## Database (local only — copy manually)
 *.db
 *.db-shm

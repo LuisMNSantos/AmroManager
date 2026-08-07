@@ -1,0 +1,71 @@
+using Microsoft.EntityFrameworkCore;
+using AmroStockManager.Data;
+using AmroStockManager.Data.Models;
+
+namespace AmroStockManager.Services;
+
+public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
+{
+    public async Task<List<GeneralItem>> GetAllWithLoansAsync()
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.GeneralItems
+            .Include(gi => gi.Loans)
+            .OrderBy(gi => gi.Name)
+            .ToListAsync();
+    }
+
+    public async Task<List<GeneralItemLoan>> GetHistoryAsync(int itemId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.GeneralItemLoans
+            .Where(l => l.GeneralItemId == itemId)
+            .OrderByDescending(l => l.LoanDate)
+            .ToListAsync();
+    }
+
+    public async Task<bool> LendItemAsync(int itemId, string roomNumber, string givenBy, string? notes)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var item = await db.GeneralItems.Include(gi => gi.Loans).FirstOrDefaultAsync(gi => gi.Id == itemId);
+        if (item is null || item.AvailableCount <= 0) return false;
+
+        db.GeneralItemLoans.Add(new GeneralItemLoan
+        {
+            GeneralItemId = itemId,
+            RoomNumber = roomNumber.Trim(),
+            GivenBy = givenBy.Trim(),
+            Notes = notes,
+            LoanDate = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task ReturnItemAsync(int loanId)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var loan = await db.GeneralItemLoans.FindAsync(loanId);
+        if (loan is null || loan.IsReturned) return;
+
+        loan.ReturnDate = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<GeneralItem> AddOrUpdateItemAsync(GeneralItem item)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        if (item.Id == 0)
+            db.GeneralItems.Add(item);
+        else
+        {
+            var existing = await db.GeneralItems.FindAsync(item.Id);
+            if (existing is null) return item;
+            existing.Name = item.Name;
+            existing.TotalQuantity = item.TotalQuantity;
+            existing.Description = item.Description;
+        }
+        await db.SaveChangesAsync();
+        return item;
+    }
+}

@@ -1,0 +1,147 @@
+@inject StockService StockSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Trade Items</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            The outgoing item leaves stock (must have qty &gt; 0). The incoming item returns to stock.
+        </MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">Going OUT ↑</MudText>
+                <MudSelect T="int" Value="_outProductId" ValueChanged="OnOutProductChanged"
+                           Label="Product" FullWidth="true">
+                    @foreach (var p in AllProducts.Where(p => p.SizeVariants.Any(sv => sv.Quantity > 0)))
+                    {
+                        <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="_outVariantId" Label="Size" FullWidth="true" Class="mt-2">
+                    @foreach (var sv in _outVariants)
+                    {
+                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size — @sv.Quantity in stock</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.subtitle2" Color="Color.Success" Class="mb-1">Coming IN ↓</MudText>
+                <MudSelect T="int" Value="_inProductId" ValueChanged="OnInProductChanged"
+                           Label="Product" FullWidth="true">
+                    @foreach (var p in AllProducts)
+                    {
+                        <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="_inVariantId" Label="Size" FullWidth="true" Class="mt-2">
+                    @foreach (var sv in _inVariants)
+                    {
+                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size (stock: @sv.Quantity)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_roomNumber"
+                              Label="Room Number"
+                              Required="true"
+                              RequiredError="Required"
+                              Placeholder="e.g. 405, 404A"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ExecuteTrade">
+            Confirm Trade
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<Product> AllProducts { get; set; } = [];
+
+    private int _outProductId;
+    private int _outVariantId;
+    private int _inProductId;
+    private int _inVariantId;
+    private string _roomNumber = string.Empty;
+    private string? _notes;
+
+    private List<SizeVariant> _outVariants = [];
+    private List<SizeVariant> _inVariants = [];
+
+    protected override void OnParametersSet()
+    {
+        var firstWithStock = AllProducts.FirstOrDefault(p => p.SizeVariants.Any(sv => sv.Quantity > 0));
+        if (firstWithStock is not null)
+        {
+            _outProductId = firstWithStock.Id;
+            _outVariants = firstWithStock.SizeVariants.Where(sv => sv.Quantity > 0).ToList();
+            _outVariantId = _outVariants.FirstOrDefault()?.Id ?? 0;
+        }
+
+        var firstIn = AllProducts.FirstOrDefault();
+        if (firstIn is not null)
+        {
+            _inProductId = firstIn.Id;
+            _inVariants = firstIn.SizeVariants.ToList();
+            _inVariantId = _inVariants.FirstOrDefault()?.Id ?? 0;
+        }
+    }
+
+    private void OnOutProductChanged(int productId)
+    {
+        _outProductId = productId;
+        _outVariants = AllProducts.FirstOrDefault(p => p.Id == productId)
+                           ?.SizeVariants.Where(sv => sv.Quantity > 0).ToList() ?? [];
+        _outVariantId = _outVariants.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private void OnInProductChanged(int productId)
+    {
+        _inProductId = productId;
+        _inVariants = AllProducts.FirstOrDefault(p => p.Id == productId)
+                          ?.SizeVariants.ToList() ?? [];
+        _inVariantId = _inVariants.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private async Task ExecuteTrade()
+    {
+        if (string.IsNullOrWhiteSpace(_roomNumber))
+        {
+            Snackbar.Add("Room number is required.", Severity.Warning);
+            return;
+        }
+        if (_outVariantId == 0 || _inVariantId == 0)
+        {
+            Snackbar.Add("Please select both items.", Severity.Warning);
+            return;
+        }
+        if (_outVariantId == _inVariantId)
+        {
+            Snackbar.Add("Outgoing and incoming items must be different.", Severity.Warning);
+            return;
+        }
+
+        var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, _roomNumber.Trim(), _notes);
+        if (!ok)
+        {
+            Snackbar.Add("Outgoing item is out of stock.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Trade recorded successfully.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

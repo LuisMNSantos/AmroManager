@@ -1,0 +1,55 @@
+@inject GeneralItemService ItemSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Item.Id == 0 ? "Add Item Type" : "Edit Item Type")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Item.Name"
+                              Label="Item Name"
+                              Required="true"
+                              RequiredError="Required"
+                              FullWidth="true"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int"
+                                 @bind-Value="Item.TotalQuantity"
+                                 Label="Total Quantity Owned"
+                                 Min="1"
+                                 FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Item.Description"
+                              Label="Description (optional)"
+                              FullWidth="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public GeneralItem Item { get; set; } = null!;
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(Item.Name))
+        {
+            Snackbar.Add("Name is required.", Severity.Warning);
+            return;
+        }
+        await ItemSvc.AddOrUpdateItemAsync(Item);
+        Snackbar.Add("Saved.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

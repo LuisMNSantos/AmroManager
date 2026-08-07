@@ -85,6 +85,7 @@ else
             <MudTh>Date</MudTh>
             <MudTh>Product</MudTh>
             <MudTh>Size</MudTh>
+            <MudTh>Room</MudTh>
             <MudTh>Change</MudTh>
             <MudTh>Reason</MudTh>
             <MudTh>Notes</MudTh>
@@ -93,6 +94,12 @@ else
             <MudTd>@context.Date.ToLocalTime().ToString("dd/MM/yy HH:mm")</MudTd>
             <MudTd>@context.SizeVariant.Product.Name</MudTd>
             <MudTd>@context.SizeVariant.Size</MudTd>
+            <MudTd>
+                @if (!string.IsNullOrEmpty(context.RoomNumber))
+                {
+                    <MudChip T="string" Color="Color.Primary" Size="Size.Small">@context.RoomNumber</MudChip>
+                }
+            </MudTd>
             <MudTd>
                 <MudChip T="string"
                          Color="@(context.ChangeAmount >= 0 ? Color.Success : Color.Error)"

@@ -7,12 +7,20 @@
 
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Products</MudText>
-    <MudButton StartIcon="@Icons.Material.Filled.Add"
-               Variant="Variant.Filled"
-               Color="Color.Primary"
-               OnClick="@(() => Nav.NavigateTo("/products/new"))">
-        Add Product
-    </MudButton>
+    <div class="d-flex gap-2">
+        <MudButton StartIcon="@Icons.Material.Filled.SwapHoriz"
+                   Variant="Variant.Outlined"
+                   Color="Color.Secondary"
+                   OnClick="OpenTradeDialog">
+            Trade
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="@(() => Nav.NavigateTo("/products/new"))">
+            Add Product
+        </MudButton>
+    </div>
 </div>
 
 <MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-4">
@@ -118,14 +126,14 @@ else
                                     <MudButton Variant="Variant.Outlined"
                                                Color="Color.Error"
                                                Size="Size.Small"
-                                               OnClick="@(() => QuickAdjust(context, -1, MovementReason.Sale))"
+                                               OnClick="@(() => OpenSaleDialog(context))"
                                                Disabled="@(context.Quantity == 0)">
                                         − Sale
                                     </MudButton>
                                     <MudButton Variant="Variant.Outlined"
                                                Color="Color.Success"
                                                Size="Size.Small"
-                                               OnClick="@(() => QuickAdjust(context, 1, MovementReason.Restock))">
+                                               OnClick="@(() => QuickRestock(context))">
                                         + Restock
                                     </MudButton>
                                     <MudIconButton Icon="@Icons.Material.Filled.Tune"
@@ -169,13 +177,25 @@ else
         _loading = false;
     }
 
-    private async Task QuickAdjust(SizeVariant variant, int amount, MovementReason reason)
+    private async Task OpenSaleDialog(SizeVariant variant)
     {
-        await StockSvc.AdjustStockAsync(variant.Id, amount, reason);
-        variant.Quantity = Math.Max(0, variant.Quantity + amount);
+        var parameters = new DialogParameters<StockAdjustDialog>
+        {
+            { x => x.VariantItem, variant },
+            { x => x.DefaultReason, MovementReason.Sale },
+            { x => x.DefaultAmount, -1 }
+        };
+        var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Record Sale / Loan", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadProducts();
+    }
+
+    private async Task QuickRestock(SizeVariant variant)
+    {
+        await StockSvc.AdjustStockAsync(variant.Id, 1, MovementReason.Restock);
+        variant.Quantity += 1;
         StateHasChanged();
-        var sign = amount > 0 ? "+" : "";
-        Snackbar.Add($"{variant.Product?.Name ?? ""} {variant.Size}: {sign}{amount} ({reason})", Severity.Success);
+        Snackbar.Add($"{variant.Size} restocked.", Severity.Success);
     }
 
     private async Task OpenAdjustDialog(SizeVariant variant)
@@ -186,8 +206,19 @@ else
         };
         var dialog = await DialogService.ShowAsync<StockAdjustDialog>("Adjust Stock", parameters);
         var result = await dialog.Result;
-        if (result is { Canceled: false })
-            await LoadProducts();
+        if (result is { Canceled: false }) await LoadProducts();
+    }
+
+    private async Task OpenTradeDialog()
+    {
+        var parameters = new DialogParameters<TradeDialog>
+        {
+            { x => x.AllProducts, _products }
+        };
+        var dialog = await DialogService.ShowAsync<TradeDialog>("Trade Items", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) await LoadProducts();
     }
 
     private async Task DeleteProduct(Product product)

@@ -6,7 +6,8 @@ namespace AmroStockManager.Services;
 
 public class StockService(IDbContextFactory<AppDbContext> dbFactory)
 {
-    public async Task AdjustStockAsync(int sizeVariantId, int change, MovementReason reason, string? notes = null)
+    public async Task AdjustStockAsync(int sizeVariantId, int change, MovementReason reason,
+                                       string? notes = null, string? roomNumber = null)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var variant = await db.SizeVariants.FindAsync(sizeVariantId);
@@ -18,10 +19,48 @@ public class StockService(IDbContextFactory<AppDbContext> dbFactory)
             SizeVariantId = sizeVariantId,
             ChangeAmount = change,
             Reason = reason,
+            RoomNumber = roomNumber,
             Notes = notes,
             Date = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+    }
+
+    public async Task<bool> TradeAsync(int outVariantId, int inVariantId,
+                                       string roomNumber, string? notes = null)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var outVariant = await db.SizeVariants.FindAsync(outVariantId);
+        var inVariant = await db.SizeVariants.FindAsync(inVariantId);
+
+        if (outVariant is null || inVariant is null) return false;
+        if (outVariant.Quantity == 0) return false;
+
+        var now = DateTime.UtcNow;
+        outVariant.Quantity -= 1;
+        inVariant.Quantity += 1;
+
+        db.StockMovements.Add(new StockMovement
+        {
+            SizeVariantId = outVariantId,
+            ChangeAmount = -1,
+            Reason = MovementReason.Trade,
+            RoomNumber = roomNumber,
+            Notes = string.IsNullOrWhiteSpace(notes) ? "Trade – going out" : $"Trade (out): {notes}",
+            Date = now
+        });
+        db.StockMovements.Add(new StockMovement
+        {
+            SizeVariantId = inVariantId,
+            ChangeAmount = +1,
+            Reason = MovementReason.Trade,
+            RoomNumber = roomNumber,
+            Notes = string.IsNullOrWhiteSpace(notes) ? "Trade – coming in" : $"Trade (in): {notes}",
+            Date = now
+        });
+
+        await db.SaveChangesAsync();
+        return true;
     }
 
     public async Task<(int totalProducts, int totalUnits, int lowStockCount)> GetDashboardStatsAsync()
