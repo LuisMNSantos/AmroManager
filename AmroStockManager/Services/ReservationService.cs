@@ -69,21 +69,43 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
                 return (false, "A Cozinha MasterChef fecha às 22:00.", null);
         }
 
+        var startUtc = startTime.Kind == DateTimeKind.Utc ? startTime : startTime.ToUniversalTime();
+        var endUtc   = endTime.Kind   == DateTimeKind.Utc ? endTime   : endTime.ToUniversalTime();
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var hasConflict = await db.Reservations.AnyAsync(r =>
+            !r.IsCancelled && r.Space == space && r.StartTime < endUtc && r.EndTime > startUtc);
+        if (hasConflict)
+            return (false, "Já existe uma reserva para este espaço nesse horário.", null);
+
         var reservation = new Reservation
         {
             Space      = space,
             RoomNumber = roomNumber.Trim(),
             ReservedBy = reservedBy.Trim(),
-            StartTime  = startTime.Kind == DateTimeKind.Utc ? startTime : startTime.ToUniversalTime(),
-            EndTime    = endTime.Kind   == DateTimeKind.Utc ? endTime   : endTime.ToUniversalTime(),
+            StartTime  = startUtc,
+            EndTime    = endUtc,
             Notes      = notes,
             CreatedAt  = DateTime.UtcNow
         };
 
-        await using var db = await dbFactory.CreateDbContextAsync();
         db.Reservations.Add(reservation);
         await db.SaveChangesAsync();
         return (true, null, reservation);
+    }
+
+    // Returns non-cancelled reservations for a room that haven't ended yet.
+    public async Task<List<Reservation>> GetUpcomingByRoomAsync(string roomNumber)
+    {
+        var room = roomNumber.Trim().ToUpper();
+        var utcNow = DateTime.UtcNow;
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Reservations
+            .Include(r => r.AccessCardLoan)
+            .Where(r => !r.IsCancelled && r.RoomNumber.ToUpper() == room && r.EndTime >= utcNow)
+            .OrderBy(r => r.StartTime)
+            .ToListAsync();
     }
 
     // Activates a scheduled reservation by lending the access card.

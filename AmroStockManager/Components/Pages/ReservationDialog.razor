@@ -1,6 +1,9 @@
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@using System.Globalization
+@using Microsoft.Maui.ApplicationModel
 
 <MudDialog>
     <TitleContent>
@@ -145,6 +148,29 @@
         {
             Snackbar.Add(error ?? "Não foi possível criar a reserva.", Severity.Error);
             return;
+        }
+
+        var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
+        if (resident?.PhoneNumber is not null)
+        {
+            var pt = CultureInfo.GetCultureInfo("pt-PT");
+            var spaceLabel = _space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+            var startLocal = startDt.ToLocalTime();
+            var endLocal   = endDt.ToLocalTime();
+            var msg = $"Olá {resident.Name}! A sua reserva da {spaceLabel} foi confirmada para " +
+                      $"{startLocal.ToString("dddd d 'de' MMMM", pt)}, das {startLocal:HH:mm} às {endLocal:HH:mm}. " +
+                      $"O cartão de acesso será entregue na hora. — AMRO";
+
+            var send = await DialogService.ShowMessageBox(
+                "Notificar por WhatsApp?",
+                $"Enviar confirmação a {resident.Name} ({resident.PhoneNumber})?",
+                yesText: "Abrir WhatsApp", cancelText: "Ignorar");
+
+            if (send == true)
+            {
+                var phone = resident.PhoneNumber.Replace("+", "").Replace(" ", "");
+                await Launcher.Default.OpenAsync(new Uri($"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}"));
+            }
         }
 
         Snackbar.Add("Reserva criada. Active-a na altura certa para emitir o cartão.", Severity.Success);

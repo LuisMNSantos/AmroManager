@@ -1,0 +1,195 @@
+@inject GeneralItemService ItemSvc
+@inject ReservationService ReservaSvc
+@inject DeliveryService DeliverySvc
+@using Microsoft.Maui.ApplicationModel
+
+<MudDialog Style="min-width:480px; max-width:600px;">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(Resident.IsCollaborator ? Icons.Material.Filled.Badge : Icons.Material.Filled.Person)"
+                     Color="Color.Primary" />
+            <MudText Typo="Typo.h6">
+                @Resident.Name
+                @if (!string.IsNullOrEmpty(Resident.RoomNumber))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Inline="true">
+                        &nbsp;— #@Resident.RoomNumber
+                    </MudText>
+                }
+            </MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <!-- Contact chips -->
+            <div class="d-flex align-center flex-wrap gap-2 mb-4">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(Resident.IsCollaborator ? Color.Secondary : Color.Primary)">
+                    @(Resident.IsCollaborator ? "Colaborador" : "Residente")
+                </MudChip>
+                @if (!string.IsNullOrEmpty(Resident.PhoneNumber))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default"
+                             Icon="@Icons.Material.Filled.Phone">
+                        @Resident.PhoneNumber
+                    </MudChip>
+                    <MudButton StartIcon="@Icons.Custom.Brands.WhatsApp"
+                               Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                               OnClick="OpenWhatsApp">
+                        WhatsApp
+                    </MudButton>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Sem telemóvel registado</MudText>
+                }
+            </div>
+
+            <!-- Active item loans -->
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Artigos Emprestados</MudText>
+            @if (_loans.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Nenhum empréstimo ativo.
+                </MudText>
+            }
+            else
+            {
+                <MudPaper Outlined="true" Class="mb-3 overflow-hidden">
+                    @foreach (var (loan, itemName) in _loans)
+                    {
+                        <div class="d-flex align-center justify-space-between pa-2"
+                             style="border-bottom:1px solid rgba(0,0,0,0.06);">
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    <b>@itemName</b>
+                                    @if (loan.Quantity > 1)
+                                    {
+                                        <span style="color:var(--mud-palette-text-secondary);">
+                                            &nbsp;· @loan.Quantity unid.
+                                        </span>
+                                    }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    desde @loan.LoanDate.ToLocalTime().ToString("dd/MM HH:mm")
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">Em curso</MudChip>
+                        </div>
+                    }
+                </MudPaper>
+            }
+
+            <!-- Upcoming reservations -->
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Reservas Futuras / Em Curso</MudText>
+            @if (_reservations.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Sem reservas futuras.
+                </MudText>
+            }
+            else
+            {
+                <MudPaper Outlined="true" Class="mb-3 overflow-hidden">
+                    @foreach (var res in _reservations)
+                    {
+                        var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                        var isActive   = res.AccessCardLoanId != null && res.AccessCardLoan?.ReturnDate == null;
+                        <div class="d-flex align-center justify-space-between pa-2"
+                             style="border-bottom:1px solid rgba(0,0,0,0.06);">
+                            <div>
+                                <MudText Typo="Typo.body2"><b>@spaceLabel</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @res.StartTime.ToLocalTime().ToString("dd/MM HH:mm") – @res.EndTime.ToLocalTime().ToString("HH:mm")
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(isActive ? Color.Warning : Color.Default)">
+                                @(isActive ? "Em Curso" : "Agendada")
+                            </MudChip>
+                        </div>
+                    }
+                </MudPaper>
+            }
+
+            <!-- Pending deliveries -->
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Encomendas / Cartas Pendentes</MudText>
+            @if (_deliveries.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Nada por levantar.</MudText>
+            }
+            else
+            {
+                <MudPaper Outlined="true" Class="overflow-hidden">
+                    @foreach (var d in _deliveries)
+                    {
+                        <div class="d-flex align-center justify-space-between pa-2"
+                             style="border-bottom:1px solid rgba(0,0,0,0.06);">
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    <MudIcon Icon="@(d.Type == DeliveryType.Encomenda
+                                                        ? Icons.Material.Filled.Inventory2
+                                                        : Icons.Material.Filled.Mail)"
+                                             Size="Size.Small"
+                                             Style="vertical-align:middle; margin-right:4px;" />
+                                    <b>@(d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta")</b>
+                                    @if (d.Quantity > 1)
+                                    {
+                                        <span style="color:var(--mud-palette-text-secondary);">
+                                            &nbsp;· @d.Quantity unid.
+                                        </span>
+                                    }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    chegou @d.ArrivedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                    @if (!string.IsNullOrEmpty(d.Notes))
+                                    {
+                                        <span> · @d.Notes</span>
+                                    }
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">Por levantar</MudChip>
+                        </div>
+                    }
+                </MudPaper>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Close())">Fechar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Resident Resident { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<(GeneralItemLoan Loan, string ItemName)> _loans = [];
+    private List<Reservation> _reservations = [];
+    private List<Delivery> _deliveries = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var loansTask      = ItemSvc.GetActiveLoansByRoomAsync(Resident.RoomNumber);
+        var reservTask     = ReservaSvc.GetUpcomingByRoomAsync(Resident.RoomNumber);
+        var deliveriesTask = DeliverySvc.GetPendingByRoomAsync(Resident.RoomNumber);
+        await Task.WhenAll(loansTask, reservTask, deliveriesTask);
+        _loans        = loansTask.Result;
+        _reservations = reservTask.Result;
+        _deliveries   = deliveriesTask.Result;
+        _loading      = false;
+    }
+
+    private async Task OpenWhatsApp()
+    {
+        if (string.IsNullOrEmpty(Resident.PhoneNumber)) return;
+        var phone = Resident.PhoneNumber.Replace("+", "").Replace(" ", "");
+        await Launcher.Default.OpenAsync(new Uri($"https://wa.me/{phone}"));
+    }
+}

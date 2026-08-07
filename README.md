@@ -1,4 +1,4 @@
-# AMRO Stock Manager
+# AMRO Porto Manager
 
 A Windows desktop application built to handle the day-to-day operational needs of a residential building. It replaces manual tracking with a structured, intuitive interface used daily by staff to manage inventory, equipment loans, space reservations, and package deliveries.
 

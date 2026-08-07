@@ -160,7 +160,7 @@ else
 
     <MudPaper Elevation="2" Class="overflow-hidden">
         <!-- Table header -->
-        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 48px;
+        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 96px;
                     padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
             <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
@@ -172,7 +172,7 @@ else
         @foreach (var r in Filtered)
         {
             var resident = r;
-            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 48px;
+            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 96px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                         align-items:center;">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
@@ -186,9 +186,14 @@ else
                          Color="@(resident.IsCollaborator ? Color.Secondary : Color.Primary)">
                     @(resident.IsCollaborator ? "Colaborador" : "Residente")
                 </MudChip>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                               Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => DeleteResident(resident))" />
+                <div class="d-flex gap-1 align-center justify-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonSearch"
+                                   Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => OpenDetailDialog(resident))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteResident(resident))" />
+                </div>
             </div>
         }
     </MudPaper>
@@ -307,6 +312,12 @@ else
         if (confirmed != true) return;
         await ResidentSvc.DeleteResidentAsync(r.Id);
         await LoadResidents();
+    }
+
+    private async Task OpenDetailDialog(Resident resident)
+    {
+        var parameters = new DialogParameters<ResidentDetailDialog> { { x => x.Resident, resident } };
+        await DialogService.ShowAsync<ResidentDetailDialog>(resident.Name, parameters);
     }
 
     private async Task ClearAll()

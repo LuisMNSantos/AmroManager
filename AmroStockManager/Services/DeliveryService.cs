@@ -21,6 +21,16 @@ public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
             .ToListAsync();
     }
 
+    public async Task<List<Delivery>> GetPendingByRoomAsync(string roomNumber)
+    {
+        var room = roomNumber.Trim().ToUpper();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Deliveries
+            .Where(d => d.CollectedAt == null && d.RoomNumber.ToUpper() == room)
+            .OrderByDescending(d => d.ArrivedAt)
+            .ToListAsync();
+    }
+
     public async Task<List<Delivery>> GetHistoryAsync(int limit = 100)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

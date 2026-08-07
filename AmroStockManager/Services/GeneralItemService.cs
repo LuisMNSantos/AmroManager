@@ -15,6 +15,18 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
             .ToListAsync();
     }
 
+    public async Task<List<(GeneralItemLoan Loan, string ItemName)>> GetActiveLoansByRoomAsync(string roomNumber)
+    {
+        var room = roomNumber.Trim().ToUpper();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var loans = await db.GeneralItemLoans
+            .Include(l => l.GeneralItem)
+            .Where(l => l.RoomNumber.ToUpper() == room && l.ReturnDate == null)
+            .OrderByDescending(l => l.LoanDate)
+            .ToListAsync();
+        return loans.Select(l => (l, l.GeneralItem?.Name ?? "?")).ToList();
+    }
+
     public async Task<List<GeneralItemLoan>> GetHistoryAsync(int itemId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();

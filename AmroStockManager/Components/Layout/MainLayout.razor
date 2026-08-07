@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
+@using Microsoft.Maui
+@using Microsoft.Maui.Storage
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -11,8 +13,11 @@
                        Color="Color.Inherit"
                        Edge="Edge.Start"
                        OnClick="ToggleDrawer" />
-        <MudText Typo="Typo.h6" Class="ml-2">AMRO Stock Manager</MudText>
+        <MudText Typo="Typo.h6" Class="ml-2">AMRO Porto Manager</MudText>
         <MudSpacer />
+        <MudIconButton Icon="@(_isDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="ToggleDarkMode" />
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always"
@@ -51,7 +56,7 @@
             <div class="d-flex align-center gap-2 mb-1">
                 <MudIcon Icon="@Icons.Material.Filled.Inventory" Color="Color.Primary" Size="Size.Small" />
                 <MudText Typo="Typo.caption" Style="font-weight:700; letter-spacing:0.04em;">
-                    AMRO Stock Manager
+                    AMRO Porto Manager
                 </MudText>
             </div>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block" Style="padding-left:2px;">
@@ -72,18 +77,40 @@
 
 @code {
     private bool _drawerOpen = true;
+    private bool _isDark;
 
     private readonly MudTheme _theme = new()
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#1565C0",
-            PrimaryDarken = "#003c8f",
-            PrimaryLighten = "#5e92f3",
-            Secondary = "#388E3C",
+            Primary          = "#1565C0",
+            PrimaryDarken    = "#003c8f",
+            PrimaryLighten   = "#5e92f3",
+            Secondary        = "#388E3C",
             AppbarBackground = "#1565C0",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary          = "#5e92f3",
+            PrimaryDarken    = "#1565C0",
+            PrimaryLighten   = "#90caf9",
+            Secondary        = "#66BB6A",
+            AppbarBackground = "#1a237e",
         }
     };
 
+    protected override void OnInitialized()
+    {
+        _isDark = Preferences.Default.ContainsKey("darkMode")
+            ? Preferences.Default.Get("darkMode", false)
+            : Application.Current?.RequestedTheme == AppTheme.Dark;
+    }
+
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void ToggleDarkMode()
+    {
+        _isDark = !_isDark;
+        Preferences.Default.Set("darkMode", _isDark);
+    }
 }
