@@ -35,6 +35,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<StockService>();
         builder.Services.AddSingleton<GeneralItemService>();
         builder.Services.AddSingleton<ReservationService>();
+        builder.Services.AddSingleton<DeliveryService>();
+        builder.Services.AddSingleton<MaintenanceService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -84,6 +86,17 @@ public static class MauiProgram
                 LoanDate      TEXT NOT NULL,
                 ReturnDate    TEXT,
                 Notes         TEXT
+            )");
+
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS Deliveries (
+                Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                Type        INTEGER NOT NULL DEFAULT 0,
+                RoomNumber  TEXT NOT NULL,
+                Quantity    INTEGER NOT NULL DEFAULT 1,
+                ArrivedAt   TEXT NOT NULL,
+                CollectedAt TEXT,
+                Notes       TEXT
             )");
 
         db.Database.ExecuteSqlRaw(@"

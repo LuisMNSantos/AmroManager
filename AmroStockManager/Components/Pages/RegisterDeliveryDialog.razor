@@ -1,0 +1,99 @@
+@inject DeliveryService DeliverySvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Registar Chegada</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <!-- Type selector -->
+            <MudItem xs="12">
+                <MudButtonGroup Variant="Variant.Outlined" FullWidth="true" Class="mb-1">
+                    <MudButton Color="@(_type == DeliveryType.Encomenda ? Color.Primary : Color.Default)"
+                               Variant="@(_type == DeliveryType.Encomenda ? Variant.Filled : Variant.Outlined)"
+                               StartIcon="@Icons.Material.Filled.Inventory2"
+                               OnClick="@(() => _type = DeliveryType.Encomenda)"
+                               Style="flex:1;">
+                        Encomenda
+                    </MudButton>
+                    <MudButton Color="@(_type == DeliveryType.Carta ? Color.Primary : Color.Default)"
+                               Variant="@(_type == DeliveryType.Carta ? Variant.Filled : Variant.Outlined)"
+                               StartIcon="@Icons.Material.Filled.Mail"
+                               OnClick="@(() => _type = DeliveryType.Carta)"
+                               Style="flex:1;">
+                        Carta
+                    </MudButton>
+                </MudButtonGroup>
+            </MudItem>
+
+            <!-- Room number -->
+            <MudItem xs="12" sm="7">
+                <MudTextField @bind-Value="_roomNumber"
+                              Label="Quarto"
+                              Placeholder="ex: 405, 404A"
+                              Required="true"
+                              RequiredError="Obrigatório"
+                              Immediate="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.MeetingRoom"
+                              FullWidth="true"
+                              AutoFocus="true" />
+            </MudItem>
+
+            <!-- Quantity -->
+            <MudItem xs="12" sm="5">
+                <MudNumericField T="int"
+                                 @bind-Value="_quantity"
+                                 Label="Quantidade"
+                                 Min="1"
+                                 Max="99"
+                                 FullWidth="true" />
+            </MudItem>
+
+            <!-- Notes -->
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes"
+                              Label="Notas (opcional)"
+                              Placeholder="ex: frágil, tamanho grande…"
+                              FullWidth="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="Confirm">
+            Registar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public DeliveryType DefaultType { get; set; } = DeliveryType.Encomenda;
+
+    private DeliveryType _type;
+    private string _roomNumber = string.Empty;
+    private int _quantity = 1;
+    private string? _notes;
+
+    protected override void OnParametersSet() => _type = DefaultType;
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(_roomNumber))
+        {
+            Snackbar.Add("Indique o número do quarto.", Severity.Warning);
+            return;
+        }
+        await DeliverySvc.RegisterAsync(_type, _roomNumber, _quantity, _notes);
+        var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+        Snackbar.Add($"{label} para o quarto {_roomNumber.Trim().ToUpper()} registada.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,216 @@
+@page "/encomendas"
+@inject DeliveryService DeliverySvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Encomendas & Cartas</MudText>
+    <MudButton StartIcon="@Icons.Material.Filled.Add"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               OnClick="OpenRegisterDialog">
+        Registar Chegada
+    </MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <!-- Summary strip -->
+    <MudGrid Spacing="2" Class="mb-4">
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Warning" />
+                <div>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Encomendas</MudText>
+                    <MudText Typo="Typo.h5"><b>@_pending.Count(d => d.Type == DeliveryType.Encomenda)</b></MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.Mail" Color="Color.Info" />
+                <div>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Cartas</MudText>
+                    <MudText Typo="Typo.h5"><b>@_pending.Count(d => d.Type == DeliveryType.Carta)</b></MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.Today" Color="Color.Secondary" />
+                <div>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Chegaram hoje</MudText>
+                    <MudText Typo="Typo.h5">
+                        <b>@_pending.Count(d => d.ArrivedAt.ToLocalTime().Date == DateTime.Today)</b>
+                    </MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                <div>
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">Por levantar</MudText>
+                    <MudText Typo="Typo.h5"><b>@_pending.Count</b></MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Pending list -->
+    @if (_pending.Count == 0)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-4">
+            Nenhuma encomenda ou carta por levantar.
+        </MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.h6" Class="mb-2">Por Levantar</MudText>
+        <MudPaper Elevation="2" Class="overflow-hidden mb-4">
+            @foreach (var d in _pending)
+            {
+                var typeIcon  = d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail;
+                var typeColor = d.Type == DeliveryType.Encomenda ? Color.Warning : Color.Info;
+                var typeLabel = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                var age       = (DateTime.Now - d.ArrivedAt.ToLocalTime());
+                var ageLabel  = age.TotalDays >= 1
+                    ? $"há {(int)age.TotalDays}d"
+                    : age.TotalHours >= 1
+                        ? $"há {(int)age.TotalHours}h"
+                        : "agora mesmo";
+
+                <div class="d-flex align-center gap-3 px-4 py-3"
+                     style="border-bottom:1px solid rgba(0,0,0,0.08);">
+                    <MudIcon Icon="@typeIcon" Color="@typeColor" Size="Size.Medium" />
+
+                    <div style="flex:1; min-width:0;">
+                        <div class="d-flex align-center gap-2">
+                            <MudText Typo="Typo.h6">Quarto @d.RoomNumber</MudText>
+                            <MudChip T="string" Color="@typeColor" Size="Size.Small">@typeLabel</MudChip>
+                            @if (d.Quantity > 1)
+                            {
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small">@d.Quantity unid.</MudChip>
+                            }
+                        </div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @d.ArrivedAt.ToLocalTime().ToString("dd/MM/yy HH:mm") · @ageLabel
+                            @if (!string.IsNullOrEmpty(d.Notes))
+                            {
+                                <span> · @d.Notes</span>
+                            }
+                        </MudText>
+                    </div>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.CheckCircle"
+                               OnClick="@(() => MarkCollected(d))">
+                        Levantado
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => DeleteDelivery(d))" />
+                </div>
+            }
+        </MudPaper>
+    }
+
+    <!-- Recent history -->
+    <div class="d-flex align-center justify-space-between mb-2">
+        <MudText Typo="Typo.h6">Histórico Recente</MudText>
+        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ToggleHistory">
+            @(_showHistory ? "Ocultar" : "Mostrar")
+        </MudButton>
+    </div>
+
+    @if (_showHistory)
+    {
+        @if (_history.Count == 0)
+        {
+            <MudText Color="Color.Secondary" Typo="Typo.body2">Sem histórico.</MudText>
+        }
+        else
+        {
+            <MudPaper Elevation="1" Class="overflow-hidden">
+                @foreach (var d in _history)
+                {
+                    var typeLabel = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                    <div class="d-flex align-center gap-3 px-4 py-2"
+                         style="border-bottom:1px solid rgba(0,0,0,0.06); opacity:0.75;">
+                        <MudIcon Icon="@(d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail)"
+                                 Size="Size.Small" Color="Color.Default" />
+                        <div style="flex:1;">
+                            <MudText Typo="Typo.body2">
+                                <b>Quarto @d.RoomNumber</b>
+                                <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary"> · @typeLabel</MudText>
+                                @if (d.Quantity > 1) { <span> · @d.Quantity unid.</span> }
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Chegou: @d.ArrivedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                · Levantado: @d.CollectedAt!.Value.ToLocalTime().ToString("dd/MM HH:mm")
+                            </MudText>
+                        </div>
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Levantado</MudChip>
+                    </div>
+                }
+            </MudPaper>
+        }
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private bool _showHistory;
+    private List<Delivery> _pending = [];
+    private List<Delivery> _history = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _pending = await DeliverySvc.GetPendingAsync();
+        if (_showHistory) _history = await DeliverySvc.GetHistoryAsync();
+        _loading = false;
+    }
+
+    private async Task OpenRegisterDialog()
+    {
+        var dialog = await DialogService.ShowAsync<RegisterDeliveryDialog>("Registar Chegada");
+        if ((await dialog.Result) is { Canceled: false }) await Load();
+    }
+
+    private async Task MarkCollected(Delivery d)
+    {
+        await DeliverySvc.MarkCollectedAsync(d.Id);
+        Snackbar.Add($"Quarto {d.RoomNumber} — levantado.", Severity.Success);
+        await Load();
+    }
+
+    private async Task DeleteDelivery(Delivery d)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Eliminar registo",
+            $"Eliminar o registo do quarto {d.RoomNumber}?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+        if (confirmed == true)
+        {
+            await DeliverySvc.DeleteAsync(d.Id);
+            await Load();
+        }
+    }
+
+    private async Task ToggleHistory()
+    {
+        _showHistory = !_showHistory;
+        if (_showHistory && _history.Count == 0)
+            _history = await DeliverySvc.GetHistoryAsync();
+    }
+}

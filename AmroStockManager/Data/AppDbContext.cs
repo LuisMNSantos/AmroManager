@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<GeneralItem> GeneralItems => Set<GeneralItem>();
     public DbSet<GeneralItemLoan> GeneralItemLoans => Set<GeneralItemLoan>();
     public DbSet<Reservation> Reservations => Set<Reservation>();
+    public DbSet<Delivery> Deliveries => Set<Delivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

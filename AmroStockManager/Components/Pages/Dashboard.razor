@@ -1,145 +1,384 @@
 @page "/"
 @inject StockService StockSvc
+@inject GeneralItemService ItemSvc
+@inject ReservationService ReservaSvc
+@inject DeliveryService DeliverySvc
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h4" Class="mb-6">Painel</MudText>
-
-<MudGrid Spacing="3" Class="mb-6">
-    <MudItem xs="12" sm="4">
-        <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Total de Produtos</MudText>
-            <MudText Typo="Typo.h3"><b>@_stats.totalProducts</b></MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="4">
-        <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Total em Stock</MudText>
-            <MudText Typo="Typo.h3"><b>@_stats.totalUnits</b></MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="4">
-        <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center"
-                  Style="@(_stats.lowStockCount > 0 ? "border-left: 4px solid var(--mud-palette-error);" : "")">
-            <MudIcon Icon="@Icons.Material.Filled.Warning"
-                     Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Primary)"
-                     Size="Size.Large" Class="mb-2" />
-            <MudText Typo="Typo.overline" Color="Color.Secondary">Alertas de Stock</MudText>
-            <MudText Typo="Typo.h3" Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Default)">
-                <b>@_stats.lowStockCount</b>
-            </MudText>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
-
-@if (_lowStockVariants.Count > 0)
-{
-    <MudAlert Severity="Severity.Warning" Class="mb-4" Icon="@Icons.Material.Filled.Warning">
-        <b>@_lowStockVariants.Count</b> variante(s) de tamanho com stock baixo.
-        <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small"
-                   OnClick="@(() => Nav.NavigateTo("/products?lowstock=1"))" Class="ml-2">
-            Ver Todos
-        </MudButton>
-    </MudAlert>
-
-    <MudTable Items="_lowStockVariants" Dense="true" Hover="true" Elevation="1" Class="mb-6">
-        <ToolBarContent>
-            <MudText Typo="Typo.h6">Artigos com Stock Baixo</MudText>
-        </ToolBarContent>
-        <HeaderContent>
-            <MudTh>Produto</MudTh>
-            <MudTh>Tipo</MudTh>
-            <MudTh>Tamanho</MudTh>
-            <MudTh>Qtd.</MudTh>
-            <MudTh>Mínimo</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd>@context.Product.Name</MudTd>
-            <MudTd>@context.Product.Type</MudTd>
-            <MudTd><MudChip T="string" Color="Color.Error" Size="Size.Small">@context.Size</MudChip></MudTd>
-            <MudTd><b>@context.Quantity</b></MudTd>
-            <MudTd>@context.MinStockAlert</MudTd>
-        </RowTemplate>
-    </MudTable>
-}
-
-<div class="d-flex align-center justify-space-between mb-3">
-    <MudText Typo="Typo.h6">Movimentos Recentes de Stock</MudText>
-    <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
-               Variant="Variant.Outlined" Size="Size.Small"
-               OnClick="ExportCsv">
-        Exportar CSV
-    </MudButton>
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Painel</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.CleaningServices"
+                   Color="Color.Default"
+                   Size="Size.Medium"
+                   OnClick="OpenMaintenance" />
 </div>
 
-@if (_movements.Count == 0)
+@if (_loading)
 {
-    <MudText Color="Color.Secondary" Class="ml-2">Ainda sem movimentos de stock.</MudText>
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
 }
 else
 {
-    <MudTable Items="_movements" Dense="true" Hover="true" Elevation="1">
-        <HeaderContent>
-            <MudTh>Data</MudTh>
-            <MudTh>Produto</MudTh>
-            <MudTh>Tamanho</MudTh>
-            <MudTh>Quarto</MudTh>
-            <MudTh>Movimento</MudTh>
-            <MudTh>Motivo</MudTh>
-            <MudTh>Notas</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd>@context.Date.ToLocalTime().ToString("dd/MM/yy HH:mm")</MudTd>
-            <MudTd>@context.SizeVariant.Product.Name</MudTd>
-            <MudTd>@context.SizeVariant.Size</MudTd>
-            <MudTd>
-                @if (!string.IsNullOrEmpty(context.RoomNumber))
-                {
-                    <MudChip T="string" Color="Color.Primary" Size="Size.Small">@context.RoomNumber</MudChip>
-                }
-            </MudTd>
-            <MudTd>
-                <MudChip T="string"
-                         Color="@(context.ChangeAmount >= 0 ? Color.Success : Color.Error)"
-                         Size="Size.Small">
-                    @(context.ChangeAmount >= 0 ? "+" : "")@context.ChangeAmount
-                </MudChip>
-            </MudTd>
-            <MudTd>@TraducirMotivo(context.Reason)</MudTd>
-            <MudTd>@context.Notes</MudTd>
-        </RowTemplate>
-    </MudTable>
+    <MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-4">
+
+        <!-- ═══════════════════════════════ TAB 1: PRODUTOS ═══════════════════════════════ -->
+        <MudTabPanel Text="Produtos" Icon="@Icons.Material.Filled.Inventory2">
+
+            <MudGrid Spacing="3" Class="mb-6">
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Total de Produtos</MudText>
+                        <MudText Typo="Typo.h3"><b>@_stats.totalProducts</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Total em Stock</MudText>
+                        <MudText Typo="Typo.h3"><b>@_stats.totalUnits</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="2" Class="pa-5 d-flex flex-column align-center"
+                              Style="@(_stats.lowStockCount > 0 ? "border-left:4px solid var(--mud-palette-error);" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                 Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Primary)"
+                                 Size="Size.Large" Class="mb-2" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Alertas de Stock</MudText>
+                        <MudText Typo="Typo.h3" Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Default)">
+                            <b>@_stats.lowStockCount</b>
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            @if (_lowStockVariants.Count > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-4">
+                    <b>@_lowStockVariants.Count</b> variante(s) com stock baixo.
+                    <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo("/products?lowstock=1"))" Class="ml-2">
+                        Ver Todos
+                    </MudButton>
+                </MudAlert>
+                <MudTable Items="_lowStockVariants" Dense="true" Hover="true" Elevation="1" Class="mb-6">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6">Stock Baixo</MudText>
+                    </ToolBarContent>
+                    <HeaderContent>
+                        <MudTh>Produto</MudTh><MudTh>Tipo</MudTh><MudTh>Tamanho</MudTh><MudTh>Qtd.</MudTh><MudTh>Mínimo</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Product.Name</MudTd>
+                        <MudTd>@context.Product.Type</MudTd>
+                        <MudTd><MudChip T="string" Color="Color.Error" Size="Size.Small">@context.Size</MudChip></MudTd>
+                        <MudTd><b>@context.Quantity</b></MudTd>
+                        <MudTd>@context.MinStockAlert</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.h6">Movimentos Recentes</MudText>
+                <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
+                           Variant="Variant.Outlined" Size="Size.Small" OnClick="ExportStockCsv">
+                    Exportar CSV
+                </MudButton>
+            </div>
+            @if (_movements.Count == 0)
+            {
+                <MudText Color="Color.Secondary">Ainda sem movimentos de stock.</MudText>
+            }
+            else
+            {
+                <MudTable Items="_movements" Dense="true" Hover="true" Elevation="1">
+                    <HeaderContent>
+                        <MudTh>Data</MudTh><MudTh>Produto</MudTh><MudTh>Tamanho</MudTh>
+                        <MudTh>Quarto</MudTh><MudTh>Movimento</MudTh><MudTh>Motivo</MudTh><MudTh>Notas</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Date.ToLocalTime().ToString("dd/MM/yy HH:mm")</MudTd>
+                        <MudTd>@context.SizeVariant.Product.Name</MudTd>
+                        <MudTd>@context.SizeVariant.Size</MudTd>
+                        <MudTd>
+                            @if (!string.IsNullOrEmpty(context.RoomNumber))
+                            {
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small">@context.RoomNumber</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd>
+                            <MudChip T="string" Color="@(context.ChangeAmount >= 0 ? Color.Success : Color.Error)" Size="Size.Small">
+                                @(context.ChangeAmount >= 0 ? "+" : "")@context.ChangeAmount
+                            </MudChip>
+                        </MudTd>
+                        <MudTd>@TraducirMotivo(context.Reason)</MudTd>
+                        <MudTd>@context.Notes</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+
+        <!-- ══════════════════════════ TAB 2: ARTIGOS & RESERVAS ══════════════════════════ -->
+        <MudTabPanel Text="Artigos & Reservas" Icon="@Icons.Material.Filled.Category">
+            @{
+                var totalLoans    = _items.Sum(i => i.ActiveLoansCount);
+                var kitchenCard   = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cozinha");
+                var cinemaCard    = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cinema");
+                var activeReserv  = _todayReservations.Count(r => r.AccessCardLoanId != null && r.AccessCardLoan?.ReturnDate == null);
+                var todayCount    = _todayReservations.Count;
+            }
+
+            <MudGrid Spacing="3" Class="mb-5">
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Color="Color.Warning" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Em Empréstimo</MudText>
+                        <MudText Typo="Typo.h3"><b>@totalLoans</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Reservas Hoje</MudText>
+                        <MudText Typo="Typo.h3"><b>@todayCount</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center"
+                              Style="@(kitchenCard?.AvailableCount == 0 ? "border-left:4px solid var(--mud-palette-warning);" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Restaurant"
+                                 Color="@(kitchenCard?.AvailableCount > 0 ? Color.Success : Color.Warning)"
+                                 Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Cartão Cozinha</MudText>
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(kitchenCard?.AvailableCount > 0 ? Color.Success : Color.Warning)">
+                            @(kitchenCard?.AvailableCount > 0 ? "Disponível" : "Emprestado")
+                        </MudChip>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center"
+                              Style="@(cinemaCard?.AvailableCount == 0 ? "border-left:4px solid var(--mud-palette-warning);" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Theaters"
+                                 Color="@(cinemaCard?.AvailableCount > 0 ? Color.Success : Color.Warning)"
+                                 Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Cartão Cinema</MudText>
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(cinemaCard?.AvailableCount > 0 ? Color.Success : Color.Warning)">
+                            @(cinemaCard?.AvailableCount > 0 ? "Disponível" : "Emprestado")
+                        </MudChip>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Active loans -->
+            @{ var activeLoans = _items.SelectMany(i => i.Loans.Where(l => !l.IsReturned).Select(l => (Item: i, Loan: l))).OrderByDescending(x => x.Loan.LoanDate).ToList(); }
+            <MudText Typo="Typo.h6" Class="mb-2">Empréstimos Activos</MudText>
+            @if (activeLoans.Count == 0)
+            {
+                <MudAlert Severity="Severity.Success" Class="mb-4">Nenhum artigo em empréstimo.</MudAlert>
+            }
+            else
+            {
+                <MudPaper Elevation="1" Class="overflow-hidden mb-5">
+                    @foreach (var (item, loan) in activeLoans)
+                    {
+                        <div class="d-flex align-center gap-3 px-4 py-2" style="border-bottom:1px solid rgba(0,0,0,0.07);">
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>@item.Name</b>
+                                    <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
+                                        → Quarto @loan.RoomNumber · @loan.GivenBy
+                                    </MudText>
+                                    @if (loan.Quantity > 1) { <span style="font-size:0.8em"> · @loan.Quantity unid.</span> }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @loan.LoanDate.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Em empréstimo</MudChip>
+                        </div>
+                    }
+                </MudPaper>
+            }
+
+            <!-- Today's reservations -->
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudText Typo="Typo.h6">Reservas de Hoje</MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small"
+                           OnClick="@(() => Nav.NavigateTo("/calendario"))">
+                    Ver Calendário
+                </MudButton>
+            </div>
+            @if (_todayReservations.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">Sem reservas para hoje.</MudAlert>
+            }
+            else
+            {
+                <MudPaper Elevation="1" Class="overflow-hidden">
+                    @foreach (var res in _todayReservations)
+                    {
+                        var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                        var resState   = res.AccessCardLoanId == null ? "Agendada"
+                                         : res.AccessCardLoan?.ReturnDate == null ? "Em Curso" : "Concluída";
+                        var resColor   = resState == "Em Curso" ? Color.Warning : resState == "Concluída" ? Color.Success : Color.Default;
+                        <div class="d-flex align-center gap-3 px-4 py-2" style="border-bottom:1px solid rgba(0,0,0,0.07);">
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>@spaceLabel</b>
+                                    <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
+                                        · Quarto @res.RoomNumber · @res.ReservedBy
+                                    </MudText>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @res.StartTime.ToLocalTime().ToString("HH:mm") – @res.EndTime.ToLocalTime().ToString("HH:mm")
+                                </MudText>
+                            </div>
+                            <MudChip T="string" Color="@resColor" Size="Size.Small">@resState</MudChip>
+                        </div>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <!-- ═══════════════════════════ TAB 3: ENCOMENDAS & CARTAS ═══════════════════════════ -->
+        <MudTabPanel Text="Encomendas & Cartas" Icon="@Icons.Material.Filled.LocalShipping">
+
+            <MudGrid Spacing="3" Class="mb-5">
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center"
+                              Style="@(_deliveryStats.PendingPackages > 0 ? "border-left:4px solid var(--mud-palette-warning);" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Warning" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Encomendas</MudText>
+                        <MudText Typo="Typo.h3"><b>@_deliveryStats.PendingPackages</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">por levantar</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center"
+                              Style="@(_deliveryStats.PendingLetters > 0 ? "border-left:4px solid var(--mud-palette-info);" : "")">
+                        <MudIcon Icon="@Icons.Material.Filled.Mail" Color="Color.Info" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Cartas</MudText>
+                        <MudText Typo="Typo.h3"><b>@_deliveryStats.PendingLetters</b></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">por levantar</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Today" Color="Color.Primary" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Chegaram hoje</MudText>
+                        <MudText Typo="Typo.h3"><b>@_deliveryStats.ArrivedToday</b></MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Levantados hoje</MudText>
+                        <MudText Typo="Typo.h3"><b>@_deliveryStats.CollectedToday</b></MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Pending list (compact) -->
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudText Typo="Typo.h6">Por Levantar</MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.OpenInNew"
+                           OnClick="@(() => Nav.NavigateTo("/encomendas"))">
+                    Ver página
+                </MudButton>
+            </div>
+            @if (_pendingDeliveries.Count == 0)
+            {
+                <MudAlert Severity="Severity.Success">Nenhuma encomenda ou carta por levantar.</MudAlert>
+            }
+            else
+            {
+                <MudPaper Elevation="1" Class="overflow-hidden">
+                    @foreach (var d in _pendingDeliveries.Take(8))
+                    {
+                        var dIcon  = d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail;
+                        var dColor = d.Type == DeliveryType.Encomenda ? Color.Warning : Color.Info;
+                        var dLabel = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                        <div class="d-flex align-center gap-3 px-4 py-2" style="border-bottom:1px solid rgba(0,0,0,0.07);">
+                            <MudIcon Icon="@dIcon" Color="@dColor" Size="Size.Small" />
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>Quarto @d.RoomNumber</b>
+                                    <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
+                                        · @dLabel @(d.Quantity > 1 ? $"· {d.Quantity} unid." : "")
+                                    </MudText>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @d.ArrivedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                    @if (_pendingDeliveries.Count > 8)
+                    {
+                        <div class="pa-2 text-center">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                + @(_pendingDeliveries.Count - 8) mais — ver página de encomendas
+                            </MudText>
+                        </div>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+    </MudTabs>
 }
 
 @code {
+    private bool _loading = true;
+
+    // Tab 1 — Produtos
     private (int totalProducts, int totalUnits, int lowStockCount) _stats;
     private List<StockMovement> _movements = [];
     private List<SizeVariant> _lowStockVariants = [];
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadData();
-    }
+    // Tab 2 — Artigos & Reservas
+    private List<GeneralItem> _items = [];
+    private List<Reservation> _todayReservations = [];
+
+    // Tab 3 — Encomendas
+    private DeliveryDashboardStats _deliveryStats = new(0, 0, 0, 0);
+    private List<Delivery> _pendingDeliveries = [];
+
+    protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
     {
-        _stats = await StockSvc.GetDashboardStatsAsync();
-        _movements = await StockSvc.GetRecentMovementsAsync(15);
-        _lowStockVariants = await StockSvc.GetLowStockVariantsAsync();
+        _loading = true;
+        await Task.WhenAll(
+            Task.Run(async () => {
+                _stats            = await StockSvc.GetDashboardStatsAsync();
+                _movements        = await StockSvc.GetRecentMovementsAsync(15);
+                _lowStockVariants = await StockSvc.GetLowStockVariantsAsync();
+            }),
+            Task.Run(async () => {
+                _items             = await ItemSvc.GetAllWithLoansAsync();
+                _todayReservations = await ReservaSvc.GetByDateAsync(DateTime.Today);
+            }),
+            Task.Run(async () => {
+                _deliveryStats    = await DeliverySvc.GetDashboardStatsAsync();
+                _pendingDeliveries = await DeliverySvc.GetPendingAsync();
+            })
+        );
+        _loading = false;
     }
 
-    private static string TraducirMotivo(MovementReason r) => r switch
+    private async Task OpenMaintenance()
     {
-        MovementReason.Sale       => "Venda",
-        MovementReason.Restock    => "Reposição",
-        MovementReason.Adjustment => "Ajuste",
-        MovementReason.Trade      => "Troca",
-        _                         => r.ToString()
-    };
+        await DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
+    }
 
-    private async Task ExportCsv()
+    private async Task ExportStockCsv()
     {
         try
         {
@@ -154,4 +393,13 @@ else
             Snackbar.Add($"Erro na exportação: {ex.Message}", Severity.Error);
         }
     }
+
+    private static string TraducirMotivo(MovementReason r) => r switch
+    {
+        MovementReason.Sale       => "Venda",
+        MovementReason.Restock    => "Reposição",
+        MovementReason.Adjustment => "Ajuste",
+        MovementReason.Trade      => "Troca",
+        _                         => r.ToString()
+    };
 }

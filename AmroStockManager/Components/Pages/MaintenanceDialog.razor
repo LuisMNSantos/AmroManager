@@ -1,0 +1,145 @@
+@inject MaintenanceService MaintSvc
+@inject ISnackbar Snackbar
+
+<MudDialog Style="min-width:480px;">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.CleaningServices" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Manutenção e Limpeza</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Elimina registos antigos (empréstimos devolvidos, reservas concluídas, movimentos de stock
+            e encomendas/cartas entregues) para manter a base de dados leve.
+        </MudText>
+
+        <MudSelect T="int" Value="_months" Label="Eliminar registos mais antigos que"
+                   FullWidth="true" Class="mb-4" ValueChanged="OnPeriodChanged">
+            <MudSelectItem Value="1">1 mês</MudSelectItem>
+            <MudSelectItem Value="3">3 meses</MudSelectItem>
+            <MudSelectItem Value="6">6 meses</MudSelectItem>
+            <MudSelectItem Value="12">1 ano</MudSelectItem>
+        </MudSelect>
+
+        @if (_loadingPreview)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+        }
+        else if (_preview is not null)
+        {
+            <MudPaper Outlined="true" Class="pa-3 mb-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Registos que serão eliminados:</MudText>
+                <div class="d-flex flex-column gap-1">
+                    @foreach (var (label, count) in new (string, int)[] {
+                        ("Empréstimos devolvidos",         _preview.ReturnedLoans),
+                        ("Reservas concluídas/canceladas", _preview.OldReservations),
+                        ("Movimentos de stock",            _preview.OldMovements),
+                        ("Encomendas/Cartas entregues",    _preview.OldDeliveries)
+                    })
+                    {
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2">@label</MudText>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(count > 0 ? Color.Warning : Color.Default)">
+                                @count
+                            </MudChip>
+                        </div>
+                    }
+                </div>
+                @if (Total == 0)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Success" Class="mt-2">
+                        Nenhum registo a eliminar para este período.
+                    </MudText>
+                }
+            </MudPaper>
+        }
+
+        @if (_exportedPath is not null)
+        {
+            <MudAlert Severity="Severity.Success" Dense="true" Class="mb-3">
+                CSV exportado para:<br />
+                <span style="font-size:0.78em; word-break:break-all;">@_exportedPath</span>
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Fechar</MudButton>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.FileDownload"
+                   Disabled="@(Total == 0 || _working)"
+                   OnClick="ExportCsv">
+            Exportar CSV
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.DeleteSweep"
+                   Disabled="@(Total == 0 || _working)"
+                   OnClick="Cleanup">
+            Limpar Histórico
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* Inline helper component *@
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private int _months = 6;
+    private bool _loadingPreview;
+    private bool _working;
+    private CleanupPreview? _preview;
+    private string? _exportedPath;
+
+    private int Total => _preview is null ? 0
+        : _preview.ReturnedLoans + _preview.OldReservations + _preview.OldMovements + _preview.OldDeliveries;
+
+    protected override async Task OnInitializedAsync() => await LoadPreview();
+
+    private async Task OnPeriodChanged(int months)
+    {
+        _months = months;
+        await LoadPreview();
+    }
+
+    private async Task LoadPreview()
+    {
+        _loadingPreview = true;
+        _preview = await MaintSvc.GetPreviewAsync(_months);
+        _loadingPreview = false;
+    }
+
+    private async Task ExportCsv()
+    {
+        _working = true;
+        try
+        {
+            _exportedPath = await MaintSvc.ExportToCsvAsync(_months);
+            Snackbar.Add("CSV exportado com sucesso.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao exportar: {ex.Message}", Severity.Error);
+        }
+        _working = false;
+    }
+
+    private async Task Cleanup()
+    {
+        _working = true;
+        try
+        {
+            await MaintSvc.CleanupAsync(_months);
+            Snackbar.Add($"{Total} registos eliminados. Base de dados compactada.", Severity.Success);
+            await LoadPreview();
+            _exportedPath = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao limpar: {ex.Message}", Severity.Error);
+        }
+        _working = false;
+    }
+}
