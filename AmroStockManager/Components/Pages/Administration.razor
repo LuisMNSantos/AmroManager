@@ -1,0 +1,323 @@
+@page "/administracao"
+@using Microsoft.Maui.Storage
+@inject ResidentService ResidentSvc
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<!-- ── PIN lock overlay ── -->
+@if (!_unlocked)
+{
+    <div style="display:flex; justify-content:center; align-items:center; min-height:60vh;">
+        <MudPaper Elevation="4" Class="pa-8" Style="width:340px; text-align:center;">
+            <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings"
+                     Color="Color.Primary" Style="font-size:3rem;" Class="mb-2" />
+            <MudText Typo="Typo.h6" Class="mb-1">Área Restrita</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                Introduza o código de 4 dígitos
+            </MudText>
+            <MudTextField @bind-Value="_pinInput"
+                          InputType="InputType.Password"
+                          Placeholder="● ● ● ●"
+                          MaxLength="4"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Class="mb-3"
+                          Style="letter-spacing:0.5em; font-size:1.4rem; text-align:center;"
+                          @onkeydown="OnPinKey" />
+            @if (_pinError)
+            {
+                <MudText Color="Color.Error" Typo="Typo.caption" Class="mb-2">
+                    Código incorreto. Tente novamente.
+                </MudText>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       FullWidth="true" OnClick="TryUnlock">
+                Entrar
+            </MudButton>
+        </MudPaper>
+    </div>
+    return;
+}
+
+<!-- ── Main content ── -->
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Administração</MudText>
+    <div class="d-flex gap-2">
+        <MudButton StartIcon="@Icons.Material.Filled.FileUpload"
+                   Variant="Variant.Outlined" Color="Color.Primary"
+                   OnClick="ImportCsv">
+            Importar CSV
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Lock"
+                   Variant="Variant.Outlined"
+                   OnClick="@(() => _showChangePinForm = !_showChangePinForm)">
+            Alterar PIN
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.DeleteSweep"
+                   Variant="Variant.Outlined" Color="Color.Error"
+                   OnClick="ClearAll">
+            Limpar Lista
+        </MudButton>
+    </div>
+</div>
+
+<!-- Change PIN form -->
+@if (_showChangePinForm)
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">Alterar Código de Acesso</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_newPin"
+                              Label="Novo código (4 dígitos)"
+                              InputType="InputType.Password"
+                              MaxLength="4"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_confirmPin"
+                              Label="Confirmar código"
+                              InputType="InputType.Password"
+                              MaxLength="4"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-end gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ChangePin">
+                    Guardar
+                </MudButton>
+                <MudButton OnClick="@(() => _showChangePinForm = false)">Cancelar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+<!-- Stats -->
+<MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Residentes</MudText>
+                <MudText Typo="Typo.h5"><b>@_residents.Count(r => !r.IsCollaborator)</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Secondary" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Colaboradores</MudText>
+                <MudText Typo="Typo.h5"><b>@_residents.Count(r => r.IsCollaborator)</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.PhoneAndroid" Color="Color.Success" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Com telemóvel</MudText>
+                <MudText Typo="Typo.h5"><b>@_residents.Count(r => !string.IsNullOrEmpty(r.PhoneNumber))</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Info" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Total</MudText>
+                <MudText Typo="Typo.h5"><b>@_residents.Count</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<!-- CSV hint -->
+<MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+    Formato CSV: <b>Nome, Quarto, Telemóvel, Colaborador</b> &nbsp;·&nbsp;
+    Telemóvel em formato internacional (ex: +351912345678) &nbsp;·&nbsp;
+    Colaborador: true/false &nbsp;·&nbsp;
+    Importar substitui a lista inteira.
+</MudAlert>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else if (_residents.Count == 0)
+{
+    <MudAlert Severity="Severity.Warning">
+        Nenhum residente ou colaborador na lista. Importe um ficheiro CSV para começar.
+    </MudAlert>
+}
+else
+{
+    <!-- Search -->
+    <MudTextField @bind-Value="_search" Placeholder="Pesquisar nome ou quarto…"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" FullWidth="true" Class="mb-3" />
+
+    <MudPaper Elevation="2" Class="overflow-hidden">
+        <!-- Table header -->
+        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 48px;
+                    padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Telemóvel</MudText>
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Tipo</MudText>
+            <span></span>
+        </div>
+
+        @foreach (var r in Filtered)
+        {
+            var resident = r;
+            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 48px;
+                        padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
+                        align-items:center;">
+                <MudText Typo="Typo.body2" Style="font-weight:600;">
+                    @(string.IsNullOrEmpty(resident.RoomNumber) ? "—" : $"#{resident.RoomNumber}")
+                </MudText>
+                <MudText Typo="Typo.body2">@resident.Name</MudText>
+                <MudText Typo="Typo.body2" Color="@(resident.PhoneNumber is null ? Color.Secondary : Color.Default)">
+                    @(resident.PhoneNumber ?? "—")
+                </MudText>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(resident.IsCollaborator ? Color.Secondary : Color.Primary)">
+                    @(resident.IsCollaborator ? "Colaborador" : "Residente")
+                </MudChip>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteResident(resident))" />
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    private static bool _sessionUnlocked = false;
+
+    private bool _unlocked = _sessionUnlocked;
+    private bool _loading = true;
+    private string _pinInput = string.Empty;
+    private bool _pinError;
+    private bool _showChangePinForm;
+    private string _newPin = string.Empty;
+    private string _confirmPin = string.Empty;
+    private string _search = string.Empty;
+    private List<Resident> _residents = [];
+
+    private IEnumerable<Resident> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? _residents
+        : _residents.Where(r =>
+            r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            r.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_unlocked) await LoadResidents();
+        _loading = false;
+    }
+
+    private async Task TryUnlock()
+    {
+        if (_pinInput == ResidentSvc.GetPin())
+        {
+            _sessionUnlocked = true;
+            _unlocked = true;
+            _pinError = false;
+            _loading = true;
+            await LoadResidents();
+            _loading = false;
+        }
+        else
+        {
+            _pinError = true;
+            _pinInput = string.Empty;
+        }
+    }
+
+    private async Task OnPinKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await TryUnlock();
+    }
+
+    private async Task LoadResidents()
+    {
+        _residents = await ResidentSvc.GetAllAsync();
+    }
+
+    private void ChangePin()
+    {
+        if (_newPin.Length != 4 || !_newPin.All(char.IsDigit))
+        {
+            Snackbar.Add("O código deve ter exatamente 4 dígitos.", Severity.Warning);
+            return;
+        }
+        if (_newPin != _confirmPin)
+        {
+            Snackbar.Add("Os códigos não coincidem.", Severity.Warning);
+            return;
+        }
+        ResidentSvc.SavePin(_newPin);
+        Snackbar.Add("Código alterado com sucesso.", Severity.Success);
+        _newPin = _confirmPin = string.Empty;
+        _showChangePinForm = false;
+    }
+
+    private async Task ImportCsv()
+    {
+        try
+        {
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Selecionar ficheiro CSV",
+                FileTypes = new FilePickerFileType(
+                    new Dictionary<DevicePlatform, IEnumerable<string>>
+                    {
+                        { DevicePlatform.WinUI, [".csv"] }
+                    })
+            });
+
+            if (result is null) return;
+
+            var confirmed = await DialogService.ShowMessageBox(
+                "Confirmar importação",
+                "Importar este CSV irá substituir toda a lista atual. Continuar?",
+                yesText: "Importar", cancelText: "Cancelar");
+            if (confirmed != true) return;
+
+            await using var stream = await result.OpenReadAsync();
+            var (imported, skipped) = await ResidentSvc.ImportFromCsvAsync(stream);
+            await LoadResidents();
+            Snackbar.Add($"{imported} entradas importadas.{(skipped > 0 ? $" {skipped} ignoradas." : "")}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao importar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteResident(Resident r)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Eliminar",
+            $"Eliminar {r.Name}?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        await ResidentSvc.DeleteResidentAsync(r.Id);
+        await LoadResidents();
+    }
+
+    private async Task ClearAll()
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Limpar lista",
+            "Eliminar todos os residentes e colaboradores?",
+            yesText: "Limpar tudo", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        await ResidentSvc.DeleteAllAsync();
+        await LoadResidents();
+        Snackbar.Add("Lista limpa.", Severity.Success);
+    }
+}

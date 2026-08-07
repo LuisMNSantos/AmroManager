@@ -1,4 +1,5 @@
 @inject StockService StockSvc
+@inject ResidentService ResidentSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -25,13 +26,16 @@
             @if (_reason == MovementReason.Sale || _reason == MovementReason.Trade)
             {
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_roomNumber"
-                                  Label="Número do Quarto"
-                                  Required="true"
-                                  RequiredError="Número do quarto obrigatório para uma venda"
-                                  Immediate="true"
-                                  FullWidth="true"
-                                  Placeholder="ex: 405, 404A" />
+                    <MudAutocomplete T="string"
+                                     @bind-Value="_roomInput"
+                                     Label="Número do Quarto"
+                                     Required="true"
+                                     RequiredError="Número do quarto obrigatório para uma venda"
+                                     SearchFunc="SearchRooms"
+                                     CoerceText="true"
+                                     MinimumLength="1"
+                                     FullWidth="true"
+                                     Placeholder="ex: 405, 404A" />
                 </MudItem>
             }
             <MudItem xs="12">
@@ -58,7 +62,7 @@
 
     private MovementReason _reason;
     private int _amount;
-    private string? _roomNumber;
+    private string? _roomInput;
     private string? _notes;
 
     protected override void OnParametersSet()
@@ -75,16 +79,20 @@
             return;
         }
         if ((_reason == MovementReason.Sale || _reason == MovementReason.Trade)
-            && string.IsNullOrWhiteSpace(_roomNumber))
+            && string.IsNullOrWhiteSpace(_roomInput))
         {
             Snackbar.Add("Número do quarto obrigatório para uma venda.", Severity.Warning);
             return;
         }
 
-        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, _roomNumber?.Trim());
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, roomNumber);
         Snackbar.Add($"Stock atualizado para {VariantItem.Size}.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
+
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct) =>
+        ResidentSvc.GetSuggestionsAsync(value);
 
     private void Cancel() => MudDialog.Cancel();
 }

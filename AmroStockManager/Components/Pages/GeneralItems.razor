@@ -1,6 +1,7 @@
 @page "/general-items"
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
+@inject ResidentService ResidentSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -94,14 +95,13 @@ else
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.SubdirectoryArrowRight"
                                      Size="Size.Small" Style="vertical-align:middle; opacity:0.4; margin-right:4px;" />
-                            <b>#@loan.RoomNumber</b>
-                            — @loan.GivenBy
+                            <b>@RoomDisplay(loan.RoomNumber)</b>
                             @if (loan.Quantity > 1)
                             {
                                 <span style="color:var(--mud-palette-text-secondary)"> · @loan.Quantity unid.</span>
                             }
                             <span style="color:var(--mud-palette-text-secondary); font-size:0.78em; margin-left:8px;">
-                                @loan.LoanDate.ToLocalTime().ToString("dd/MM HH:mm")
+                                @loan.GivenBy · @loan.LoanDate.ToLocalTime().ToString("dd/MM HH:mm")
                             </span>
                         </MudText>
                         @if (!string.IsNullOrEmpty(loan.Notes))
@@ -132,15 +132,28 @@ else
 @code {
     private bool _loading = true;
     private List<GeneralItem> _items = [];
+    private Dictionary<string, Resident> _residentByRoom = [];
 
     protected override async Task OnInitializedAsync() => await LoadItems();
 
     private async Task LoadItems()
     {
         _loading = true;
-        _items = await ItemSvc.GetAllWithLoansAsync();
+        var itemsTask     = ItemSvc.GetAllWithLoansAsync();
+        var residentsTask = ResidentSvc.GetAllAsync();
+        await Task.WhenAll(itemsTask, residentsTask);
+        _items = itemsTask.Result;
+        _residentByRoom = residentsTask.Result
+            .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+            .GroupBy(r => r.RoomNumber.ToUpper())
+            .ToDictionary(g => g.Key, g => g.First());
         _loading = false;
     }
+
+    private string RoomDisplay(string room) =>
+        _residentByRoom.TryGetValue(room.ToUpper(), out var r)
+            ? $"#{room} - {r.Name}"
+            : $"#{room}";
 
     private async Task OpenLendDialog(GeneralItem item)
     {
@@ -160,9 +173,9 @@ else
     {
         var linkedReservation = await ReservaSvc.GetActiveByLoanIdAsync(loan.Id);
         var message = linkedReservation is not null
-            ? $"Devolver o cartão do quarto {loan.RoomNumber}? " +
-              $"A reserva associada ({SpaceLabel(linkedReservation.Space)} — quarto {linkedReservation.RoomNumber}) será automaticamente concluída."
-            : $"Marcar o empréstimo do quarto {loan.RoomNumber} como devolvido?";
+            ? $"Devolver o cartão do {RoomDisplay(loan.RoomNumber)}? " +
+              $"A reserva associada ({SpaceLabel(linkedReservation.Space)} — {RoomDisplay(linkedReservation.RoomNumber)}) será automaticamente concluída."
+            : $"Marcar o empréstimo do {RoomDisplay(loan.RoomNumber)} como devolvido?";
 
         var confirmed = await DialogService.ShowMessageBox(
             "Devolver Artigo", message, yesText: "Sim, devolvido", cancelText: "Cancelar");

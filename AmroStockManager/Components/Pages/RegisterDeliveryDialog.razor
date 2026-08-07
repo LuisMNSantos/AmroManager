@@ -1,4 +1,7 @@
+@using Microsoft.Maui.ApplicationModel
 @inject DeliveryService DeliverySvc
+@inject ResidentService ResidentSvc
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -27,18 +30,21 @@
                 </MudButtonGroup>
             </MudItem>
 
-            <!-- Room number -->
+            <!-- Room number with autocomplete -->
             <MudItem xs="12" sm="7">
-                <MudTextField @bind-Value="_roomNumber"
-                              Label="Quarto"
-                              Placeholder="ex: 405, 404A"
-                              Required="true"
-                              RequiredError="Obrigatório"
-                              Immediate="true"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.MeetingRoom"
-                              FullWidth="true"
-                              AutoFocus="true" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_roomInput"
+                                 Label="Quarto"
+                                 Placeholder="ex: 405, 404A"
+                                 SearchFunc="SearchRooms"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 MinimumLength="1"
+                                 Required="true"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@Icons.Material.Filled.MeetingRoom"
+                                 FullWidth="true"
+                                 AutoFocus="true" />
             </MudItem>
 
             <!-- Quantity -->
@@ -76,23 +82,58 @@
     [Parameter] public DeliveryType DefaultType { get; set; } = DeliveryType.Encomenda;
 
     private DeliveryType _type;
-    private string _roomNumber = string.Empty;
+    private string _roomInput = string.Empty;
     private int _quantity = 1;
     private string? _notes;
 
     protected override void OnParametersSet() => _type = DefaultType;
 
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+        => ResidentSvc.GetSuggestionsAsync(value);
+
     private async Task Confirm()
     {
-        if (string.IsNullOrWhiteSpace(_roomNumber))
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        if (string.IsNullOrWhiteSpace(roomNumber))
         {
             Snackbar.Add("Indique o número do quarto.", Severity.Warning);
             return;
         }
-        await DeliverySvc.RegisterAsync(_type, _roomNumber, _quantity, _notes);
+
+        await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes);
+
         var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
-        Snackbar.Add($"{label} para o quarto {_roomNumber.Trim().ToUpper()} registada.", Severity.Success);
+        Snackbar.Add($"{label} para o quarto {roomNumber} registada.", Severity.Success);
+
+        // WhatsApp notification
+        var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
+        if (resident?.PhoneNumber is not null)
+        {
+            var send = await DialogService.ShowMessageBox(
+                "Notificar Residente",
+                $"Enviar notificação WhatsApp a {resident.Name} ({resident.PhoneNumber})?",
+                yesText: "Enviar", cancelText: "Não");
+            if (send == true)
+                await OpenWhatsApp(resident, _type, _quantity);
+        }
+
         MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private static async Task OpenWhatsApp(Resident resident, DeliveryType type, int qty)
+    {
+        var tipo = type == DeliveryType.Encomenda
+            ? (qty > 1 ? $"{qty} encomendas" : "1 encomenda")
+            : (qty > 1 ? $"{qty} cartas" : "1 carta");
+
+        var msg = $"Olá {resident.Name}! Tem {tipo} para levantar na receção. " +
+                  $"Chegou em {DateTime.Now:dd/MM HH:mm}.";
+
+        var phone = resident.PhoneNumber!
+            .Replace("+", "").Replace(" ", "").Replace("-", "");
+
+        var url = $"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}";
+        await Launcher.Default.OpenAsync(new Uri(url));
     }
 
     private void Cancel() => MudDialog.Cancel();

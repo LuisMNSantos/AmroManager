@@ -1,4 +1,5 @@
 @inject ReservationService ReservaSvc
+@inject ResidentService ResidentSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -14,13 +15,16 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_roomNumber"
-                              Label="Número do Quarto"
-                              Required="true"
-                              RequiredError="Obrigatório"
-                              Placeholder="ex: 405, 404A"
-                              Immediate="true"
-                              FullWidth="true" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_roomInput"
+                                 Label="Número do Quarto"
+                                 Placeholder="ex: 405, 404A"
+                                 SearchFunc="SearchRooms"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 MinimumLength="1"
+                                 Required="true"
+                                 FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_reservedBy"
@@ -31,18 +35,11 @@
                               FullWidth="true" />
             </MudItem>
 
-            <!-- Start time -->
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_startTime"
-                               Label="Hora de Início"
-                               AmPm="false" />
+                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" />
             </MudItem>
-
-            <!-- End time -->
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_endTime"
-                               Label="Hora de Fim"
-                               AmPm="false" />
+                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" />
             </MudItem>
 
             @if (_space == ReservationSpace.Cinema)
@@ -93,18 +90,22 @@
     [Parameter] public ReservationSpace DefaultSpace { get; set; } = ReservationSpace.Cozinha;
 
     private ReservationSpace _space;
-    private string _roomNumber  = string.Empty;
-    private string _reservedBy  = string.Empty;
+    private string _roomInput  = string.Empty;
+    private string _reservedBy = string.Empty;
     private TimeSpan? _startTime;
     private TimeSpan? _endTime;
-    private int _endDayOffset = 0;
+    private int _endDayOffset  = 0;
     private string? _notes;
 
     protected override void OnParametersSet() => _space = DefaultSpace;
 
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+        => ResidentSvc.GetSuggestionsAsync(value);
+
     private async Task Confirm()
     {
-        if (string.IsNullOrWhiteSpace(_roomNumber) || string.IsNullOrWhiteSpace(_reservedBy))
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        if (string.IsNullOrWhiteSpace(roomNumber) || string.IsNullOrWhiteSpace(_reservedBy))
         {
             Snackbar.Add("Número do quarto e responsável são obrigatórios.", Severity.Warning);
             return;
@@ -129,17 +130,17 @@
             }
         }
 
-        var endDate = Date.AddDays(_endDayOffset);
         if (_endDayOffset == 0 && _endTime <= _startTime)
         {
             Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
             return;
         }
 
+        var endDate = Date.AddDays(_endDayOffset);
         var startDt = DateTime.SpecifyKind(Date.Date    + _startTime.Value, DateTimeKind.Local);
         var endDt   = DateTime.SpecifyKind(endDate.Date + _endTime.Value,   DateTimeKind.Local);
 
-        var (ok, error, _) = await ReservaSvc.CreateAsync(_space, _roomNumber, _reservedBy, startDt, endDt, _notes);
+        var (ok, error, _) = await ReservaSvc.CreateAsync(_space, roomNumber, _reservedBy, startDt, endDt, _notes);
         if (!ok)
         {
             Snackbar.Add(error ?? "Não foi possível criar a reserva.", Severity.Error);

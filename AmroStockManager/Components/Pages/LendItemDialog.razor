@@ -1,4 +1,5 @@
 @inject GeneralItemService ItemSvc
+@inject ResidentService ResidentSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -13,13 +14,16 @@
                 </MudAlert>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_roomNumber"
-                              Label="Número do Quarto"
-                              Required="true"
-                              RequiredError="Obrigatório"
-                              Placeholder="ex: 405, 404A"
-                              Immediate="true"
-                              FullWidth="true" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_roomInput"
+                                 Label="Número do Quarto"
+                                 Placeholder="ex: 405, 404A"
+                                 SearchFunc="SearchRooms"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 MinimumLength="1"
+                                 Required="true"
+                                 FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_givenBy"
@@ -65,7 +69,7 @@
     [Parameter] public GeneralItem ItemType { get; set; } = null!;
     [Parameter] public GeneralItem? LinkedItem { get; set; }
 
-    private string _roomNumber = string.Empty;
+    private string _roomInput = string.Empty;
     private string _givenBy   = string.Empty;
     private string? _notes;
     private int _linkedQty = 0;
@@ -76,15 +80,19 @@
             _linkedQty = Math.Min(1, LinkedItem.AvailableCount);
     }
 
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+        => ResidentSvc.GetSuggestionsAsync(value);
+
     private async Task Confirm()
     {
-        if (string.IsNullOrWhiteSpace(_roomNumber) || string.IsNullOrWhiteSpace(_givenBy))
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        if (string.IsNullOrWhiteSpace(roomNumber) || string.IsNullOrWhiteSpace(_givenBy))
         {
             Snackbar.Add("Número do quarto e entregue por são obrigatórios.", Severity.Warning);
             return;
         }
 
-        var ok = await ItemSvc.LendItemAsync(ItemType.Id, _roomNumber, _givenBy, _notes);
+        var ok = await ItemSvc.LendItemAsync(ItemType.Id, roomNumber, _givenBy, _notes);
         if (!ok)
         {
             Snackbar.Add("Sem unidades disponíveis para emprestar.", Severity.Error);
@@ -93,13 +101,13 @@
 
         if (LinkedItem is not null && _linkedQty > 0)
         {
-            await ItemSvc.LendItemAsync(LinkedItem.Id, _roomNumber, _givenBy,
+            await ItemSvc.LendItemAsync(LinkedItem.Id, roomNumber, _givenBy,
                 $"Com {ItemType.Name} — {_notes}".Trim(' ', '—'), _linkedQty);
         }
 
         var msg = LinkedItem is not null && _linkedQty > 0
-            ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {_roomNumber}."
-            : $"{ItemType.Name} emprestado ao quarto {_roomNumber}.";
+            ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {roomNumber}."
+            : $"{ItemType.Name} emprestado ao quarto {roomNumber}.";
 
         Snackbar.Add(msg, Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));

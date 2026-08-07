@@ -1,6 +1,7 @@
 @page "/calendario"
 @using System.Globalization
 @inject ReservationService ReservaSvc
+@inject ResidentService ResidentSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -144,6 +145,7 @@ else
                     {
                         var r = res;
                         <ReservationCard Reservation="r"
+                                         ResidentName="@GetResidentName(r.RoomNumber)"
                                          OnActivate="ActivateReservation"
                                          OnComplete="CompleteReservation"
                                          OnCancel="CancelReservation" />
@@ -176,6 +178,7 @@ else
                     {
                         var r = res;
                         <ReservationCard Reservation="r"
+                                         ResidentName="@GetResidentName(r.RoomNumber)"
                                          OnActivate="ActivateReservation"
                                          OnComplete="CompleteReservation"
                                          OnCancel="CancelReservation" />
@@ -212,8 +215,20 @@ else
     private List<Reservation> _reservations = [];
     private List<CalendarCell> _calendarCells = [];
     private Dictionary<int, int> _monthlyCounts = [];
+    private Dictionary<string, Resident> _residentByRoom = [];
 
-    protected override async Task OnInitializedAsync() => await LoadMonth();
+    protected override async Task OnInitializedAsync()
+    {
+        var residents = await ResidentSvc.GetAllAsync();
+        _residentByRoom = residents
+            .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+            .GroupBy(r => r.RoomNumber.ToUpper())
+            .ToDictionary(g => g.Key, g => g.First());
+        await LoadMonth();
+    }
+
+    private string? GetResidentName(string room) =>
+        _residentByRoom.TryGetValue(room.ToUpper(), out var r) ? r.Name : null;
 
     private async Task LoadMonth()
     {

@@ -38,6 +38,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<DeliveryService>();
         builder.Services.AddSingleton<MaintenanceService>();
         builder.Services.AddSingleton<BackupService>();
+        builder.Services.AddSingleton<ResidentService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -121,6 +122,15 @@ public static class MauiProgram
                 CreatedAt        TEXT NOT NULL,
                 IsCancelled      INTEGER NOT NULL DEFAULT 0,
                 AccessCardLoanId INTEGER REFERENCES GeneralItemLoans(Id) ON DELETE SET NULL
+            )");
+
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS Residents (
+                Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name           TEXT    NOT NULL,
+                RoomNumber     TEXT    NOT NULL DEFAULT '',
+                PhoneNumber    TEXT,
+                IsCollaborator INTEGER NOT NULL DEFAULT 0
             )");
 
         // ── Rename English item names to Portuguese (existing databases) ──────

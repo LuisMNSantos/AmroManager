@@ -1,5 +1,7 @@
 @page "/encomendas"
+@using Microsoft.Maui.ApplicationModel
 @inject DeliveryService DeliverySvc
+@inject ResidentService ResidentSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -77,12 +79,13 @@ else
                 var typeIcon  = d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail;
                 var typeColor = d.Type == DeliveryType.Encomenda ? Color.Warning : Color.Info;
                 var typeLabel = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
-                var age       = (DateTime.Now - d.ArrivedAt.ToLocalTime());
+                var age       = DateTime.Now - d.ArrivedAt.ToLocalTime();
                 var ageLabel  = age.TotalDays >= 1
                     ? $"há {(int)age.TotalDays}d"
                     : age.TotalHours >= 1
                         ? $"há {(int)age.TotalHours}h"
                         : "agora mesmo";
+                var resident  = GetResident(d.RoomNumber);
 
                 <div class="d-flex align-center gap-3 px-4 py-3"
                      style="border-bottom:1px solid rgba(0,0,0,0.08);">
@@ -90,7 +93,9 @@ else
 
                     <div style="flex:1; min-width:0;">
                         <div class="d-flex align-center gap-2">
-                            <MudText Typo="Typo.h6">Quarto @d.RoomNumber</MudText>
+                            <MudText Typo="Typo.h6">
+                                #@d.RoomNumber@(resident is not null ? $" — {resident.Name}" : "")
+                            </MudText>
                             <MudChip T="string" Color="@typeColor" Size="Size.Small">@typeLabel</MudChip>
                             @if (d.Quantity > 1)
                             {
@@ -106,6 +111,13 @@ else
                         </MudText>
                     </div>
 
+                    @if (resident?.PhoneNumber is not null)
+                    {
+                        <MudIconButton Icon="@Icons.Custom.Brands.WhatsApp"
+                                       Color="Color.Success"
+                                       Size="Size.Small"
+                                       OnClick="@(() => NotifyWhatsApp(d, resident))" />
+                    }
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Success"
                                Size="Size.Small"
@@ -142,13 +154,14 @@ else
                 @foreach (var d in _history)
                 {
                     var typeLabel = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                    var res = GetResident(d.RoomNumber);
                     <div class="d-flex align-center gap-3 px-4 py-2"
                          style="border-bottom:1px solid rgba(0,0,0,0.06); opacity:0.75;">
                         <MudIcon Icon="@(d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail)"
                                  Size="Size.Small" Color="Color.Default" />
                         <div style="flex:1;">
                             <MudText Typo="Typo.body2">
-                                <b>Quarto @d.RoomNumber</b>
+                                <b>#@d.RoomNumber@(res is not null ? $" — {res.Name}" : "")</b>
                                 <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary"> · @typeLabel</MudText>
                                 @if (d.Quantity > 1) { <span> · @d.Quantity unid.</span> }
                             </MudText>
@@ -170,16 +183,27 @@ else
     private bool _showHistory;
     private List<Delivery> _pending = [];
     private List<Delivery> _history = [];
+    private Dictionary<string, Resident> _residentByRoom = [];
 
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()
     {
         _loading = true;
-        _pending = await DeliverySvc.GetPendingAsync();
+        var pendingTask   = DeliverySvc.GetPendingAsync();
+        var residentsTask = ResidentSvc.GetAllAsync();
+        await Task.WhenAll(pendingTask, residentsTask);
+        _pending = pendingTask.Result;
+        _residentByRoom = residentsTask.Result
+            .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+            .GroupBy(r => r.RoomNumber.ToUpper())
+            .ToDictionary(g => g.Key, g => g.First());
         if (_showHistory) _history = await DeliverySvc.GetHistoryAsync();
         _loading = false;
     }
+
+    private Resident? GetResident(string room) =>
+        _residentByRoom.TryGetValue(room.ToUpper(), out var r) ? r : null;
 
     private async Task OpenRegisterDialog()
     {
@@ -205,6 +229,27 @@ else
             await DeliverySvc.DeleteAsync(d.Id);
             await Load();
         }
+    }
+
+    private async Task NotifyWhatsApp(Delivery d, Resident resident)
+    {
+        var tipo = d.Type == DeliveryType.Encomenda
+            ? (d.Quantity > 1 ? $"{d.Quantity} encomendas" : "1 encomenda")
+            : (d.Quantity > 1 ? $"{d.Quantity} cartas" : "1 carta");
+
+        var age = DateTime.Now - d.ArrivedAt.ToLocalTime();
+        var quando = age.TotalMinutes < 60
+            ? "agora mesmo"
+            : age.TotalDays >= 1 ? $"há {(int)age.TotalDays} dia(s)" : $"há {(int)age.TotalHours}h";
+
+        var msg = $"Olá {resident.Name}! Tem {tipo} para levantar na receção. " +
+                  $"Chegou {quando} ({d.ArrivedAt.ToLocalTime():dd/MM HH:mm}).";
+
+        var phone = resident.PhoneNumber!
+            .Replace("+", "").Replace(" ", "").Replace("-", "");
+
+        await Launcher.Default.OpenAsync(
+            new Uri($"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}"));
     }
 
     private async Task ToggleHistory()

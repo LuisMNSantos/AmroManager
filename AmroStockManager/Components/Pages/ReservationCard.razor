@@ -26,7 +26,7 @@
                 }
             </div>
             <MudText Typo="Typo.body1">
-                <b>Quarto @Reservation.RoomNumber</b>
+                <b>#@Reservation.RoomNumber@(ResidentName is not null ? $" - {ResidentName}" : "")</b>
                 <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
                     — @Reservation.ReservedBy
                 </MudText>
@@ -67,6 +67,7 @@
 
 @code {
     [Parameter] public Reservation Reservation { get; set; } = null!;
+    [Parameter] public string? ResidentName { get; set; }
     [Parameter] public EventCallback<Reservation> OnActivate { get; set; }
     [Parameter] public EventCallback<Reservation> OnComplete { get; set; }
     [Parameter] public EventCallback<Reservation> OnCancel   { get; set; }

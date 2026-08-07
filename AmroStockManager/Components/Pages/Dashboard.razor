@@ -3,6 +3,7 @@
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
 @inject DeliveryService DeliverySvc
+@inject ResidentService ResidentSvc
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -191,7 +192,7 @@ else
                                 <MudText Typo="Typo.body2">
                                     <b>@item.Name</b>
                                     <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
-                                        → Quarto @loan.RoomNumber · @loan.GivenBy
+                                        → @RoomDisplay(loan.RoomNumber)
                                     </MudText>
                                     @if (loan.Quantity > 1) { <span style="font-size:0.8em"> · @loan.Quantity unid.</span> }
                                 </MudText>
@@ -231,7 +232,7 @@ else
                                 <MudText Typo="Typo.body2">
                                     <b>@spaceLabel</b>
                                     <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
-                                        · Quarto @res.RoomNumber · @res.ReservedBy
+                                        · @RoomDisplay(res.RoomNumber)
                                     </MudText>
                                 </MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
@@ -308,7 +309,7 @@ else
                             <MudIcon Icon="@dIcon" Color="@dColor" Size="Size.Small" />
                             <div style="flex:1;">
                                 <MudText Typo="Typo.body2">
-                                    <b>Quarto @d.RoomNumber</b>
+                                    <b>@RoomDisplay(d.RoomNumber)</b>
                                     <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
                                         · @dLabel @(d.Quantity > 1 ? $"· {d.Quantity} unid." : "")
                                     </MudText>
@@ -345,6 +346,7 @@ else
     // Tab 2 — Artigos & Reservas
     private List<GeneralItem> _items = [];
     private List<Reservation> _todayReservations = [];
+    private Dictionary<string, Resident> _residentByRoom = [];
 
     // Tab 3 — Encomendas
     private DeliveryDashboardStats _deliveryStats = new(0, 0, 0, 0);
@@ -364,6 +366,11 @@ else
             Task.Run(async () => {
                 _items             = await ItemSvc.GetAllWithLoansAsync();
                 _todayReservations = await ReservaSvc.GetByDateAsync(DateTime.Today);
+                var residents      = await ResidentSvc.GetAllAsync();
+                _residentByRoom    = residents
+                    .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+                    .GroupBy(r => r.RoomNumber.ToUpper())
+                    .ToDictionary(g => g.Key, g => g.First());
             }),
             Task.Run(async () => {
                 _deliveryStats    = await DeliverySvc.GetDashboardStatsAsync();
@@ -393,6 +400,11 @@ else
             Snackbar.Add($"Erro na exportação: {ex.Message}", Severity.Error);
         }
     }
+
+    private string RoomDisplay(string room) =>
+        _residentByRoom.TryGetValue(room.ToUpper(), out var r)
+            ? $"#{room} - {r.Name}"
+            : $"#{room}";
 
     private static string TraducirMotivo(MovementReason r) => r switch
     {

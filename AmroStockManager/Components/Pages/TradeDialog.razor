@@ -1,4 +1,5 @@
 @inject StockService StockSvc
+@inject ResidentService ResidentSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -45,12 +46,16 @@
             </MudItem>
 
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_roomNumber"
-                              Label="Número do Quarto"
-                              Required="true"
-                              RequiredError="Obrigatório"
-                              Placeholder="ex: 405, 404A"
-                              FullWidth="true" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_roomInput"
+                                 Label="Número do Quarto"
+                                 Required="true"
+                                 RequiredError="Obrigatório"
+                                 SearchFunc="SearchRooms"
+                                 CoerceText="true"
+                                 MinimumLength="1"
+                                 Placeholder="ex: 405, 404A"
+                                 FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
@@ -73,7 +78,7 @@
     private int _outVariantId;
     private int _inProductId;
     private int _inVariantId;
-    private string _roomNumber = string.Empty;
+    private string? _roomInput;
     private string? _notes;
 
     private List<SizeVariant> _outVariants = [];
@@ -116,7 +121,7 @@
 
     private async Task ExecuteTrade()
     {
-        if (string.IsNullOrWhiteSpace(_roomNumber))
+        if (string.IsNullOrWhiteSpace(_roomInput))
         {
             Snackbar.Add("Número do quarto obrigatório.", Severity.Warning);
             return;
@@ -132,7 +137,8 @@
             return;
         }
 
-        var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, _roomNumber.Trim(), _notes);
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, roomNumber, _notes);
         if (!ok)
         {
             Snackbar.Add("O artigo de saída está sem stock.", Severity.Error);
@@ -142,6 +148,9 @@
         Snackbar.Add("Troca registada com sucesso.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
+
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct) =>
+        ResidentSvc.GetSuggestionsAsync(value);
 
     private void Cancel() => MudDialog.Cancel();
 }

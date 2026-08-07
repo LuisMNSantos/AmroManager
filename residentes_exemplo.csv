@@ -1,0 +1,20 @@
+Nome,Quarto,Telemóvel,Colaborador
+João Silva,101,+351912345678,false
+Maria Santos,102,+351923456789,false
+Carlos Ferreira,103,,false
+Ana Costa,104,+351934567890,false
+Pedro Oliveira,105,+351945678901,false
+Sofia Martins,201,+351956789012,false
+Rui Pereira,202,,false
+Inês Rodrigues,203,+351967890123,false
+Tomás Alves,204,+351978901234,false
+Beatriz Sousa,205,+351989012345,false
+Miguel Carvalho,301,+351910111213,false
+Catarina Lopes,302,,false
+André Nunes,303,+351921222324,false
+Margarida Pinto,304,+351932333435,false
+Luis Santos,405,+351910538227,false
+Francisco Gomes,305,+351943444546,false
+Luis Santos,,+351912000001,true
+Ana Ferreira,,+351912000002,true
+Marco Silva,,+351912000003,true
