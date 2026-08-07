@@ -1,5 +1,6 @@
 @page "/general-items"
 @inject GeneralItemService ItemSvc
+@inject ReservationService ReservaSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -190,9 +191,15 @@ else
 
     private async Task ReturnItem(GeneralItemLoan loan)
     {
+        var linkedReservation = await ReservaSvc.GetActiveByLoanIdAsync(loan.Id);
+        var message = linkedReservation is not null
+            ? $"Devolver o cartão do quarto {loan.RoomNumber}? " +
+              $"A reserva associada ({SpaceLabel(linkedReservation.Space)} — quarto {linkedReservation.RoomNumber}) será automaticamente concluída."
+            : $"Marcar o empréstimo do quarto {loan.RoomNumber} como devolvido?";
+
         var confirmed = await DialogService.ShowMessageBox(
             "Devolver Artigo",
-            $"Marcar o empréstimo do quarto {loan.RoomNumber} como devolvido?",
+            message,
             yesText: "Sim, devolvido",
             cancelText: "Cancelar");
 
@@ -203,6 +210,9 @@ else
             _historyCache.Remove(loan.GeneralItemId);
         }
     }
+
+    private static string SpaceLabel(ReservationSpace space) =>
+        space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
 
     private async Task ToggleHistory(int itemId)
     {

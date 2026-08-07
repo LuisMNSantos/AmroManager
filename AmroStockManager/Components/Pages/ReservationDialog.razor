@@ -9,7 +9,7 @@
         <MudGrid>
             <MudItem xs="12">
                 <MudSelect T="ReservationSpace" @bind-Value="_space" Label="Espaço" FullWidth="true">
-                    <MudSelectItem Value="ReservationSpace.Cozinha">Cozinha MasterChef</MudSelectItem>
+                    <MudSelectItem Value="ReservationSpace.Cozinha">Cozinha MasterChef (08:00–22:00)</MudSelectItem>
                     <MudSelectItem Value="ReservationSpace.Cinema">Cinema</MudSelectItem>
                 </MudSelect>
             </MudItem>
@@ -30,22 +30,51 @@
                               Immediate="true"
                               FullWidth="true" />
             </MudItem>
+
+            <!-- Start time -->
             <MudItem xs="12" sm="6">
                 <MudTimePicker @bind-Time="_startTime"
                                Label="Hora de Início"
                                AmPm="false" />
             </MudItem>
+
+            <!-- End time -->
             <MudItem xs="12" sm="6">
                 <MudTimePicker @bind-Time="_endTime"
                                Label="Hora de Fim"
                                AmPm="false" />
             </MudItem>
+
+            @if (_space == ReservationSpace.Cinema)
+            {
+                <MudItem xs="12">
+                    <MudSelect T="int" @bind-Value="_endDayOffset" Label="Fim — dia" FullWidth="true">
+                        <MudSelectItem Value="0">Mesmo dia (@Date.ToString("dd/MM"))</MudSelectItem>
+                        <MudSelectItem Value="1">Dia seguinte (@Date.AddDays(1).ToString("dd/MM"))</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        O Cinema permite reservas que atravessam a meia-noite.
+                    </MudAlert>
+                </MudItem>
+            }
+
+            @if (_space == ReservationSpace.Cozinha)
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        Horário permitido: <b>08:00 – 22:00</b>.
+                    </MudAlert>
+                </MudItem>
+            }
+
             <MudItem xs="12">
                 <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
             </MudItem>
             <MudItem xs="12">
-                <MudAlert Severity="Severity.Info" Dense="true">
-                    O cartão de acesso é automaticamente registado quando a reserva é confirmada.
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    O cartão de acesso é entregue manualmente ao activar a reserva.
                 </MudAlert>
             </MudItem>
         </MudGrid>
@@ -53,7 +82,7 @@
     <DialogActions>
         <MudButton OnClick="Cancel">Cancelar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">
-            Confirmar Reserva
+            Criar Reserva
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -68,12 +97,10 @@
     private string _reservedBy  = string.Empty;
     private TimeSpan? _startTime;
     private TimeSpan? _endTime;
+    private int _endDayOffset = 0;
     private string? _notes;
 
-    protected override void OnParametersSet()
-    {
-        _space = DefaultSpace;
-    }
+    protected override void OnParametersSet() => _space = DefaultSpace;
 
     private async Task Confirm()
     {
@@ -87,14 +114,30 @@
             Snackbar.Add("Indique a hora de início e de fim.", Severity.Warning);
             return;
         }
-        if (_endTime <= _startTime)
+
+        if (_space == ReservationSpace.Cozinha)
+        {
+            if (_startTime.Value.Hours < 8)
+            {
+                Snackbar.Add("A Cozinha MasterChef só abre às 08:00.", Severity.Warning);
+                return;
+            }
+            if (_endTime.Value.Hours > 22 || (_endTime.Value.Hours == 22 && _endTime.Value.Minutes > 0))
+            {
+                Snackbar.Add("A Cozinha MasterChef fecha às 22:00.", Severity.Warning);
+                return;
+            }
+        }
+
+        var endDate = Date.AddDays(_endDayOffset);
+        if (_endDayOffset == 0 && _endTime <= _startTime)
         {
             Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
             return;
         }
 
-        var startDt = DateTime.SpecifyKind(Date.Date + _startTime.Value, DateTimeKind.Local);
-        var endDt   = DateTime.SpecifyKind(Date.Date + _endTime.Value,   DateTimeKind.Local);
+        var startDt = DateTime.SpecifyKind(Date.Date    + _startTime.Value, DateTimeKind.Local);
+        var endDt   = DateTime.SpecifyKind(endDate.Date + _endTime.Value,   DateTimeKind.Local);
 
         var (ok, error, _) = await ReservaSvc.CreateAsync(_space, _roomNumber, _reservedBy, startDt, endDt, _notes);
         if (!ok)
@@ -103,7 +146,7 @@
             return;
         }
 
-        Snackbar.Add("Reserva criada. Cartão de acesso registado.", Severity.Success);
+        Snackbar.Add("Reserva criada. Active-a na altura certa para emitir o cartão.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
 

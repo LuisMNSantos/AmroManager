@@ -16,7 +16,7 @@
 
 <MudPaper Elevation="1" Class="pa-3 mb-4 d-flex align-center gap-2 flex-wrap">
     <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PrevDay" />
-    <MudText Typo="Typo.h6" Style="min-width:240px; text-align:center;">
+    <MudText Typo="Typo.h6" Style="min-width:260px; text-align:center;">
         @_selectedDate.ToString("dddd, d 'de' MMMM yyyy", _ptCulture)
     </MudText>
     <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextDay" />
@@ -37,60 +37,28 @@ else
                 <div class="d-flex align-center mb-3">
                     <MudIcon Icon="@Icons.Material.Filled.Restaurant" Color="Color.Primary" Class="mr-2" />
                     <MudText Typo="Typo.h6">Cozinha MasterChef</MudText>
+                    <MudSpacer />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">08:00 – 22:00</MudText>
                 </div>
 
-                @{ var cozinhaItems = _reservations.Where(r => r.Space == ReservationSpace.Cozinha).ToList(); }
+                @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cozinha))
+                {
+                    var r = res;
+                    <ReservationCard Reservation="r"
+                                     OnActivate="ActivateReservation"
+                                     OnComplete="CompleteReservation"
+                                     OnCancel="CancelReservation" />
+                }
 
-                @if (cozinhaItems.Count == 0)
+                @if (!_reservations.Any(r => r.Space == ReservationSpace.Cozinha))
                 {
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
                         Sem reservas para este dia.
                     </MudText>
                 }
-                else
-                {
-                    @foreach (var res in cozinhaItems)
-                    {
-                        <MudPaper Outlined="true" Class="pa-3 mb-2">
-                            <div class="d-flex align-start justify-space-between gap-2">
-                                <div>
-                                    <MudText Typo="Typo.body1">
-                                        <b>Quarto @res.RoomNumber</b>
-                                        <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
-                                            — @res.ReservedBy
-                                        </MudText>
-                                    </MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @res.StartTime.ToLocalTime().ToString("HH:mm")
-                                        –
-                                        @res.EndTime.ToLocalTime().ToString("HH:mm")
-                                    </MudText>
-                                    @if (!string.IsNullOrEmpty(res.Notes))
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
-                                            @res.Notes
-                                        </MudText>
-                                    }
-                                    @if (res.AccessCardLoanId.HasValue)
-                                    {
-                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="mt-1">
-                                            Cartão registado
-                                        </MudChip>
-                                    }
-                                </div>
-                                <MudIconButton Icon="@Icons.Material.Filled.Cancel"
-                                               Color="Color.Error"
-                                               Size="Size.Small"
-                                               OnClick="@(() => CancelReservation(res))" />
-                            </div>
-                        </MudPaper>
-                    }
-                }
 
-                <MudButton StartIcon="@Icons.Material.Filled.Add"
-                           Size="Size.Small"
-                           Variant="Variant.Text"
-                           Color="Color.Primary"
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
+                           Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
                            OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cozinha))">
                     Adicionar reserva
                 </MudButton>
@@ -105,58 +73,24 @@ else
                     <MudText Typo="Typo.h6">Cinema</MudText>
                 </div>
 
-                @{ var cinemaItems = _reservations.Where(r => r.Space == ReservationSpace.Cinema).ToList(); }
+                @foreach (var res in _reservations.Where(r => r.Space == ReservationSpace.Cinema))
+                {
+                    var r = res;
+                    <ReservationCard Reservation="r"
+                                     OnActivate="ActivateReservation"
+                                     OnComplete="CompleteReservation"
+                                     OnCancel="CancelReservation" />
+                }
 
-                @if (cinemaItems.Count == 0)
+                @if (!_reservations.Any(r => r.Space == ReservationSpace.Cinema))
                 {
                     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
                         Sem reservas para este dia.
                     </MudText>
                 }
-                else
-                {
-                    @foreach (var res in cinemaItems)
-                    {
-                        <MudPaper Outlined="true" Class="pa-3 mb-2">
-                            <div class="d-flex align-start justify-space-between gap-2">
-                                <div>
-                                    <MudText Typo="Typo.body1">
-                                        <b>Quarto @res.RoomNumber</b>
-                                        <MudText Typo="Typo.caption" Inline="true" Color="Color.Secondary">
-                                            — @res.ReservedBy
-                                        </MudText>
-                                    </MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @res.StartTime.ToLocalTime().ToString("HH:mm")
-                                        –
-                                        @res.EndTime.ToLocalTime().ToString("HH:mm")
-                                    </MudText>
-                                    @if (!string.IsNullOrEmpty(res.Notes))
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
-                                            @res.Notes
-                                        </MudText>
-                                    }
-                                    @if (res.AccessCardLoanId.HasValue)
-                                    {
-                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="mt-1">
-                                            Cartão registado
-                                        </MudChip>
-                                    }
-                                </div>
-                                <MudIconButton Icon="@Icons.Material.Filled.Cancel"
-                                               Color="Color.Error"
-                                               Size="Size.Small"
-                                               OnClick="@(() => CancelReservation(res))" />
-                            </div>
-                        </MudPaper>
-                    }
-                }
 
-                <MudButton StartIcon="@Icons.Material.Filled.Add"
-                           Size="Size.Small"
-                           Variant="Variant.Text"
-                           Color="Color.Primary"
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
+                           Variant="Variant.Text" Color="Color.Primary" Class="mt-2"
                            OnClick="@(() => OpenAddDialog(_selectedDate, ReservationSpace.Cinema))">
                     Adicionar reserva
                 </MudButton>
@@ -182,23 +116,9 @@ else
         _loading = false;
     }
 
-    private async Task PrevDay()
-    {
-        _selectedDate = _selectedDate.AddDays(-1);
-        await LoadReservations();
-    }
-
-    private async Task NextDay()
-    {
-        _selectedDate = _selectedDate.AddDays(1);
-        await LoadReservations();
-    }
-
-    private async Task GoToToday()
-    {
-        _selectedDate = DateTime.Today;
-        await LoadReservations();
-    }
+    private async Task PrevDay()  { _selectedDate = _selectedDate.AddDays(-1); await LoadReservations(); }
+    private async Task NextDay()  { _selectedDate = _selectedDate.AddDays(1);  await LoadReservations(); }
+    private async Task GoToToday(){ _selectedDate = DateTime.Today;            await LoadReservations(); }
 
     private async Task OpenAddDialog(DateTime date, ReservationSpace space = ReservationSpace.Cozinha)
     {
@@ -212,19 +132,47 @@ else
         if (result is { Canceled: false }) await LoadReservations();
     }
 
+    private async Task ActivateReservation(Reservation res)
+    {
+        var (ok, error) = await ReservaSvc.ActivateAsync(res.Id);
+        if (!ok)
+        {
+            Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Cartão de acesso emitido. Reserva activa.", Severity.Success);
+        await LoadReservations();
+    }
+
+    private async Task CompleteReservation(Reservation res)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Devolver Cartão",
+            $"Confirmar devolução do cartão do quarto {res.RoomNumber}? A reserva ficará concluída.",
+            yesText: "Sim, devolvido",
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            await ReservaSvc.CompleteAsync(res.Id);
+            Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+            await LoadReservations();
+        }
+    }
+
     private async Task CancelReservation(Reservation res)
     {
         var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
         var confirmed = await DialogService.ShowMessageBox(
             "Cancelar Reserva",
-            $"Cancelar a reserva do quarto {res.RoomNumber} na {spaceLabel}? O cartão de acesso será automaticamente devolvido.",
+            $"Cancelar a reserva do quarto {res.RoomNumber} na {spaceLabel}?",
             yesText: "Sim, cancelar",
             cancelText: "Fechar");
 
         if (confirmed == true)
         {
             await ReservaSvc.CancelAsync(res.Id);
-            Snackbar.Add("Reserva cancelada. Cartão de acesso devolvido.", Severity.Success);
+            Snackbar.Add("Reserva cancelada.", Severity.Success);
             await LoadReservations();
         }
     }
