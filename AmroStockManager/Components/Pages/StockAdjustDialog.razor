@@ -1,0 +1,63 @@
+@inject StockService StockSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            Adjust Stock — @VariantItem.Product?.Name @VariantItem.Size
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudSelect T="MovementReason" @bind-Value="_reason" Label="Reason" FullWidth="true">
+                    <MudSelectItem Value="MovementReason.Sale">Sale</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Restock">Restock</MudSelectItem>
+                    <MudSelectItem Value="MovementReason.Adjustment">Manual Adjustment</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudNumericField T="int"
+                                 @bind-Value="_amount"
+                                 Label="Change Amount (use negative to reduce)"
+                                 FullWidth="true"
+                                 HideSpinButtons="false" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes" Label="Notes (optional)" FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    Current: <b>@VariantItem.Quantity</b> → New: <b>@Math.Max(0, VariantItem.Quantity + _amount)</b>
+                </MudAlert>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Apply">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public SizeVariant VariantItem { get; set; } = null!;
+
+    private MovementReason _reason = MovementReason.Sale;
+    private int _amount = -1;
+    private string? _notes;
+
+    private async Task Apply()
+    {
+        if (_amount == 0)
+        {
+            Snackbar.Add("Amount cannot be zero.", Severity.Warning);
+            return;
+        }
+        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes);
+        Snackbar.Add($"Stock updated for {VariantItem.Size}.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,163 @@
+@page "/products/new"
+@page "/products/{Id:int}/edit"
+@inject ProductService ProductSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<div class="d-flex align-center gap-3 mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo("/products"))" />
+    <MudText Typo="Typo.h4">@(Id == null ? "Add Product" : "Edit Product")</MudText>
+</div>
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudForm @ref="_form" @bind-IsValid="_isValid">
+        <MudText Typo="Typo.h6" Class="mb-3">Product Details</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_product.Name"
+                              Label="Product Name"
+                              Required="true"
+                              RequiredError="Name is required"
+                              Immediate="true" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="string" @bind-Value="_product.Type" Label="Type" Required="true" RequiredError="Type is required">
+                    @foreach (var t in ProductService.ProductTypes)
+                    {
+                        <MudSelectItem T="string" Value="@t">@t</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudTextField @bind-Value="_product.Color" Label="Color" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_product.SKU" Label="SKU" />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-5" />
+
+        <div class="d-flex align-center justify-space-between mb-3">
+            <MudText Typo="Typo.h6">Size Variants</MudText>
+            <MudButton StartIcon="@Icons.Material.Filled.Add"
+                       Variant="Variant.Outlined"
+                       Size="Size.Small"
+                       OnClick="AddVariant">
+                Add Size
+            </MudButton>
+        </div>
+
+        @if (_product.SizeVariants.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                No sizes defined yet. Click "Add Size" to add stock per size.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_product.SizeVariants" Dense="true" Hover="false" Elevation="0">
+                <HeaderContent>
+                    <MudTh Style="width:150px">Size</MudTh>
+                    <MudTh Style="width:160px">Initial Qty</MudTh>
+                    <MudTh Style="width:200px">Low Stock Alert (min)</MudTh>
+                    <MudTh Style="width:60px"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudSelect T="string" @bind-Value="context.Size" Margin="Margin.Dense">
+                            @foreach (var s in ProductService.StandardSizes)
+                            {
+                                <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd>
+                        @if (Id == null)
+                        {
+                            <MudNumericField T="int" @bind-Value="context.Quantity"
+                                            Min="0" Margin="Margin.Dense" />
+                        }
+                        else
+                        {
+                            <MudText Class="pl-2">@context.Quantity <MudText Typo="Typo.caption" Color="Color.Secondary">(adjust on Products page)</MudText></MudText>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudNumericField T="int" @bind-Value="context.MinStockAlert"
+                                        Min="0" Margin="Margin.Dense"
+                                        HelperText="0 = no alert" />
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="@(() => RemoveVariant(context))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+
+        <MudDivider Class="my-5" />
+
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="Save"
+                       Disabled="!_isValid">
+                @(Id == null ? "Create Product" : "Save Changes")
+            </MudButton>
+            <MudButton Variant="Variant.Text"
+                       OnClick="@(() => Nav.NavigateTo("/products"))">
+                Cancel
+            </MudButton>
+        </div>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Product _product = new() { SizeVariants = [] };
+    private MudForm _form = null!;
+    private bool _isValid;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existing = await ProductSvc.GetByIdAsync(Id.Value);
+            if (existing is not null)
+                _product = existing;
+        }
+    }
+
+    private void AddVariant()
+    {
+        var usedSizes = _product.SizeVariants.Select(sv => sv.Size).ToHashSet();
+        var nextSize = ProductService.StandardSizes.FirstOrDefault(s => !usedSizes.Contains(s)) ?? "XS";
+        _product.SizeVariants.Add(new SizeVariant { Size = nextSize, MinStockAlert = 5 });
+        StateHasChanged();
+    }
+
+    private void RemoveVariant(SizeVariant variant)
+    {
+        _product.SizeVariants.Remove(variant);
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        await _form.Validate();
+        if (!_isValid) return;
+
+        if (Id.HasValue)
+            await ProductSvc.UpdateAsync(_product);
+        else
+            await ProductSvc.CreateAsync(_product);
+
+        Snackbar.Add(Id.HasValue ? "Product updated!" : "Product created!", Severity.Success);
+        Nav.NavigateTo("/products");
+    }
+}

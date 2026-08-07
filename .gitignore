@@ -1,0 +1,41 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.swp
+*.sln.docstates
+
+## MAUI
+**/Platforms/Android/Resources/drawable*
+**/Platforms/iOS/
+**/Platforms/MacCatalyst/
+**/Platforms/Tizen/
+
+## Logs
+*.log
+logs/
+
+## NuGet
+packages/
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Environment / secrets
+.env
+.env.*
+*.pfx
+*.snk
+
+## Database (local only — copy manually)
+*.db
+*.db-shm
+*.db-wal
+
+## IDE
+.idea/
+.vscode/
+*.DotSettings
