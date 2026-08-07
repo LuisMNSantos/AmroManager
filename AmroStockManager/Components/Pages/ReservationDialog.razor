@@ -1,0 +1,111 @@
+@inject ReservationService ReservaSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Nova Reserva</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudSelect T="ReservationSpace" @bind-Value="_space" Label="Espaço" FullWidth="true">
+                    <MudSelectItem Value="ReservationSpace.Cozinha">Cozinha MasterChef</MudSelectItem>
+                    <MudSelectItem Value="ReservationSpace.Cinema">Cinema</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_roomNumber"
+                              Label="Número do Quarto"
+                              Required="true"
+                              RequiredError="Obrigatório"
+                              Placeholder="ex: 405, 404A"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_reservedBy"
+                              Label="Reservado Por"
+                              Required="true"
+                              RequiredError="Obrigatório"
+                              Immediate="true"
+                              FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_startTime"
+                               Label="Hora de Início"
+                               AmPm="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_endTime"
+                               Label="Hora de Fim"
+                               AmPm="false" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    O cartão de acesso é automaticamente registado quando a reserva é confirmada.
+                </MudAlert>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">
+            Confirmar Reserva
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public DateTime Date { get; set; } = DateTime.Today;
+    [Parameter] public ReservationSpace DefaultSpace { get; set; } = ReservationSpace.Cozinha;
+
+    private ReservationSpace _space;
+    private string _roomNumber  = string.Empty;
+    private string _reservedBy  = string.Empty;
+    private TimeSpan? _startTime;
+    private TimeSpan? _endTime;
+    private string? _notes;
+
+    protected override void OnParametersSet()
+    {
+        _space = DefaultSpace;
+    }
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(_roomNumber) || string.IsNullOrWhiteSpace(_reservedBy))
+        {
+            Snackbar.Add("Número do quarto e responsável são obrigatórios.", Severity.Warning);
+            return;
+        }
+        if (!_startTime.HasValue || !_endTime.HasValue)
+        {
+            Snackbar.Add("Indique a hora de início e de fim.", Severity.Warning);
+            return;
+        }
+        if (_endTime <= _startTime)
+        {
+            Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
+            return;
+        }
+
+        var startDt = DateTime.SpecifyKind(Date.Date + _startTime.Value, DateTimeKind.Local);
+        var endDt   = DateTime.SpecifyKind(Date.Date + _endTime.Value,   DateTimeKind.Local);
+
+        var (ok, error, _) = await ReservaSvc.CreateAsync(_space, _roomNumber, _reservedBy, startDt, endDt, _notes);
+        if (!ok)
+        {
+            Snackbar.Add(error ?? "Não foi possível criar a reserva.", Severity.Error);
+            return;
+        }
+
+        Snackbar.Add("Reserva criada. Cartão de acesso registado.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

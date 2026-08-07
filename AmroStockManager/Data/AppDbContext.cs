@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<GeneralItem> GeneralItems => Set<GeneralItem>();
     public DbSet<GeneralItemLoan> GeneralItemLoans => Set<GeneralItemLoan>();
+    public DbSet<Reservation> Reservations => Set<Reservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,5 +31,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithOne(l => l.GeneralItem)
             .HasForeignKey(l => l.GeneralItemId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Reservation>()
+            .HasOne(r => r.AccessCardLoan)
+            .WithMany()
+            .HasForeignKey(r => r.AccessCardLoanId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

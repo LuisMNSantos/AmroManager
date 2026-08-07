@@ -7,6 +7,7 @@ public class GeneralItemLoan
     public GeneralItem GeneralItem { get; set; } = null!;
     public string RoomNumber { get; set; } = string.Empty;
     public string GivenBy { get; set; } = string.Empty;
+    public int Quantity { get; set; } = 1;
     public DateTime LoanDate { get; set; } = DateTime.UtcNow;
     public DateTime? ReturnDate { get; set; }
     public string? Notes { get; set; }

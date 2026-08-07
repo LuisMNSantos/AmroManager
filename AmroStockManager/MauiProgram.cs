@@ -34,6 +34,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ProductService>();
         builder.Services.AddSingleton<StockService>();
         builder.Services.AddSingleton<GeneralItemService>();
+        builder.Services.AddSingleton<ReservationService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -54,47 +55,107 @@ public static class MauiProgram
         // Create all tables for fresh databases
         db.Database.EnsureCreated();
 
-        // Schema evolution: add columns / tables for existing databases
-        try
-        {
-            db.Database.ExecuteSqlRaw("ALTER TABLE StockMovements ADD COLUMN RoomNumber TEXT");
-        }
-        catch { /* column already exists — safe to ignore */ }
+        // ── Schema evolution (safe on existing DBs) ──────────────────────────
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE StockMovements ADD COLUMN RoomNumber TEXT"); }
+        catch { }
+
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE GeneralItemLoans ADD COLUMN Quantity INTEGER NOT NULL DEFAULT 1"); }
+        catch { }
+
+        try { db.Database.ExecuteSqlRaw("ALTER TABLE GeneralItems ADD COLUMN LinkedItemId INTEGER"); }
+        catch { }
 
         db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS GeneralItems (
-                Id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name         TEXT    NOT NULL,
+                Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name          TEXT    NOT NULL,
                 TotalQuantity INTEGER NOT NULL DEFAULT 1,
-                Description  TEXT
+                Description   TEXT,
+                LinkedItemId  INTEGER REFERENCES GeneralItems(Id)
             )");
 
         db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS GeneralItemLoans (
-                Id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                GeneralItemId   INTEGER NOT NULL
-                                    REFERENCES GeneralItems(Id) ON DELETE CASCADE,
-                RoomNumber      TEXT NOT NULL,
-                GivenBy         TEXT NOT NULL,
-                LoanDate        TEXT NOT NULL,
-                ReturnDate      TEXT,
-                Notes           TEXT
+                Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                GeneralItemId INTEGER NOT NULL REFERENCES GeneralItems(Id) ON DELETE CASCADE,
+                RoomNumber    TEXT NOT NULL,
+                GivenBy       TEXT NOT NULL,
+                Quantity      INTEGER NOT NULL DEFAULT 1,
+                LoanDate      TEXT NOT NULL,
+                ReturnDate    TEXT,
+                Notes         TEXT
             )");
 
-        // Seed default general item types (once, on first launch)
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS Reservations (
+                Id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                Space            INTEGER NOT NULL,
+                RoomNumber       TEXT NOT NULL,
+                ReservedBy       TEXT NOT NULL,
+                StartTime        TEXT NOT NULL,
+                EndTime          TEXT NOT NULL,
+                Notes            TEXT,
+                CreatedAt        TEXT NOT NULL,
+                IsCancelled      INTEGER NOT NULL DEFAULT 0,
+                AccessCardLoanId INTEGER REFERENCES GeneralItemLoans(Id) ON DELETE SET NULL
+            )");
+
+        // ── Rename English item names to Portuguese (existing databases) ──────
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Altifalante' WHERE Name = 'Speaker'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Raqueta de Ténis' WHERE Name = 'Tennis Racket'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Estendal' WHERE Name = 'Clothesline'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Cartão de Acesso – Cozinha' WHERE Name = 'Access Card – Kitchen'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Cartão de Acesso – Cinema' WHERE Name = 'Access Card – Cinema'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Ferro de Engomar' WHERE Name = 'Cloth Iron'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Aspirador (Vroom)' WHERE Name = 'Vroom (Robot Vacuum)'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Esfregona' WHERE Name = 'Mop'");
+        db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Jogo de Snooker' WHERE Name = 'Snooker Set'");
+
+        // ── Seed default items (fresh install) ───────────────────────────────
         if (!db.GeneralItems.Any())
         {
             db.GeneralItems.AddRange(
-                new GeneralItem { Name = "Speaker",                  TotalQuantity = 1 },
-                new GeneralItem { Name = "Tennis Racket",            TotalQuantity = 2 },
-                new GeneralItem { Name = "Clothesline",              TotalQuantity = 3 },
-                new GeneralItem { Name = "Access Card – Kitchen",    TotalQuantity = 1 },
-                new GeneralItem { Name = "Access Card – Cinema",     TotalQuantity = 1 },
-                new GeneralItem { Name = "Cloth Iron",               TotalQuantity = 1 },
-                new GeneralItem { Name = "Vroom (Robot Vacuum)",     TotalQuantity = 1 },
-                new GeneralItem { Name = "Mop",                      TotalQuantity = 2 },
-                new GeneralItem { Name = "Snooker Set",              TotalQuantity = 1 }
+                new GeneralItem { Name = "Altifalante",              TotalQuantity = 1 },
+                new GeneralItem { Name = "Raqueta de Ténis",         TotalQuantity = 2 },
+                new GeneralItem { Name = "Estendal",                 TotalQuantity = 3 },
+                new GeneralItem { Name = "Cartão de Acesso – Cozinha", TotalQuantity = 1 },
+                new GeneralItem { Name = "Cartão de Acesso – Cinema",  TotalQuantity = 1 },
+                new GeneralItem { Name = "Ferro de Engomar",         TotalQuantity = 1 },
+                new GeneralItem { Name = "Aspirador (Vroom)",        TotalQuantity = 1 },
+                new GeneralItem { Name = "Esfregona",                TotalQuantity = 2 },
+                new GeneralItem { Name = "Jogo de Snooker",          TotalQuantity = 1 }
             );
+            db.SaveChanges();
+
+            // Seed ping pong items with linked relationship
+            var balls = new GeneralItem { Name = "Bolas de Ping Pong", TotalQuantity = 6 };
+            db.GeneralItems.Add(balls);
+            db.SaveChanges();
+
+            db.GeneralItems.Add(new GeneralItem
+            {
+                Name = "Raquetas de Ping Pong",
+                TotalQuantity = 4,
+                Description = "Inclui bolas de ping pong",
+                LinkedItemId = balls.Id
+            });
+            db.SaveChanges();
+        }
+
+        // ── Seed ping pong items (existing databases without them) ───────────
+        if (!db.GeneralItems.Any(gi => gi.Name == "Raquetas de Ping Pong"))
+        {
+            var balls = new GeneralItem { Name = "Bolas de Ping Pong", TotalQuantity = 6 };
+            db.GeneralItems.Add(balls);
+            db.SaveChanges();
+
+            db.GeneralItems.Add(new GeneralItem
+            {
+                Name = "Raquetas de Ping Pong",
+                TotalQuantity = 4,
+                Description = "Inclui bolas de ping pong",
+                LinkedItemId = balls.Id
+            });
             db.SaveChanges();
         }
     }

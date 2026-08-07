@@ -24,22 +24,44 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
             .ToListAsync();
     }
 
-    public async Task<bool> LendItemAsync(int itemId, string roomNumber, string givenBy, string? notes)
+    public async Task<bool> LendItemAsync(int itemId, string roomNumber, string givenBy, string? notes, int quantity = 1)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var item = await db.GeneralItems.Include(gi => gi.Loans).FirstOrDefaultAsync(gi => gi.Id == itemId);
-        if (item is null || item.AvailableCount <= 0) return false;
+        if (item is null || item.AvailableCount < quantity) return false;
 
         db.GeneralItemLoans.Add(new GeneralItemLoan
         {
             GeneralItemId = itemId,
             RoomNumber = roomNumber.Trim(),
             GivenBy = givenBy.Trim(),
+            Quantity = quantity,
             Notes = notes,
             LoanDate = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
         return true;
+    }
+
+    // Returns the created loan ID so callers (e.g. ReservationService) can link it.
+    public async Task<int?> LendAndGetLoanIdAsync(int itemId, string roomNumber, string givenBy, string? notes, int quantity = 1)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var item = await db.GeneralItems.Include(gi => gi.Loans).FirstOrDefaultAsync(gi => gi.Id == itemId);
+        if (item is null || item.AvailableCount < quantity) return null;
+
+        var loan = new GeneralItemLoan
+        {
+            GeneralItemId = itemId,
+            RoomNumber = roomNumber.Trim(),
+            GivenBy = givenBy.Trim(),
+            Quantity = quantity,
+            Notes = notes,
+            LoanDate = DateTime.UtcNow
+        };
+        db.GeneralItemLoans.Add(loan);
+        await db.SaveChangesAsync();
+        return loan.Id;
     }
 
     public async Task ReturnItemAsync(int loanId)

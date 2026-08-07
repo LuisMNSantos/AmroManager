@@ -32,6 +32,26 @@
             <MudItem xs="12">
                 <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
             </MudItem>
+
+            @if (LinkedItem is not null)
+            {
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">
+                        Artigo associado: @LinkedItem.Name
+                    </MudText>
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                        @LinkedItem.Name disponíveis: <b>@LinkedItem.AvailableCount</b>
+                    </MudAlert>
+                    <MudNumericField T="int"
+                                     @bind-Value="_linkedQty"
+                                     Label="@($"Quantidade de {LinkedItem.Name} a emprestar")"
+                                     Min="0"
+                                     Max="@LinkedItem.AvailableCount"
+                                     FullWidth="true"
+                                     HelperText="Deixe 0 para não emprestar" />
+                </MudItem>
+            }
         </MudGrid>
     </DialogContent>
     <DialogActions>
@@ -43,10 +63,18 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public GeneralItem ItemType { get; set; } = null!;
+    [Parameter] public GeneralItem? LinkedItem { get; set; }
 
     private string _roomNumber = string.Empty;
-    private string _givenBy = string.Empty;
+    private string _givenBy   = string.Empty;
     private string? _notes;
+    private int _linkedQty = 0;
+
+    protected override void OnParametersSet()
+    {
+        if (LinkedItem is not null)
+            _linkedQty = Math.Min(1, LinkedItem.AvailableCount);
+    }
 
     private async Task Confirm()
     {
@@ -55,13 +83,25 @@
             Snackbar.Add("Número do quarto e entregue por são obrigatórios.", Severity.Warning);
             return;
         }
+
         var ok = await ItemSvc.LendItemAsync(ItemType.Id, _roomNumber, _givenBy, _notes);
         if (!ok)
         {
             Snackbar.Add("Sem unidades disponíveis para emprestar.", Severity.Error);
             return;
         }
-        Snackbar.Add($"{ItemType.Name} emprestado ao quarto {_roomNumber}.", Severity.Success);
+
+        if (LinkedItem is not null && _linkedQty > 0)
+        {
+            await ItemSvc.LendItemAsync(LinkedItem.Id, _roomNumber, _givenBy,
+                $"Com {ItemType.Name} — {_notes}".Trim(' ', '—'), _linkedQty);
+        }
+
+        var msg = LinkedItem is not null && _linkedQty > 0
+            ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {_roomNumber}."
+            : $"{ItemType.Name} emprestado ao quarto {_roomNumber}.";
+
+        Snackbar.Add(msg, Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
     }
 

@@ -68,6 +68,10 @@ else
                                         <MudText Typo="Typo.body2">
                                             <b>Quarto @loan.RoomNumber</b>
                                             — por @loan.GivenBy
+                                            @if (loan.Quantity > 1)
+                                            {
+                                                <span> · @loan.Quantity unid.</span>
+                                            }
                                         </MudText>
                                         <MudText Typo="Typo.caption" Color="Color.Secondary">
                                             @loan.LoanDate.ToLocalTime().ToString("dd/MM/yy HH:mm")
@@ -122,6 +126,10 @@ else
                                         <div class="d-flex align-center justify-space-between">
                                             <MudText Typo="Typo.body2">
                                                 <b>Quarto @loan.RoomNumber</b> · por @loan.GivenBy
+                                                @if (loan.Quantity > 1)
+                                                {
+                                                    <span> · @loan.Quantity unid.</span>
+                                                }
                                             </MudText>
                                             @if (loan.IsReturned)
                                             {
@@ -167,7 +175,14 @@ else
 
     private async Task OpenLendDialog(GeneralItem item)
     {
-        var parameters = new DialogParameters<LendItemDialog> { { x => x.ItemType, item } };
+        var linkedItem = item.LinkedItemId.HasValue
+            ? _items.FirstOrDefault(x => x.Id == item.LinkedItemId.Value)
+            : null;
+        var parameters = new DialogParameters<LendItemDialog>
+        {
+            { x => x.ItemType, item },
+            { x => x.LinkedItem, linkedItem }
+        };
         var dialog = await DialogService.ShowAsync<LendItemDialog>($"Emprestar — {item.Name}", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadItems();
