@@ -45,6 +45,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
         db.GeneralItemLoans.Add(new GeneralItemLoan
         {
             GeneralItemId = itemId,
+            GeneralItemSyncId = item.SyncId,
             RoomNumber = roomNumber.Trim(),
             GivenBy = givenBy.Trim(),
             Quantity = quantity,
@@ -65,6 +66,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
         var loan = new GeneralItemLoan
         {
             GeneralItemId = itemId,
+            GeneralItemSyncId = item.SyncId,
             RoomNumber = roomNumber.Trim(),
             GivenBy = givenBy.Trim(),
             Quantity = quantity,

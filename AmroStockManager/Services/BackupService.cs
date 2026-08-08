@@ -45,8 +45,7 @@ public class BackupService(IDbContextFactory<AppDbContext> dbFactory)
 
         // VACUUM INTO produces a clean, consistent copy even while the DB is open
         await using var db = await dbFactory.CreateDbContextAsync();
-        await db.Database.ExecuteSqlRawAsync(
-            $"VACUUM INTO '{destPath.Replace("'", "''")}'");
+        await db.Database.ExecuteSqlAsync($"VACUUM INTO {destPath}");
 
         // Purge oldest copies beyond the keep limit
         foreach (var old in Directory.GetFiles(BackupFolder, "stock_*.db")

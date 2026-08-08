@@ -6,7 +6,7 @@ public enum ReservationSpace
     Cinema  = 1
 }
 
-public class Reservation
+public class Reservation : ISyncable
 {
     public int Id { get; set; }
     public ReservationSpace Space { get; set; }
@@ -19,4 +19,6 @@ public class Reservation
     public bool IsCancelled { get; set; }
     public int? AccessCardLoanId { get; set; }
     public GeneralItemLoan? AccessCardLoan { get; set; }
+    public string SyncId { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; }
 }

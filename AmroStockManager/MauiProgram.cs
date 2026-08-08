@@ -39,6 +39,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<MaintenanceService>();
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<ResidentService>();
+        builder.Services.AddSingleton<SyncService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -77,6 +78,31 @@ public static class MauiProgram
 
         try { db.Database.ExecuteSqlRaw("ALTER TABLE GeneralItems ADD COLUMN LinkedItemId INTEGER"); }
         catch { }
+
+        // ── Sync columns ─────────────────────────────────────────────────────
+        // Table/column names cannot be SQL parameters — literal strings are safe here
+        // because these are compile-time constants, not user input.
+        foreach (var sql in new[]
+        {
+            "ALTER TABLE GeneralItems      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE GeneralItemLoans  ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Residents         ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Reservations      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Deliveries        ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE GeneralItems      ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE GeneralItemLoans  ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE Residents         ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE Reservations      ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE Deliveries        ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE GeneralItemLoans  ADD COLUMN GeneralItemSyncId TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Products          ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Products          ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE SizeVariants      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE SizeVariants      ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+            "ALTER TABLE StockMovements    ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE StockMovements    ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
+        })
+        { try { db.Database.ExecuteSqlRaw(sql); } catch { } }
 
         db.Database.ExecuteSqlRaw(@"
             CREATE TABLE IF NOT EXISTS GeneralItems (
@@ -191,5 +217,33 @@ public static class MauiProgram
             });
             db.SaveChanges();
         }
+
+        // ── Populate SyncId for records created before sync was added ─────────
+        PopulateSyncIds(db);
+    }
+
+    private static void PopulateSyncIds(AppDbContext db)
+    {
+        bool any = false;
+
+        foreach (var x in db.Products.Where(x => x.SyncId == "").ToList())       { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.SizeVariants.Where(x => x.SyncId == "").ToList())   { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.StockMovements.Where(x => x.SyncId == "").ToList()) { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.GeneralItems.Where(x => x.SyncId == "").ToList())   { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.GeneralItemLoans.Where(x => x.SyncId == "").ToList()) { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.Residents.Where(x => x.SyncId == "").ToList())      { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.Reservations.Where(x => x.SyncId == "").ToList())   { db.Entry(x).State = EntityState.Modified; any = true; }
+        foreach (var x in db.Deliveries.Where(x => x.SyncId == "").ToList())     { db.Entry(x).State = EntityState.Modified; any = true; }
+
+        if (any) db.SaveChanges();
+
+        // Back-fill GeneralItemSyncId on loans that pre-date the field
+        var loansWithoutSyncRef = db.GeneralItemLoans
+            .Where(l => l.GeneralItemSyncId == "")
+            .Join(db.GeneralItems, l => l.GeneralItemId, gi => gi.Id, (l, gi) => new { l, gi })
+            .ToList();
+        foreach (var pair in loansWithoutSyncRef)
+            pair.l.GeneralItemSyncId = pair.gi.SyncId;
+        if (loansWithoutSyncRef.Count > 0) db.SaveChanges();
     }
 }

@@ -5,6 +5,8 @@ namespace AmroStockManager.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public bool IsSyncing { get; set; }
+
     public DbSet<Product> Products => Set<Product>();
     public DbSet<SizeVariant> SizeVariants => Set<SizeVariant>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
@@ -13,6 +15,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Reservation> Reservations => Set<Reservation>();
     public DbSet<Delivery> Deliveries => Set<Delivery>();
     public DbSet<Resident> Residents => Set<Resident>();
+
+    public override int SaveChanges()
+    {
+        StampSyncables();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        StampSyncables();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StampSyncables()
+    {
+        if (IsSyncing) return;
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<ISyncable>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified))
+        {
+            if (string.IsNullOrEmpty(entry.Entity.SyncId))
+                entry.Entity.SyncId = Guid.NewGuid().ToString();
+            entry.Entity.UpdatedAt = now;
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -6,7 +6,7 @@ public enum DeliveryType
     Carta     = 1
 }
 
-public class Delivery
+public class Delivery : ISyncable
 {
     public int Id { get; set; }
     public DeliveryType Type { get; set; }
@@ -15,6 +15,8 @@ public class Delivery
     public DateTime ArrivedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CollectedAt { get; set; }
     public string? Notes { get; set; }
+    public string SyncId { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; }
 
     public bool IsCollected => CollectedAt.HasValue;
 }

@@ -28,6 +28,7 @@ artifacts/
 .env
 .env.*
 *.pfx
+AppSecrets.cs
 *.snk
 
 ## Distribution zips

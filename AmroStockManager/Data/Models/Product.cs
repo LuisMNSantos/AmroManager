@@ -1,6 +1,6 @@
 namespace AmroStockManager.Data.Models;
 
-public class Product
+public class Product : ISyncable
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -8,6 +8,8 @@ public class Product
     public string Color { get; set; } = string.Empty;
     public string SKU { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string SyncId { get; set; } = string.Empty;
+    public DateTime UpdatedAt { get; set; }
     public List<SizeVariant> SizeVariants { get; set; } = [];
 
     public int TotalStock => SizeVariants.Sum(sv => sv.Quantity);
