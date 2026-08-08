@@ -57,6 +57,17 @@ public static class MauiProgram
             catch { /* Never block startup due to backup failure */ }
         });
 
+        // Startup sync — runs in background after backup
+        var syncSvc = app.Services.GetRequiredService<SyncService>();
+        if (syncSvc.IsConfigured)
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await syncSvc.SyncAsync(); }
+                catch { /* Never block startup due to sync failure */ }
+            });
+        }
+
         return app;
     }
 
@@ -170,8 +181,10 @@ public static class MauiProgram
         db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Esfregona' WHERE Name = 'Mop'");
         db.Database.ExecuteSqlRaw("UPDATE GeneralItems SET Name = 'Jogo de Snooker' WHERE Name = 'Snooker Set'");
 
-        // ── Seed default items (fresh install) ───────────────────────────────
-        if (!db.GeneralItems.Any())
+        // ── Seed default items (fresh install, standalone only) ──────────────
+        // Skip seeding when sync is configured — items come from Supabase instead.
+        var syncConfigured = !string.IsNullOrWhiteSpace(AppSecrets.SupabaseUrl.Trim());
+        if (!db.GeneralItems.Any() && !syncConfigured)
         {
             db.GeneralItems.AddRange(
                 new GeneralItem { Name = "Altifalante",              TotalQuantity = 1 },
@@ -202,7 +215,7 @@ public static class MauiProgram
         }
 
         // ── Seed ping pong items (existing databases without them) ───────────
-        if (!db.GeneralItems.Any(gi => gi.Name == "Raquetas de Ping Pong"))
+        if (!db.GeneralItems.Any(gi => gi.Name == "Raquetas de Ping Pong") && !syncConfigured)
         {
             var balls = new GeneralItem { Name = "Bolas de Ping Pong", TotalQuantity = 6 };
             db.GeneralItems.Add(balls);
