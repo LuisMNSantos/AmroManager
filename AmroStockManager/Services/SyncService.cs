@@ -116,12 +116,17 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
             await MergeProducts        (db, remotePrds);
             await MergeSizeVariants    (db, remoteSvs);
             await MergeStockMovements  (db, remoteSms);
-            await MergeGeneralItems    (db, remoteItems);
+            var staleItemIds = new List<string>();
+            await MergeGeneralItems    (db, remoteItems, staleItemIds);
             await MergeGeneralItemLoans(db, remoteLoans);
             await MergeResidents       (db, remoteRsds);
             await MergeReservations    (db, remoteRes);
             await MergeDeliveries      (db, remoteDels);
             await db.SaveChangesAsync();
+
+            // Remove stale duplicate SyncIds from Supabase (best-effort, silent)
+            foreach (var sid in staleItemIds)
+                await DeleteSupabaseRow(http, "general_items", sid);
 
             LastSync = DateTime.UtcNow;
             return (true, $"Sincronizado às {LastSync.Value.ToLocalTime():HH:mm}.");
@@ -168,18 +173,46 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
         return await resp.Content.ReadFromJsonAsync<List<T>>(JsonOpts) ?? [];
     }
 
+    private static async Task DeleteSupabaseRow(HttpClient http, string table, string syncId)
+    {
+        try { await http.DeleteAsync($"rest/v1/{table}?sync_id=eq.{Uri.EscapeDataString(syncId)}"); }
+        catch { /* best effort */ }
+    }
+
     // ── Merge helpers ─────────────────────────────────────────────────────────
 
-    private static async Task MergeGeneralItems(AppDbContext db, List<GiRow> remote)
+    private static async Task MergeGeneralItems(AppDbContext db, List<GiRow> remote, List<string> staleIds)
     {
-        var local = await db.GeneralItems.ToDictionaryAsync(x => x.SyncId);
+        var localBySyncId = await db.GeneralItems.ToDictionaryAsync(x => x.SyncId);
+        // Name-based fallback to catch items seeded independently on different PCs
+        var localByName = (await db.GeneralItems.ToListAsync())
+            .GroupBy(x => x.Name.Trim().ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.UpdatedAt).First());
+
         foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
         {
-            if (local.TryGetValue(r.SyncId!, out var l))
+            if (localBySyncId.TryGetValue(r.SyncId!, out var l))
             {
                 if (r.UpdatedAt <= l.UpdatedAt) continue;
                 l.Name = r.Name; l.TotalQuantity = r.TotalQuantity;
                 l.Description = r.Description; l.UpdatedAt = r.UpdatedAt;
+            }
+            else if (localByName.TryGetValue(r.Name.Trim().ToLowerInvariant(), out var lByName))
+            {
+                // Same name, different SyncId → item was seeded independently on this PC.
+                // Adopt the remote SyncId so both sides converge to one record.
+                staleIds.Add(lByName.SyncId); // queue old local SyncId for Supabase deletion
+                localBySyncId.Remove(lByName.SyncId);
+
+                lByName.SyncId = r.SyncId!;
+                if (r.UpdatedAt > lByName.UpdatedAt)
+                {
+                    lByName.Name = r.Name; lByName.TotalQuantity = r.TotalQuantity;
+                    lByName.Description = r.Description; lByName.UpdatedAt = r.UpdatedAt;
+                }
+
+                localBySyncId[r.SyncId!] = lByName;
+                localByName[r.Name.Trim().ToLowerInvariant()] = lByName;
             }
             else
             {
