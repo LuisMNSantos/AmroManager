@@ -151,9 +151,10 @@ public class ReservationServiceTests : IDisposable
     [Fact]
     public async Task GetUpcomingByRoomAsync_ReturnsOnlyFutureNonCancelled()
     {
-        var futureStart = DateTime.Now.AddDays(1);
+        // Use fixed times within Cozinha's 08:00–22:00 window so tests pass regardless of when they run
+        var futureStart = DateTime.Today.AddDays(1).AddHours(10);
         var futureEnd   = futureStart.AddHours(2);
-        var pastStart   = DateTime.Now.AddDays(-2);
+        var pastStart   = DateTime.Today.AddDays(-2).AddHours(10);
         var pastEnd     = pastStart.AddHours(2);
 
         await _svc.CreateAsync(ReservationSpace.Cozinha, "101", "Staff", futureStart, futureEnd, null);
@@ -168,7 +169,7 @@ public class ReservationServiceTests : IDisposable
     [Fact]
     public async Task GetUpcomingByRoomAsync_ExcludesCancelledReservations()
     {
-        var futureStart = DateTime.Now.AddDays(1);
+        var futureStart = DateTime.Today.AddDays(1).AddHours(10);
         var futureEnd   = futureStart.AddHours(2);
 
         var (_, _, created) = await _svc.CreateAsync(

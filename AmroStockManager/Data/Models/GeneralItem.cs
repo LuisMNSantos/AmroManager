@@ -9,6 +9,7 @@ public class GeneralItem : ISyncable
     public int? LinkedItemId { get; set; }
     public string SyncId { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; }
     public List<GeneralItemLoan> Loans { get; set; } = [];
 
     public int ActiveLoansCount => Loans.Where(l => l.ReturnDate == null).Sum(l => l.Quantity);

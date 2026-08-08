@@ -107,7 +107,8 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
         }
 
         await using var db = await dbFactory.CreateDbContextAsync();
-        await db.Residents.ExecuteDeleteAsync();
+        var existing = await db.Residents.ToListAsync();
+        foreach (var r in existing) r.IsDeleted = true;
         db.Residents.AddRange(residents);
         await db.SaveChangesAsync();
 
@@ -117,13 +118,18 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
     public async Task DeleteResidentAsync(int id)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        await db.Residents.Where(r => r.Id == id).ExecuteDeleteAsync();
+        var resident = await db.Residents.FindAsync(id);
+        if (resident is null) return;
+        resident.IsDeleted = true;
+        await db.SaveChangesAsync();
     }
 
     public async Task DeleteAllAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        await db.Residents.ExecuteDeleteAsync();
+        var all = await db.Residents.ToListAsync();
+        foreach (var r in all) r.IsDeleted = true;
+        await db.SaveChangesAsync();
     }
 
     private static string[] ParseCsvLine(string line)

@@ -95,6 +95,14 @@ public static class MauiProgram
         // because these are compile-time constants, not user input.
         foreach (var sql in new[]
         {
+            "ALTER TABLE GeneralItems      ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE GeneralItemLoans  ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE Residents         ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE Products          ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE SizeVariants      ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE StockMovements    ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE Deliveries        ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE Reservations      ADD COLUMN IsDeleted  INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE GeneralItems      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE GeneralItemLoans  ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE Residents         ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",

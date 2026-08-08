@@ -10,6 +10,7 @@ public class Product : ISyncable
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string SyncId { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; }
     public List<SizeVariant> SizeVariants { get; set; } = [];
 
     public int TotalStock => SizeVariants.Sum(sv => sv.Quantity);

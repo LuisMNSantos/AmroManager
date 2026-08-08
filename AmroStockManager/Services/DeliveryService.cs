@@ -82,10 +82,8 @@ public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var delivery = await db.Deliveries.FindAsync(id);
-        if (delivery is not null)
-        {
-            db.Deliveries.Remove(delivery);
-            await db.SaveChangesAsync();
-        }
+        if (delivery is null) return;
+        delivery.IsDeleted = true;
+        await db.SaveChangesAsync();
     }
 }

@@ -92,11 +92,11 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var item = await db.GeneralItems.FindAsync(id);
-        if (item is not null)
-        {
-            db.GeneralItems.Remove(item);
-            await db.SaveChangesAsync();
-        }
+        if (item is null) return;
+        item.IsDeleted = true;
+        var loans = await db.GeneralItemLoans.Where(l => l.GeneralItemId == id).ToListAsync();
+        foreach (var loan in loans) loan.IsDeleted = true;
+        await db.SaveChangesAsync();
     }
 
     public async Task<GeneralItem> AddOrUpdateItemAsync(GeneralItem item)

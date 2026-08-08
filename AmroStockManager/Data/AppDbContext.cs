@@ -66,5 +66,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany()
             .HasForeignKey(r => r.AccessCardLoanId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Global soft-delete filters — all queries automatically exclude deleted records
+        modelBuilder.Entity<GeneralItem>()     .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<GeneralItemLoan>() .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<Resident>()        .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<Product>()         .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<SizeVariant>()     .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<StockMovement>()   .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<Delivery>()        .HasQueryFilter(x => !x.IsDeleted);
+        modelBuilder.Entity<Reservation>()     .HasQueryFilter(x => !x.IsDeleted);
     }
 }

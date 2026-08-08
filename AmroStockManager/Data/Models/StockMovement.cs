@@ -14,4 +14,5 @@ public class StockMovement : ISyncable
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string SyncId { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; }
 }

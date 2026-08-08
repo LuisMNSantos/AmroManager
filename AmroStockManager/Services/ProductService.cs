@@ -45,7 +45,7 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var existing = await db.Products
-            .Include(p => p.SizeVariants)
+            .Include(p => p.SizeVariants).ThenInclude(sv => sv.StockMovements)
             .FirstOrDefaultAsync(p => p.Id == product.Id);
         if (existing is null) return;
 
@@ -55,7 +55,11 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
         existing.SKU = product.SKU;
 
         var incomingIds = product.SizeVariants.Where(sv => sv.Id > 0).Select(sv => sv.Id).ToHashSet();
-        existing.SizeVariants.RemoveAll(sv => !incomingIds.Contains(sv.Id));
+        foreach (var sv in existing.SizeVariants.Where(sv => !incomingIds.Contains(sv.Id)))
+        {
+            sv.IsDeleted = true;
+            foreach (var sm in sv.StockMovements) sm.IsDeleted = true;
+        }
 
         foreach (var incoming in product.SizeVariants)
         {
@@ -85,12 +89,17 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
     public async Task DeleteAsync(int id)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        var product = await db.Products.FindAsync(id);
-        if (product is not null)
+        var product = await db.Products
+            .Include(p => p.SizeVariants).ThenInclude(sv => sv.StockMovements)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (product is null) return;
+        product.IsDeleted = true;
+        foreach (var sv in product.SizeVariants)
         {
-            db.Products.Remove(product);
-            await db.SaveChangesAsync();
+            sv.IsDeleted = true;
+            foreach (var sm in sv.StockMovements) sm.IsDeleted = true;
         }
+        await db.SaveChangesAsync();
     }
 
     public static readonly string[] StandardSizes = ["XS", "S", "M", "L", "XL", "XXL"];

@@ -9,4 +9,5 @@ public class Resident : ISyncable
     public bool IsCollaborator { get; set; }
     public string SyncId { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; }
 }

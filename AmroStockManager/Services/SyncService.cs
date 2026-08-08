@@ -15,8 +15,45 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        NumberHandling       = JsonNumberHandling.AllowReadingFromString
+        NumberHandling       = JsonNumberHandling.AllowReadingFromString,
+        Converters           = { new UtcDateTimeConverter(), new UtcNullableDateTimeConverter() }
     };
+
+    // Supabase returns TIMESTAMPTZ as "...+00:00" which System.Text.Json converts
+    // to local time by default — causing a +1h drift on every sync in UTC+1 zones.
+    // These converters normalise all datetimes to UTC in both directions.
+    private sealed class UtcDateTimeConverter : JsonConverter<DateTime>
+    {
+        public override DateTime Read(ref Utf8JsonReader reader, Type t, JsonSerializerOptions o)
+        {
+            var v = reader.GetDateTime();
+            return v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime();
+        }
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions o)
+        {
+            // EF Core SQLite returns Unspecified kind for values we stored as UTC — treat as UTC.
+            var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime()
+                                                       : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+            writer.WriteStringValue(utc.ToString("O"));
+        }
+    }
+
+    private sealed class UtcNullableDateTimeConverter : JsonConverter<DateTime?>
+    {
+        public override DateTime? Read(ref Utf8JsonReader reader, Type t, JsonSerializerOptions o)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return null;
+            var v = reader.GetDateTime();
+            return v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime();
+        }
+        public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions o)
+        {
+            if (value is null) { writer.WriteNullValue(); return; }
+            var utc = value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime()
+                                                             : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+            writer.WriteStringValue(utc.ToString("O"));
+        }
+    }
 
     // ── Config ────────────────────────────────────────────────────────────────
 
@@ -49,84 +86,82 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
         {
             using var http = CreateClient();
 
-            // Verify connectivity before touching the DB
             var ping = await http.GetAsync("rest/v1/");
             if (!ping.IsSuccessStatusCode)
                 return (false, $"Não foi possível ligar ({Url}). HTTP {(int)ping.StatusCode}.");
 
             await using var db = await dbFactory.CreateDbContextAsync();
 
-            // ── Upload (local → Supabase) ────────────────────────────────────
+            // ── Upload (local → Supabase) ─────────────────────────────────────
+            // IgnoreQueryFilters so soft-deleted records are also uploaded and
+            // propagate deletions to other PCs.
+
             await UpsertRows(http, "products",
-                (await db.Products.ToListAsync())
+                (await db.Products.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new PrdRow(x.SyncId, x.Name, x.Type, x.Color, x.SKU, x.CreatedAt, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.PrdRow(x.SyncId, x.Name, x.Type, x.Color, x.SKU, x.CreatedAt, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "size_variants",
-                (await db.SizeVariants.Include(sv => sv.Product).ToListAsync())
+                (await db.SizeVariants.IgnoreQueryFilters().Include(sv => sv.Product).ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId) && !string.IsNullOrEmpty(x.Product?.SyncId))
-                    .Select(x => new SvRow(x.SyncId, x.Product!.SyncId, x.Size, x.Quantity, x.MinStockAlert, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.SvRow(x.SyncId, x.Product!.SyncId, x.Size, x.Quantity, x.MinStockAlert, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "stock_movements",
-                (await db.StockMovements.Include(sm => sm.SizeVariant).ToListAsync())
+                (await db.StockMovements.IgnoreQueryFilters().Include(sm => sm.SizeVariant).ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId) && !string.IsNullOrEmpty(x.SizeVariant?.SyncId))
-                    .Select(x => new SmRow(x.SyncId, x.SizeVariant!.SyncId, x.ChangeAmount, (int)x.Reason,
-                                           x.RoomNumber, x.Notes, x.Date, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.SmRow(x.SyncId, x.SizeVariant!.SyncId, x.ChangeAmount, (int)x.Reason,
+                                           x.RoomNumber, x.Notes, x.Date, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "general_items",
-                (await db.GeneralItems.ToListAsync())
+                (await db.GeneralItems.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new GiRow(x.SyncId, x.Name, x.TotalQuantity, x.Description, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.GiRow(x.SyncId, x.Name, x.TotalQuantity, x.Description, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "general_item_loans",
-                (await db.GeneralItemLoans.ToListAsync())
+                (await db.GeneralItemLoans.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new GilRow(x.SyncId, x.GeneralItemSyncId, x.RoomNumber, x.GivenBy,
-                                            x.Quantity, x.LoanDate, x.ReturnDate, x.Notes, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.GilRow(x.SyncId, x.GeneralItemSyncId, x.RoomNumber, x.GivenBy,
+                                            x.Quantity, x.LoanDate, x.ReturnDate, x.Notes, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "residents",
-                (await db.Residents.ToListAsync())
+                (await db.Residents.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new RsdRow(x.SyncId, x.Name, x.RoomNumber, x.PhoneNumber, x.IsCollaborator, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.RsdRow(x.SyncId, x.Name, x.RoomNumber, x.PhoneNumber, x.IsCollaborator, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "reservations",
-                (await db.Reservations.ToListAsync())
+                (await db.Reservations.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new ResRow(x.SyncId, (int)x.Space, x.RoomNumber, x.ReservedBy,
-                                            x.StartTime, x.EndTime, x.Notes, x.CreatedAt, x.IsCancelled, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.ResRow(x.SyncId, (int)x.Space, x.RoomNumber, x.ReservedBy,
+                                            x.StartTime, x.EndTime, x.Notes, x.CreatedAt, x.IsCancelled, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "deliveries",
-                (await db.Deliveries.ToListAsync())
+                (await db.Deliveries.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
-                    .Select(x => new DelRow(x.SyncId, (int)x.Type, x.RoomNumber, x.Quantity,
-                                            x.ArrivedAt, x.CollectedAt, x.Notes, x.UpdatedAt)));
+                    .Select(x => new SyncMerge.DelRow(x.SyncId, (int)x.Type, x.RoomNumber, x.Quantity,
+                                            x.ArrivedAt, x.CollectedAt, x.Notes, x.IsDeleted, x.UpdatedAt)));
 
-            // ── Download (Supabase → local) ──────────────────────────────────
-            var remotePrds   = await FetchRows<PrdRow>(http, "products");
-            var remoteSvs    = await FetchRows<SvRow> (http, "size_variants");
-            var remoteSms    = await FetchRows<SmRow> (http, "stock_movements");
-            var remoteItems  = await FetchRows<GiRow> (http, "general_items");
-            var remoteLoans  = await FetchRows<GilRow>(http, "general_item_loans");
-            var remoteRsds   = await FetchRows<RsdRow>(http, "residents");
-            var remoteRes    = await FetchRows<ResRow> (http, "reservations");
-            var remoteDels   = await FetchRows<DelRow> (http, "deliveries");
+            // ── Download (Supabase → local) ───────────────────────────────────
 
-            // Merge order respects FK dependencies
+            var remotePrds  = await FetchRows<SyncMerge.PrdRow>(http, "products");
+            var remoteSvs   = await FetchRows<SyncMerge.SvRow> (http, "size_variants");
+            var remoteSms   = await FetchRows<SyncMerge.SmRow> (http, "stock_movements");
+            var remoteItems = await FetchRows<SyncMerge.GiRow> (http, "general_items");
+            var remoteLoans = await FetchRows<SyncMerge.GilRow>(http, "general_item_loans");
+            var remoteRsds  = await FetchRows<SyncMerge.RsdRow>(http, "residents");
+            var remoteRes   = await FetchRows<SyncMerge.ResRow> (http, "reservations");
+            var remoteDels  = await FetchRows<SyncMerge.DelRow> (http, "deliveries");
+
+            // Merge in FK-dependency order; IsSyncing suppresses auto-stamping
             db.IsSyncing = true;
-            await MergeProducts        (db, remotePrds);
-            await MergeSizeVariants    (db, remoteSvs);
-            await MergeStockMovements  (db, remoteSms);
-            var staleItemIds = new List<string>();
-            await MergeGeneralItems    (db, remoteItems, staleItemIds);
-            await MergeGeneralItemLoans(db, remoteLoans);
-            await MergeResidents       (db, remoteRsds);
-            await MergeReservations    (db, remoteRes);
-            await MergeDeliveries      (db, remoteDels);
+            await SyncMerge.MergeProducts       (db, remotePrds);
+            await SyncMerge.MergeSizeVariants   (db, remoteSvs);
+            await SyncMerge.MergeStockMovements (db, remoteSms);
+            await SyncMerge.MergeGeneralItems   (db, remoteItems);
+            await SyncMerge.MergeGeneralItemLoans(db, remoteLoans);
+            await SyncMerge.MergeResidents      (db, remoteRsds);
+            await SyncMerge.MergeReservations   (db, remoteRes);
+            await SyncMerge.MergeDeliveries     (db, remoteDels);
             await db.SaveChangesAsync();
-
-            // Remove stale duplicate SyncIds from Supabase (best-effort, silent)
-            foreach (var sid in staleItemIds)
-                await DeleteSupabaseRow(http, "general_items", sid);
 
             LastSync = DateTime.UtcNow;
             return (true, $"Sincronizado às {LastSync.Value.ToLocalTime():HH:mm}.");
@@ -169,265 +204,9 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
     {
         var resp = await http.GetAsync($"rest/v1/{table}?select=*");
         if (!resp.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Tabela '{table}' não encontrada no Supabase (HTTP {(int)resp.StatusCode}). Verifica se as tabelas foram criadas.");
+            throw new InvalidOperationException(
+                $"Tabela '{table}' não encontrada no Supabase (HTTP {(int)resp.StatusCode}).");
         return await resp.Content.ReadFromJsonAsync<List<T>>(JsonOpts) ?? [];
     }
 
-    private static async Task DeleteSupabaseRow(HttpClient http, string table, string syncId)
-    {
-        try { await http.DeleteAsync($"rest/v1/{table}?sync_id=eq.{Uri.EscapeDataString(syncId)}"); }
-        catch { /* best effort */ }
-    }
-
-    // ── Merge helpers ─────────────────────────────────────────────────────────
-
-    private static async Task MergeGeneralItems(AppDbContext db, List<GiRow> remote, List<string> staleIds)
-    {
-        var localBySyncId = await db.GeneralItems.ToDictionaryAsync(x => x.SyncId);
-        // Name-based fallback to catch items seeded independently on different PCs
-        var localByName = (await db.GeneralItems.ToListAsync())
-            .GroupBy(x => x.Name.Trim().ToLowerInvariant())
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.UpdatedAt).First());
-
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (localBySyncId.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Name = r.Name; l.TotalQuantity = r.TotalQuantity;
-                l.Description = r.Description; l.UpdatedAt = r.UpdatedAt;
-            }
-            else if (localByName.TryGetValue(r.Name.Trim().ToLowerInvariant(), out var lByName))
-            {
-                // Same name, different SyncId → item was seeded independently on this PC.
-                // Adopt the remote SyncId so both sides converge to one record.
-                staleIds.Add(lByName.SyncId); // queue old local SyncId for Supabase deletion
-                localBySyncId.Remove(lByName.SyncId);
-
-                lByName.SyncId = r.SyncId!;
-                if (r.UpdatedAt > lByName.UpdatedAt)
-                {
-                    lByName.Name = r.Name; lByName.TotalQuantity = r.TotalQuantity;
-                    lByName.Description = r.Description; lByName.UpdatedAt = r.UpdatedAt;
-                }
-
-                localBySyncId[r.SyncId!] = lByName;
-                localByName[r.Name.Trim().ToLowerInvariant()] = lByName;
-            }
-            else
-            {
-                db.GeneralItems.Add(new GeneralItem
-                {
-                    SyncId = r.SyncId!, Name = r.Name,
-                    TotalQuantity = r.TotalQuantity, Description = r.Description,
-                    UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeGeneralItemLoans(AppDbContext db, List<GilRow> remote)
-    {
-        var local   = await db.GeneralItemLoans.ToDictionaryAsync(x => x.SyncId);
-        var itemMap = await db.GeneralItems.ToDictionaryAsync(x => x.SyncId, x => x.Id);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.RoomNumber = r.RoomNumber; l.GivenBy = r.GivenBy;
-                l.Quantity = r.Quantity; l.LoanDate = r.LoanDate;
-                l.ReturnDate = r.ReturnDate; l.Notes = r.Notes;
-                l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(r.GeneralItemSyncId) ||
-                    !itemMap.TryGetValue(r.GeneralItemSyncId, out var localItemId)) continue;
-                db.GeneralItemLoans.Add(new GeneralItemLoan
-                {
-                    SyncId = r.SyncId!, GeneralItemId = localItemId,
-                    GeneralItemSyncId = r.GeneralItemSyncId, RoomNumber = r.RoomNumber,
-                    GivenBy = r.GivenBy, Quantity = r.Quantity, LoanDate = r.LoanDate,
-                    ReturnDate = r.ReturnDate, Notes = r.Notes, UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeResidents(AppDbContext db, List<RsdRow> remote)
-    {
-        var local = await db.Residents.ToDictionaryAsync(x => x.SyncId);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Name = r.Name; l.RoomNumber = r.RoomNumber;
-                l.PhoneNumber = r.PhoneNumber; l.IsCollaborator = r.IsCollaborator;
-                l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                db.Residents.Add(new Resident
-                {
-                    SyncId = r.SyncId!, Name = r.Name, RoomNumber = r.RoomNumber,
-                    PhoneNumber = r.PhoneNumber, IsCollaborator = r.IsCollaborator,
-                    UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeReservations(AppDbContext db, List<ResRow> remote)
-    {
-        var local = await db.Reservations.ToDictionaryAsync(x => x.SyncId);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Space = (ReservationSpace)r.Space; l.RoomNumber = r.RoomNumber;
-                l.ReservedBy = r.ReservedBy; l.StartTime = r.StartTime;
-                l.EndTime = r.EndTime; l.Notes = r.Notes;
-                l.IsCancelled = r.IsCancelled; l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                db.Reservations.Add(new Reservation
-                {
-                    SyncId = r.SyncId!, Space = (ReservationSpace)r.Space,
-                    RoomNumber = r.RoomNumber, ReservedBy = r.ReservedBy,
-                    StartTime = r.StartTime, EndTime = r.EndTime,
-                    Notes = r.Notes, CreatedAt = r.CreatedAt,
-                    IsCancelled = r.IsCancelled, UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeDeliveries(AppDbContext db, List<DelRow> remote)
-    {
-        var local = await db.Deliveries.ToDictionaryAsync(x => x.SyncId);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Type = (DeliveryType)r.Type; l.RoomNumber = r.RoomNumber;
-                l.Quantity = r.Quantity; l.ArrivedAt = r.ArrivedAt;
-                l.CollectedAt = r.CollectedAt; l.Notes = r.Notes;
-                l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                db.Deliveries.Add(new Delivery
-                {
-                    SyncId = r.SyncId!, Type = (DeliveryType)r.Type,
-                    RoomNumber = r.RoomNumber, Quantity = r.Quantity,
-                    ArrivedAt = r.ArrivedAt, CollectedAt = r.CollectedAt,
-                    Notes = r.Notes, UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeProducts(AppDbContext db, List<PrdRow> remote)
-    {
-        var local = await db.Products.ToDictionaryAsync(x => x.SyncId);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Name = r.Name; l.Type = r.Type; l.Color = r.Color;
-                l.SKU = r.Sku; l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                db.Products.Add(new Product
-                {
-                    SyncId = r.SyncId!, Name = r.Name, Type = r.Type, Color = r.Color,
-                    SKU = r.Sku, CreatedAt = r.CreatedAt, UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeSizeVariants(AppDbContext db, List<SvRow> remote)
-    {
-        var local      = await db.SizeVariants.ToDictionaryAsync(x => x.SyncId);
-        var productMap = await db.Products.ToDictionaryAsync(x => x.SyncId, x => x.Id);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.TryGetValue(r.SyncId!, out var l))
-            {
-                if (r.UpdatedAt <= l.UpdatedAt) continue;
-                l.Size = r.Size; l.Quantity = r.Quantity;
-                l.MinStockAlert = r.MinStockAlert; l.UpdatedAt = r.UpdatedAt;
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(r.ProductSyncId) ||
-                    !productMap.TryGetValue(r.ProductSyncId, out var localProductId)) continue;
-                db.SizeVariants.Add(new SizeVariant
-                {
-                    SyncId = r.SyncId!, ProductId = localProductId, Size = r.Size,
-                    Quantity = r.Quantity, MinStockAlert = r.MinStockAlert, UpdatedAt = r.UpdatedAt
-                });
-            }
-        }
-    }
-
-    private static async Task MergeStockMovements(AppDbContext db, List<SmRow> remote)
-    {
-        var local  = await db.StockMovements.ToDictionaryAsync(x => x.SyncId);
-        var svMap  = await db.SizeVariants.ToDictionaryAsync(x => x.SyncId, x => x.Id);
-        foreach (var r in remote.Where(r => !string.IsNullOrEmpty(r.SyncId)))
-        {
-            if (local.ContainsKey(r.SyncId!)) continue; // immutable log — never update
-            if (string.IsNullOrEmpty(r.SizeVariantSyncId) ||
-                !svMap.TryGetValue(r.SizeVariantSyncId, out var localSvId)) continue;
-            db.StockMovements.Add(new StockMovement
-            {
-                SyncId = r.SyncId!, SizeVariantId = localSvId, ChangeAmount = r.ChangeAmount,
-                Reason = (MovementReason)r.Reason, RoomNumber = r.RoomNumber,
-                Notes = r.Notes, Date = r.Date, UpdatedAt = r.UpdatedAt
-            });
-        }
-    }
-
-    // ── DTOs (snake_case via JsonNamingPolicy) ────────────────────────────────
-
-    private record PrdRow(
-        string? SyncId, string Name, string Type, string Color, string Sku,
-        DateTime CreatedAt, DateTime UpdatedAt);
-
-    private record SvRow(
-        string? SyncId, string? ProductSyncId, string Size, int Quantity,
-        int MinStockAlert, DateTime UpdatedAt);
-
-    private record SmRow(
-        string? SyncId, string? SizeVariantSyncId, int ChangeAmount, int Reason,
-        string? RoomNumber, string? Notes, DateTime Date, DateTime UpdatedAt);
-
-    private record GiRow(
-        string? SyncId, string Name, int TotalQuantity, string? Description, DateTime UpdatedAt);
-
-    private record GilRow(
-        string? SyncId, string? GeneralItemSyncId, string RoomNumber, string GivenBy,
-        int Quantity, DateTime LoanDate, DateTime? ReturnDate, string? Notes, DateTime UpdatedAt);
-
-    private record RsdRow(
-        string? SyncId, string Name, string RoomNumber, string? PhoneNumber,
-        bool IsCollaborator, DateTime UpdatedAt);
-
-    private record ResRow(
-        string? SyncId, int Space, string RoomNumber, string ReservedBy,
-        DateTime StartTime, DateTime EndTime, string? Notes, DateTime CreatedAt,
-        bool IsCancelled, DateTime UpdatedAt);
-
-    private record DelRow(
-        string? SyncId, int Type, string RoomNumber, int Quantity,
-        DateTime ArrivedAt, DateTime? CollectedAt, string? Notes, DateTime UpdatedAt);
 }
