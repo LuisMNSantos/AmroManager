@@ -473,7 +473,7 @@ public class SyncMergeTests : IDisposable
         var remote = new List<SyncMerge.ResRow>
         {
             new("sync-rsv-1", (int)ReservationSpace.Cinema, "101", "João",
-                start, end, null, T.Utc(2024, 5, 31), false, false, T.Utc(2024, 5, 31))
+                start, end, null, T.Utc(2024, 5, 31), false, false, false, false, T.Utc(2024, 5, 31))
         };
 
         await SyncMerge.MergeReservations(db, remote);
@@ -507,7 +507,7 @@ public class SyncMergeTests : IDisposable
         var remote = new List<SyncMerge.ResRow>
         {
             new("sync-rsv-2", (int)ReservationSpace.Cinema, "101", "João",
-                start, end, null, T.Utc(2024, 5, 31), IsCancelled: true, false, T.Utc(2024, 6, 2))
+                start, end, null, T.Utc(2024, 5, 31), IsCancelled: true, false, false, false, T.Utc(2024, 6, 2))
         };
 
         await SyncMerge.MergeReservations(db, remote);
@@ -939,7 +939,7 @@ public class SyncMergeTests : IDisposable
         {
             new("sync-rsv-tz", (int)ReservationSpace.Cozinha, "303", "Staff",
                 simulatedStart, simulatedEnd, null, T.Utc(2024, 1, 1),
-                false, false, T.Utc(2024, 6, 1))
+                false, false, false, false, T.Utc(2024, 6, 1))
         };
 
         await SyncMerge.MergeReservations(db, remote);
