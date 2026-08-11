@@ -27,6 +27,7 @@
     <Compile Include="..\AmroStockManager\Services\GeneralItemService.cs"  Link="Services\GeneralItemService.cs" />
     <Compile Include="..\AmroStockManager\Services\DeliveryService.cs"     Link="Services\DeliveryService.cs" />
     <Compile Include="..\AmroStockManager\Services\SyncMerge.cs"           Link="Services\SyncMerge.cs" />
+    <Compile Include="..\AmroStockManager\Services\IBackgroundSync.cs"     Link="Services\IBackgroundSync.cs" />
   </ItemGroup>
 
 </Project>

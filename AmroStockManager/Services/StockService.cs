@@ -4,7 +4,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class StockService(IDbContextFactory<AppDbContext> dbFactory)
+public class StockService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     public async Task AdjustStockAsync(int sizeVariantId, int change, MovementReason reason,
                                        string? notes = null, string? roomNumber = null)
@@ -24,6 +24,7 @@ public class StockService(IDbContextFactory<AppDbContext> dbFactory)
             Date = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task<bool> TradeAsync(int outVariantId, int inVariantId,
@@ -60,6 +61,7 @@ public class StockService(IDbContextFactory<AppDbContext> dbFactory)
         });
 
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return true;
     }
 

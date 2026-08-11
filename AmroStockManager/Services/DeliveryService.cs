@@ -10,7 +10,7 @@ public record DeliveryDashboardStats(
     int ArrivedToday,
     int CollectedToday);
 
-public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
+public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     public async Task<List<Delivery>> GetPendingAsync()
     {
@@ -66,6 +66,7 @@ public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
         };
         db.Deliveries.Add(delivery);
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return delivery;
     }
 
@@ -76,6 +77,7 @@ public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
         if (delivery is null || delivery.IsCollected) return;
         delivery.CollectedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task DeleteAsync(int id)
@@ -85,5 +87,6 @@ public class DeliveryService(IDbContextFactory<AppDbContext> dbFactory)
         if (delivery is null) return;
         delivery.IsDeleted = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 }

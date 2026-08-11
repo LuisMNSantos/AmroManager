@@ -4,7 +4,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
+public class ProductService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     public async Task<List<Product>> GetAllAsync(string? search = null, string? type = null, bool lowStockOnly = false)
     {
@@ -38,6 +38,7 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
         product.CreatedAt = DateTime.UtcNow;
         db.Products.Add(product);
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return product;
     }
 
@@ -84,6 +85,7 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
         }
 
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task DeleteAsync(int id)
@@ -100,6 +102,7 @@ public class ProductService(IDbContextFactory<AppDbContext> dbFactory)
             foreach (var sm in sv.StockMovements) sm.IsDeleted = true;
         }
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public static readonly string[] StandardSizes = ["XS", "S", "M", "L", "XL", "XXL"];

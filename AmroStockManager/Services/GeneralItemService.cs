@@ -4,7 +4,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
+public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     public async Task<List<GeneralItem>> GetAllWithLoansAsync()
     {
@@ -53,6 +53,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
             LoanDate = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return true;
     }
 
@@ -75,6 +76,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
         };
         db.GeneralItemLoans.Add(loan);
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return loan.Id;
     }
 
@@ -86,6 +88,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
 
         loan.ReturnDate = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task DeleteItemAsync(int id)
@@ -97,6 +100,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
         var loans = await db.GeneralItemLoans.Where(l => l.GeneralItemId == id).ToListAsync();
         foreach (var loan in loans) loan.IsDeleted = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task<GeneralItem> AddOrUpdateItemAsync(GeneralItem item)
@@ -113,6 +117,7 @@ public class GeneralItemService(IDbContextFactory<AppDbContext> dbFactory)
             existing.Description = item.Description;
         }
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return item;
     }
 }

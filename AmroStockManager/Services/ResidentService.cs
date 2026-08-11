@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AmroStockManager.Services;
 
-public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
+public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     private static readonly string PinFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -111,7 +111,7 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
         foreach (var r in existing) r.IsDeleted = true;
         db.Residents.AddRange(residents);
         await db.SaveChangesAsync();
-
+        sync?.TriggerBackgroundSync();
         return (residents.Count, skipped);
     }
 
@@ -122,6 +122,7 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
         if (resident is null) return;
         resident.IsDeleted = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     public async Task DeleteAllAsync()
@@ -130,6 +131,7 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory)
         var all = await db.Residents.ToListAsync();
         foreach (var r in all) r.IsDeleted = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
     }
 
     private static string[] ParseCsvLine(string line)
