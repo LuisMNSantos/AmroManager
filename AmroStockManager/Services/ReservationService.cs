@@ -4,7 +4,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
+public class ReservationService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
 {
     private const string KitchenCardName = "Cartão de Acesso – Cozinha";
     private const string CinemaCardName  = "Cartão de Acesso – Cinema";
@@ -92,6 +92,7 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
 
         db.Reservations.Add(reservation);
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return (true, null, reservation);
     }
 
@@ -130,18 +131,21 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
         var spaceLabel = reservation.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
         var loan = new GeneralItemLoan
         {
-            GeneralItemId = card.Id,
-            RoomNumber    = reservation.RoomNumber,
-            GivenBy       = reservation.ReservedBy,
-            Quantity      = 1,
-            Notes         = $"Reserva: {spaceLabel} — quarto {reservation.RoomNumber}",
-            LoanDate      = DateTime.UtcNow
+            GeneralItemId     = card.Id,
+            GeneralItemSyncId = card.SyncId,
+            RoomNumber        = reservation.RoomNumber,
+            GivenBy           = reservation.ReservedBy,
+            Quantity          = 1,
+            Notes             = $"Reserva: {spaceLabel} — quarto {reservation.RoomNumber}",
+            LoanDate          = DateTime.UtcNow
         };
         db.GeneralItemLoans.Add(loan);
         await db.SaveChangesAsync();
 
         reservation.AccessCardLoanId = loan.Id;
+        reservation.IsActivated = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return (true, null);
     }
 
@@ -157,7 +161,9 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
             return false;
 
         reservation.AccessCardLoan.ReturnDate = DateTime.UtcNow;
+        reservation.IsCompleted = true;
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return true;
     }
 
@@ -181,6 +187,7 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory)
         }
 
         await db.SaveChangesAsync();
+        sync?.TriggerBackgroundSync();
         return true;
     }
 }

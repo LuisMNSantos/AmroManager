@@ -8,7 +8,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
+public class SyncService(IDbContextFactory<AppDbContext> dbFactory) : IBackgroundSync
 {
     private const string LastKey = "sync_last";
 
@@ -75,6 +75,22 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(Url) && !string.IsNullOrWhiteSpace(Key);
 
+    // ── Background trigger (fire-and-forget, skips if already running) ────────
+
+    private int _backgroundSyncing = 0;
+
+    public void TriggerBackgroundSync()
+    {
+        if (!IsConfigured) return;
+        if (Interlocked.CompareExchange(ref _backgroundSyncing, 1, 0) != 0) return;
+        _ = Task.Run(async () =>
+        {
+            try { await SyncAsync(); }
+            catch { }
+            finally { Interlocked.Exchange(ref _backgroundSyncing, 0); }
+        });
+    }
+
     // ── Main sync entry point ─────────────────────────────────────────────────
 
     public async Task<(bool Ok, string Message)> SyncAsync()
@@ -119,7 +135,7 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
 
             await UpsertRows(http, "general_item_loans",
                 (await db.GeneralItemLoans.IgnoreQueryFilters().ToListAsync())
-                    .Where(x => !string.IsNullOrEmpty(x.SyncId))
+                    .Where(x => !string.IsNullOrEmpty(x.SyncId) && !string.IsNullOrEmpty(x.GeneralItemSyncId))
                     .Select(x => new SyncMerge.GilRow(x.SyncId, x.GeneralItemSyncId, x.RoomNumber, x.GivenBy,
                                             x.Quantity, x.LoanDate, x.ReturnDate, x.Notes, x.IsDeleted, x.UpdatedAt)));
 
@@ -132,7 +148,8 @@ public class SyncService(IDbContextFactory<AppDbContext> dbFactory)
                 (await db.Reservations.IgnoreQueryFilters().ToListAsync())
                     .Where(x => !string.IsNullOrEmpty(x.SyncId))
                     .Select(x => new SyncMerge.ResRow(x.SyncId, (int)x.Space, x.RoomNumber, x.ReservedBy,
-                                            x.StartTime, x.EndTime, x.Notes, x.CreatedAt, x.IsCancelled, x.IsDeleted, x.UpdatedAt)));
+                                            x.StartTime, x.EndTime, x.Notes, x.CreatedAt, x.IsCancelled,
+                                            x.IsActivated, x.IsCompleted, x.IsDeleted, x.UpdatedAt)));
 
             await UpsertRows(http, "deliveries",
                 (await db.Deliveries.IgnoreQueryFilters().ToListAsync())

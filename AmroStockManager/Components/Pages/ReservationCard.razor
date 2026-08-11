@@ -74,8 +74,8 @@
 
     private string GetState()
     {
-        if (Reservation.AccessCardLoanId == null) return "Agendada";
-        if (Reservation.AccessCardLoan?.ReturnDate == null) return "Em Curso";
+        if (!Reservation.IsActivated) return "Agendada";
+        if (!Reservation.IsCompleted) return "Em Curso";
         return "Concluída";
     }
 }

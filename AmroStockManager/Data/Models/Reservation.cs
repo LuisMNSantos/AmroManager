@@ -17,6 +17,8 @@ public class Reservation : ISyncable
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsCancelled { get; set; }
+    public bool IsActivated { get; set; }
+    public bool IsCompleted { get; set; }
     public int? AccessCardLoanId { get; set; }
     public GeneralItemLoan? AccessCardLoan { get; set; }
     public string SyncId { get; set; } = string.Empty;

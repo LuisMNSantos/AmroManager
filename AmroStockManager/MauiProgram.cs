@@ -40,6 +40,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<BackupService>();
         builder.Services.AddSingleton<ResidentService>();
         builder.Services.AddSingleton<SyncService>();
+        builder.Services.AddSingleton<IBackgroundSync>(sp => sp.GetRequiredService<SyncService>());
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -106,6 +107,8 @@ public static class MauiProgram
             "ALTER TABLE GeneralItems      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE GeneralItemLoans  ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE Residents         ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE Reservations      ADD COLUMN IsActivated INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE Reservations      ADD COLUMN IsCompleted INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE Reservations      ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE Deliveries        ADD COLUMN SyncId     TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE GeneralItems      ADD COLUMN UpdatedAt  TEXT NOT NULL DEFAULT '0001-01-01T00:00:00.0000000Z'",
@@ -238,6 +241,14 @@ public static class MauiProgram
             });
             db.SaveChanges();
         }
+
+        // ── Back-fill IsActivated / IsCompleted on existing reservations ────────
+        db.Database.ExecuteSqlRaw(
+            "UPDATE Reservations SET IsActivated = 1 WHERE AccessCardLoanId IS NOT NULL AND IsActivated = 0");
+        db.Database.ExecuteSqlRaw(@"
+            UPDATE Reservations SET IsCompleted = 1
+            WHERE AccessCardLoanId IS NOT NULL AND IsCompleted = 0
+              AND AccessCardLoanId IN (SELECT Id FROM GeneralItemLoans WHERE ReturnDate IS NOT NULL)");
 
         // ── Populate SyncId for records created before sync was added ─────────
         PopulateSyncIds(db);

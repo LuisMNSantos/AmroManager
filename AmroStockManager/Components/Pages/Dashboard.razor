@@ -128,7 +128,7 @@ else
                 var totalLoans    = _items.Sum(i => i.ActiveLoansCount);
                 var kitchenCard   = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cozinha");
                 var cinemaCard    = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cinema");
-                var activeReserv  = _todayReservations.Count(r => r.AccessCardLoanId != null && r.AccessCardLoan?.ReturnDate == null);
+                var activeReserv  = _todayReservations.Count(r => r.IsActivated && !r.IsCompleted);
                 var todayCount    = _todayReservations.Count;
             }
 
@@ -224,8 +224,8 @@ else
                     @foreach (var res in _todayReservations)
                     {
                         var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
-                        var resState   = res.AccessCardLoanId == null ? "Agendada"
-                                         : res.AccessCardLoan?.ReturnDate == null ? "Em Curso" : "Concluída";
+                        var resState   = !res.IsActivated ? "Agendada"
+                                         : !res.IsCompleted ? "Em Curso" : "Concluída";
                         var resColor   = resState == "Em Curso" ? Color.Warning : resState == "Concluída" ? Color.Success : Color.Default;
                         <div class="d-flex align-center gap-3 px-4 py-2" style="border-bottom:1px solid rgba(0,0,0,0.07);">
                             <div style="flex:1;">

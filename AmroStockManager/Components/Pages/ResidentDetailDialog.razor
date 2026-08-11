@@ -99,7 +99,7 @@
                     @foreach (var res in _reservations)
                     {
                         var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
-                        var isActive   = res.AccessCardLoanId != null && res.AccessCardLoan?.ReturnDate == null;
+                        var isActive   = res.IsActivated && !res.IsCompleted;
                         <div class="d-flex align-center justify-space-between pa-2"
                              style="border-bottom:1px solid rgba(0,0,0,0.06);">
                             <div>

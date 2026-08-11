@@ -27,7 +27,7 @@ internal static class SyncMerge
     internal record ResRow(
         string? SyncId, int Space, string RoomNumber, string ReservedBy,
         DateTime StartTime, DateTime EndTime, string? Notes, DateTime CreatedAt,
-        bool IsCancelled, bool IsDeleted, DateTime UpdatedAt);
+        bool IsCancelled, bool IsActivated, bool IsCompleted, bool IsDeleted, DateTime UpdatedAt);
 
     internal record DelRow(
         string? SyncId, int Type, string RoomNumber, int Quantity,
@@ -151,6 +151,7 @@ internal static class SyncMerge
                     l.Space = (ReservationSpace)r.Space; l.RoomNumber = r.RoomNumber;
                     l.ReservedBy = r.ReservedBy; l.StartTime = r.StartTime;
                     l.EndTime = r.EndTime; l.Notes = r.Notes; l.IsCancelled = r.IsCancelled;
+                    l.IsActivated = r.IsActivated; l.IsCompleted = r.IsCompleted;
                 }
                 l.UpdatedAt = r.UpdatedAt;
             }
@@ -162,7 +163,8 @@ internal static class SyncMerge
                     RoomNumber = r.RoomNumber, ReservedBy = r.ReservedBy,
                     StartTime = r.StartTime, EndTime = r.EndTime,
                     Notes = r.Notes, CreatedAt = r.CreatedAt,
-                    IsCancelled = r.IsCancelled, UpdatedAt = r.UpdatedAt
+                    IsCancelled = r.IsCancelled, IsActivated = r.IsActivated,
+                    IsCompleted = r.IsCompleted, UpdatedAt = r.UpdatedAt
                 });
             }
         }
