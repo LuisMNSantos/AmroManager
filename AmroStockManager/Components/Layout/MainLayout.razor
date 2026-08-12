@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 @using Microsoft.Maui
 @using Microsoft.Maui.Storage
+@inject ConnectivityService Connectivity
+@implements IDisposable
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDark" />
 <MudPopoverProvider />
@@ -69,6 +71,14 @@
     </MudDrawer>
 
     <MudMainContent>
+        @if (!Connectivity.IsOnline)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Square="true"
+                      Style="border-radius:0; position:sticky; top:0; z-index:1000;">
+                <MudIcon Icon="@Icons.Material.Filled.WifiOff" Size="Size.Small" Class="mr-1" Style="vertical-align:middle;" />
+                Sem ligação à internet. Algumas funcionalidades podem não estar disponíveis.
+            </MudAlert>
+        }
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-6">
             @Body
         </MudContainer>
@@ -104,7 +114,11 @@
         _isDark = Preferences.Default.ContainsKey("darkMode")
             ? Preferences.Default.Get("darkMode", false)
             : Application.Current?.RequestedTheme == AppTheme.Dark;
+
+        Connectivity.Changed += OnConnectivityChanged;
     }
+
+    private void OnConnectivityChanged() => InvokeAsync(StateHasChanged);
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -114,4 +128,5 @@
         Preferences.Default.Set("darkMode", _isDark);
     }
 
+    public void Dispose() => Connectivity.Changed -= OnConnectivityChanged;
 }
