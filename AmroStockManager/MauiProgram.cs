@@ -20,6 +20,11 @@ public static class MauiProgram
         builder.Services.AddMudServices();
 
         builder.Services.AddSingleton<SupabaseClient>();
+        builder.Services.AddSingleton<CacheService>();
+        builder.Services.AddSingleton<ConnectivityService>(sp =>
+            new ConnectivityService(Connectivity.Current));
+        builder.Services.AddSingleton<SupabaseRealtimeService>();
+
         builder.Services.AddSingleton<ProductService>();
         builder.Services.AddSingleton<StockService>();
         builder.Services.AddSingleton<GeneralItemService>();

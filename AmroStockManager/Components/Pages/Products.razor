@@ -1,9 +1,11 @@
 @page "/products"
 @inject ProductService ProductSvc
 @inject StockService StockSvc
+@inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Produtos</MudText>
     <div class="d-flex gap-2">
@@ -169,8 +171,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Realtime.TableChanged += OnTableChanged;
         await LoadProducts();
     }
+
+    private void OnTableChanged(string table)
+    {
+        if (table is "products" or "size_variants")
+            InvokeAsync(LoadProducts);
+    }
+
+    public void Dispose() => Realtime.TableChanged -= OnTableChanged;
 
     private async Task LoadProducts()
     {

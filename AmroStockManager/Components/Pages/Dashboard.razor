@@ -4,9 +4,11 @@
 @inject ReservationService ReservaSvc
 @inject DeliveryService DeliverySvc
 @inject ResidentService ResidentSvc
+@inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Painel</MudText>
     <MudIconButton Icon="@Icons.Material.Filled.CleaningServices"
@@ -364,8 +366,20 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Realtime.TableChanged += OnTableChanged;
         await LoadData();
     }
+
+    private static readonly HashSet<string> _watchedTables =
+        ["reservations", "deliveries", "general_item_loans", "general_items", "products", "size_variants", "residents"];
+
+    private void OnTableChanged(string table)
+    {
+        if (_watchedTables.Contains(table))
+            InvokeAsync(LoadData);
+    }
+
+    public void Dispose() => Realtime.TableChanged -= OnTableChanged;
 
     private async Task LoadData()
     {
