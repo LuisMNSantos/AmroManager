@@ -30,7 +30,7 @@ public class SupabaseClient
     public async Task<List<T>> GetAsync<T>(string table, string? query = null)
     {
         var url = query is not null ? $"rest/v1/{table}?{query}" : $"rest/v1/{table}";
-        var resp = await _http.GetAsync(url);
+        var resp = await SendWithRetryAsync(() => new HttpRequestMessage(HttpMethod.Get, url));
         await EnsureSuccessAsync(resp, url);
         return await resp.Content.ReadFromJsonAsync<List<T>>(_opts) ?? [];
     }
@@ -38,25 +38,29 @@ public class SupabaseClient
     public async Task<int> GetCountAsync(string table, string? query = null)
     {
         var url = query is not null ? $"rest/v1/{table}?{query}" : $"rest/v1/{table}";
-        var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.Add("Prefer", "count=exact");
-        req.Headers.Range = new RangeHeaderValue(0, 0);
-        var resp = await _http.SendAsync(req);
+        var resp = await SendWithRetryAsync(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Add("Prefer", "count=exact");
+            req.Headers.Range = new RangeHeaderValue(0, 0);
+            return req;
+        });
         await EnsureSuccessAsync(resp, url);
         var contentRange = resp.Content.Headers.ContentRange;
-        if (contentRange?.HasLength == true)
-            return (int)contentRange.Length!.Value;
-        return 0;
+        return contentRange?.HasLength == true ? (int)contentRange.Length!.Value : 0;
     }
 
     public async Task<T?> InsertAsync<T>(string table, object body)
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, $"rest/v1/{table}")
+        var resp = await SendWithRetryAsync(() =>
         {
-            Content = JsonContent.Create(body, options: _opts)
-        };
-        req.Headers.Add("Prefer", "return=representation");
-        var resp = await _http.SendAsync(req);
+            var req = new HttpRequestMessage(HttpMethod.Post, $"rest/v1/{table}")
+            {
+                Content = JsonContent.Create(body, options: _opts)
+            };
+            req.Headers.Add("Prefer", "return=representation");
+            return req;
+        }, retryOn5xx: false); // writes are not safe to retry automatically
         await EnsureSuccessAsync(resp, $"POST {table}");
         var list = await resp.Content.ReadFromJsonAsync<List<T>>(_opts);
         return list is { Count: > 0 } ? list[0] : default;
@@ -64,13 +68,45 @@ public class SupabaseClient
 
     public async Task PatchAsync(string table, string filter, object patch)
     {
-        var req = new HttpRequestMessage(HttpMethod.Patch, $"rest/v1/{table}?{filter}")
+        var resp = await SendWithRetryAsync(() =>
         {
-            Content = JsonContent.Create(patch, options: _opts)
-        };
-        req.Headers.Add("Prefer", "return=minimal");
-        var resp = await _http.SendAsync(req);
+            var req = new HttpRequestMessage(HttpMethod.Patch, $"rest/v1/{table}?{filter}")
+            {
+                Content = JsonContent.Create(patch, options: _opts)
+            };
+            req.Headers.Add("Prefer", "return=minimal");
+            return req;
+        }, retryOn5xx: false); // writes are not safe to retry automatically
         await EnsureSuccessAsync(resp, $"PATCH {table}?{filter}");
+    }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        Func<HttpRequestMessage> buildRequest, bool retryOn5xx = true)
+    {
+        const int maxRetries = 2;
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                var resp = await _http.SendAsync(buildRequest());
+                if (retryOn5xx && (int)resp.StatusCode >= 500 && attempt < maxRetries)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(500 * Math.Pow(2, attempt)));
+                    continue;
+                }
+                return resp;
+            }
+            catch (TaskCanceledException) when (attempt < maxRetries)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * Math.Pow(2, attempt)));
+            }
+            catch (HttpRequestException) when (attempt < maxRetries)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * Math.Pow(2, attempt)));
+            }
+        }
+        // final attempt — let any exception propagate
+        return await _http.SendAsync(buildRequest());
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage resp, string context)
