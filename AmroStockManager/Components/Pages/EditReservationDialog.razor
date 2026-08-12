@@ -1,0 +1,125 @@
+@inject ReservationService ReservaSvc
+@inject ResidentService ResidentSvc
+@inject ISnackbar Snackbar
+@using System.Globalization
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Editar Reserva</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudAutocomplete T="string"
+                                 @bind-Value="_roomInput"
+                                 Label="Número do Quarto"
+                                 SearchFunc="SearchRooms"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 MinimumLength="1"
+                                 Required="true"
+                                 FullWidth="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" />
+            </MudItem>
+            @if (Reservation.Space == ReservationSpace.Cinema)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" @bind-Value="_endDayOffset" Label="Fim — dia" FullWidth="true">
+                        <MudSelectItem Value="0">Mesmo dia (@_date.ToString("dd/MM"))</MudSelectItem>
+                        <MudSelectItem Value="1">Dia seguinte (@_date.AddDays(1).ToString("dd/MM"))</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
+            </MudItem>
+            @if (Reservation.Space == ReservationSpace.Cozinha)
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Dense="true">Horário permitido: <b>08:00 – 22:00</b>.</MudAlert>
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm" Disabled="_saving">
+            @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Reservation Reservation { get; set; } = null!;
+
+    private string _roomInput  = string.Empty;
+    private TimeSpan? _startTime;
+    private TimeSpan? _endTime;
+    private int _endDayOffset = 0;
+    private string? _notes;
+    private DateTime _date;
+    private bool _saving;
+
+    protected override void OnParametersSet()
+    {
+        var start = Reservation.StartTime.ToLocalTime();
+        var end   = Reservation.EndTime.ToLocalTime();
+        _date         = start.Date;
+        _roomInput    = Reservation.RoomNumber;
+        _startTime    = start.TimeOfDay;
+        _endTime      = end.TimeOfDay;
+        _endDayOffset = (end.Date - start.Date).Days;
+        _notes        = Reservation.Notes;
+    }
+
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+        => ResidentSvc.GetSuggestionsAsync(value);
+
+    private async Task Confirm()
+    {
+        var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
+        if (string.IsNullOrWhiteSpace(roomNumber))
+        {
+            Snackbar.Add("Número do quarto é obrigatório.", Severity.Warning);
+            return;
+        }
+        if (!_startTime.HasValue || !_endTime.HasValue)
+        {
+            Snackbar.Add("Indique a hora de início e de fim.", Severity.Warning);
+            return;
+        }
+        if (_endDayOffset == 0 && _endTime <= _startTime)
+        {
+            Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var endDate = _date.AddDays(_endDayOffset);
+            var startDt = DateTime.SpecifyKind(_date.Date     + _startTime.Value, DateTimeKind.Local);
+            var endDt   = DateTime.SpecifyKind(endDate.Date   + _endTime.Value,   DateTimeKind.Local);
+
+            var (ok, error) = await ReservaSvc.UpdateAsync(Reservation.Id, roomNumber, startDt, endDt, _notes);
+            if (!ok) { Snackbar.Add(error ?? "Erro ao guardar.", Severity.Error); return; }
+
+            Snackbar.Add("Reserva actualizada.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

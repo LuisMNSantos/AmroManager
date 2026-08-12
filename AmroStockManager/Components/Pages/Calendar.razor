@@ -15,16 +15,66 @@
 
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Calendário de Reservas</MudText>
-    @if (_view == "day")
-    {
-        <MudButton StartIcon="@Icons.Material.Filled.Add"
-                   Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   OnClick="@(() => OpenAddDialog(_selectedDate))">
-            Nova Reserva
-        </MudButton>
-    }
+    <div class="d-flex gap-2 align-center">
+        <MudToggleIconButton @bind-Toggled="_showStats"
+                             Icon="@Icons.Material.Filled.BarChart"
+                             ToggledIcon="@Icons.Material.Filled.CalendarMonth"
+                             Color="Color.Default"
+                             ToggledColor="Color.Primary"
+                             title="Estatísticas de uso" />
+        @if (_view == "day")
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="@(() => OpenAddDialog(_selectedDate))">
+                Nova Reserva
+            </MudButton>
+        }
+    </div>
 </div>
+
+@if (_showStats)
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6" Class="mb-4">Utilização dos Espaços — últimos 90 dias</MudText>
+        @if (_loadingStats)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Reservas por dia da semana</MudText>
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="_weekdaySeries"
+                              XAxisLabels="_weekdayLabels"
+                              Width="100%" Height="220px"
+                              ChartOptions="_chartOptions" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Reservas por hora de início</MudText>
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="_hourSeries"
+                              XAxisLabels="_hourLabels"
+                              Width="100%" Height="220px"
+                              ChartOptions="_chartOptions" />
+                </MudItem>
+            </MudGrid>
+            <div class="d-flex gap-4 mt-3">
+                <div class="d-flex align-center gap-1">
+                    <div style="width:12px;height:12px;border-radius:2px;background:#1565C0;"></div>
+                    <MudText Typo="Typo.caption">Cozinha MasterChef</MudText>
+                </div>
+                <div class="d-flex align-center gap-1">
+                    <div style="width:12px;height:12px;border-radius:2px;background:#388E3C;"></div>
+                    <MudText Typo="Typo.caption">Cinema</MudText>
+                </div>
+            </div>
+        }
+    </MudPaper>
+}
 
 @if (_view == "month")
 {
@@ -150,7 +200,8 @@ else
                                          ResidentName="@GetResidentName(r.RoomNumber)"
                                          OnActivate="ActivateReservation"
                                          OnComplete="CompleteReservation"
-                                         OnCancel="CancelReservation" />
+                                         OnCancel="CancelReservation"
+                                         OnEdit="EditReservation" />
                     }
 
                     @if (!_reservations.Any(r => r.Space == ReservationSpace.Cozinha))
@@ -183,7 +234,8 @@ else
                                          ResidentName="@GetResidentName(r.RoomNumber)"
                                          OnActivate="ActivateReservation"
                                          OnComplete="CompleteReservation"
-                                         OnCancel="CancelReservation" />
+                                         OnCancel="CancelReservation"
+                                         OnEdit="EditReservation" />
                     }
 
                     @if (!_reservations.Any(r => r.Space == ReservationSpace.Cinema))
@@ -209,6 +261,15 @@ else
     private record CalendarCell(DateTime Date, int Count);
     private static readonly CultureInfo _ptCulture = new("pt-PT");
 
+    // Stats
+    private bool _showStats;
+    private bool _loadingStats;
+    private List<ChartSeries> _weekdaySeries = [];
+    private List<ChartSeries> _hourSeries    = [];
+    private static readonly string[] _weekdayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+    private static readonly string[] _hourLabels    = Enumerable.Range(0, 24).Select(h => $"{h:D2}h").ToArray();
+    private readonly ChartOptions _chartOptions = new() { YAxisTicks = 1 };
+
     private string _view = "month";
     private DateTime _currentMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _selectedDate = DateTime.Today;
@@ -227,7 +288,39 @@ else
             .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
             .GroupBy(r => r.RoomNumber.ToUpper())
             .ToDictionary(g => g.Key, g => g.First());
-        await LoadMonth();
+        await Task.WhenAll(LoadMonth(), LoadStats());
+    }
+
+    private async Task LoadStats()
+    {
+        _loadingStats = true;
+        var cutoff = DateTime.UtcNow.AddDays(-90).ToString("O");
+        var all = await ReservaSvc.GetAsync("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&start_time=gte.{cutoff}&select=space,start_time");
+
+        double[] cozinhaWeekday = new double[7];
+        double[] cinemaWeekday  = new double[7];
+        double[] cozinhaHour    = new double[24];
+        double[] cinemaHour     = new double[24];
+
+        foreach (var r in all)
+        {
+            var local = r.StartTime.ToLocalTime();
+            int dow   = ((int)local.DayOfWeek + 6) % 7; // 0=Mon
+            int hour  = local.Hour;
+            if (r.Space == ReservationSpace.Cozinha) { cozinhaWeekday[dow]++; cozinhaHour[hour]++; }
+            else                                     { cinemaWeekday[dow]++;  cinemaHour[hour]++;  }
+        }
+
+        _weekdaySeries = [
+            new ChartSeries { Name = "Cozinha MasterChef", Data = cozinhaWeekday },
+            new ChartSeries { Name = "Cinema",             Data = cinemaWeekday  }
+        ];
+        _hourSeries = [
+            new ChartSeries { Name = "Cozinha MasterChef", Data = cozinhaHour },
+            new ChartSeries { Name = "Cinema",             Data = cinemaHour   }
+        ];
+        _loadingStats = false;
     }
 
     private void OnTableChanged(string table)
@@ -333,6 +426,13 @@ else
             { x => x.DefaultSpace, space }
         };
         var dialog = await DialogService.ShowAsync<ReservationDialog>("Nova Reserva", parameters);
+        if ((await dialog.Result) is { Canceled: false }) await LoadDay();
+    }
+
+    private async Task EditReservation(Reservation res)
+    {
+        var parameters = new DialogParameters<EditReservationDialog> { { x => x.Reservation, res } };
+        var dialog = await DialogService.ShowAsync<EditReservationDialog>("Editar Reserva", parameters);
         if ((await dialog.Result) is { Canceled: false }) await LoadDay();
     }
 
