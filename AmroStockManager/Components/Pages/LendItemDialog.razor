@@ -92,25 +92,32 @@
             return;
         }
 
-        var ok = await ItemSvc.LendItemAsync(ItemType.Id, roomNumber, _givenBy, _notes);
-        if (!ok)
+        try
         {
-            Snackbar.Add("Sem unidades disponíveis para emprestar.", Severity.Error);
-            return;
-        }
+            var ok = await ItemSvc.LendItemAsync(ItemType.Id, roomNumber, _givenBy, _notes);
+            if (!ok)
+            {
+                Snackbar.Add("Sem unidades disponíveis para emprestar.", Severity.Error);
+                return;
+            }
 
-        if (LinkedItem is not null && _linkedQty > 0)
+            if (LinkedItem is not null && _linkedQty > 0)
+            {
+                await ItemSvc.LendItemAsync(LinkedItem.Id, roomNumber, _givenBy,
+                    $"Com {ItemType.Name} — {_notes}".Trim(' ', '—'), _linkedQty);
+            }
+
+            var msg = LinkedItem is not null && _linkedQty > 0
+                ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {roomNumber}."
+                : $"{ItemType.Name} emprestado ao quarto {roomNumber}.";
+
+            Snackbar.Add(msg, Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
         {
-            await ItemSvc.LendItemAsync(LinkedItem.Id, roomNumber, _givenBy,
-                $"Com {ItemType.Name} — {_notes}".Trim(' ', '—'), _linkedQty);
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
-
-        var msg = LinkedItem is not null && _linkedQty > 0
-            ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {roomNumber}."
-            : $"{ItemType.Name} emprestado ao quarto {roomNumber}.";
-
-        Snackbar.Add(msg, Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
     }
 
     private void Cancel() => MudDialog.Cancel();

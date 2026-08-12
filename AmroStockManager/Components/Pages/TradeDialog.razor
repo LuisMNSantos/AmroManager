@@ -13,34 +13,34 @@
         <MudGrid>
             <MudItem xs="12" sm="6">
                 <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">A Sair ↑</MudText>
-                <MudSelect T="int" Value="_outProductId" ValueChanged="OnOutProductChanged"
+                <MudSelect T="string" Value="_outProductId" ValueChanged="OnOutProductChanged"
                            Label="Produto" FullWidth="true">
                     @foreach (var p in AllProducts.Where(p => p.SizeVariants.Any(sv => sv.Quantity > 0)))
                     {
-                        <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="_outVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
+                <MudSelect T="string" @bind-Value="_outVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
                     @foreach (var sv in _outVariants)
                     {
-                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size — @sv.Quantity em stock</MudSelectItem>
+                        <MudSelectItem T="string" Value="@sv.Id">@sv.Size — @sv.Quantity em stock</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
 
             <MudItem xs="12" sm="6">
                 <MudText Typo="Typo.subtitle2" Color="Color.Success" Class="mb-1">A Entrar ↓</MudText>
-                <MudSelect T="int" Value="_inProductId" ValueChanged="OnInProductChanged"
+                <MudSelect T="string" Value="_inProductId" ValueChanged="OnInProductChanged"
                            Label="Produto" FullWidth="true">
                     @foreach (var p in AllProducts)
                     {
-                        <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
                     }
                 </MudSelect>
-                <MudSelect T="int" @bind-Value="_inVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
+                <MudSelect T="string" @bind-Value="_inVariantId" Label="Tamanho" FullWidth="true" Class="mt-2">
                     @foreach (var sv in _inVariants)
                     {
-                        <MudSelectItem T="int" Value="@sv.Id">@sv.Size (stock: @sv.Quantity)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@sv.Id">@sv.Size (stock: @sv.Quantity)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -74,10 +74,10 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public List<Product> AllProducts { get; set; } = [];
 
-    private int _outProductId;
-    private int _outVariantId;
-    private int _inProductId;
-    private int _inVariantId;
+    private string _outProductId = string.Empty;
+    private string _outVariantId = string.Empty;
+    private string _inProductId  = string.Empty;
+    private string _inVariantId  = string.Empty;
     private string? _roomInput;
     private string? _notes;
 
@@ -91,7 +91,7 @@
         {
             _outProductId = firstWithStock.Id;
             _outVariants = firstWithStock.SizeVariants.Where(sv => sv.Quantity > 0).ToList();
-            _outVariantId = _outVariants.FirstOrDefault()?.Id ?? 0;
+            _outVariantId = _outVariants.FirstOrDefault()?.Id ?? string.Empty;
         }
 
         var firstIn = AllProducts.FirstOrDefault();
@@ -99,24 +99,24 @@
         {
             _inProductId = firstIn.Id;
             _inVariants = firstIn.SizeVariants.ToList();
-            _inVariantId = _inVariants.FirstOrDefault()?.Id ?? 0;
+            _inVariantId = _inVariants.FirstOrDefault()?.Id ?? string.Empty;
         }
     }
 
-    private void OnOutProductChanged(int productId)
+    private void OnOutProductChanged(string productId)
     {
         _outProductId = productId;
         _outVariants = AllProducts.FirstOrDefault(p => p.Id == productId)
                            ?.SizeVariants.Where(sv => sv.Quantity > 0).ToList() ?? [];
-        _outVariantId = _outVariants.FirstOrDefault()?.Id ?? 0;
+        _outVariantId = _outVariants.FirstOrDefault()?.Id ?? string.Empty;
     }
 
-    private void OnInProductChanged(int productId)
+    private void OnInProductChanged(string productId)
     {
         _inProductId = productId;
         _inVariants = AllProducts.FirstOrDefault(p => p.Id == productId)
                           ?.SizeVariants.ToList() ?? [];
-        _inVariantId = _inVariants.FirstOrDefault()?.Id ?? 0;
+        _inVariantId = _inVariants.FirstOrDefault()?.Id ?? string.Empty;
     }
 
     private async Task ExecuteTrade()
@@ -126,7 +126,7 @@
             Snackbar.Add("Número do quarto obrigatório.", Severity.Warning);
             return;
         }
-        if (_outVariantId == 0 || _inVariantId == 0)
+        if (string.IsNullOrEmpty(_outVariantId) || string.IsNullOrEmpty(_inVariantId))
         {
             Snackbar.Add("Selecione ambos os artigos.", Severity.Warning);
             return;

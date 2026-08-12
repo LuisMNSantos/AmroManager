@@ -7,7 +7,6 @@
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Painel</MudText>
     <MudIconButton Icon="@Icons.Material.Filled.CleaningServices"
@@ -19,6 +18,16 @@
 @if (_loading)
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">
+        <b>Erro ao carregar dados:</b><br />
+        <span style="font-size:0.85em; word-break:break-all;">@_error</span>
+        <div class="mt-2">
+            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="LoadData">Tentar novamente</MudButton>
+        </div>
+    </MudAlert>
 }
 else
 {
@@ -337,6 +346,7 @@ else
 
 @code {
     private bool _loading = true;
+    private string? _error;
 
     // Tab 1 — Produtos
     private (int totalProducts, int totalUnits, int lowStockCount) _stats;
@@ -352,32 +362,47 @@ else
     private DeliveryDashboardStats _deliveryStats = new(0, 0, 0, 0);
     private List<Delivery> _pendingDeliveries = [];
 
-    protected override async Task OnInitializedAsync() => await LoadData();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
 
     private async Task LoadData()
     {
         _loading = true;
-        await Task.WhenAll(
-            Task.Run(async () => {
-                _stats            = await StockSvc.GetDashboardStatsAsync();
-                _movements        = await StockSvc.GetRecentMovementsAsync(15);
-                _lowStockVariants = await StockSvc.GetLowStockVariantsAsync();
-            }),
-            Task.Run(async () => {
-                _items             = await ItemSvc.GetAllWithLoansAsync();
-                _todayReservations = await ReservaSvc.GetByDateAsync(DateTime.Today);
-                var residents      = await ResidentSvc.GetAllAsync();
-                _residentByRoom    = residents
-                    .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
-                    .GroupBy(r => r.RoomNumber.ToUpper())
-                    .ToDictionary(g => g.Key, g => g.First());
-            }),
-            Task.Run(async () => {
-                _deliveryStats    = await DeliverySvc.GetDashboardStatsAsync();
-                _pendingDeliveries = await DeliverySvc.GetPendingAsync();
-            })
-        );
-        _loading = false;
+        _error   = null;
+        try
+        {
+            await Task.WhenAll(
+                Task.Run(async () => {
+                    _stats            = await StockSvc.GetDashboardStatsAsync();
+                    _movements        = await StockSvc.GetRecentMovementsAsync(15);
+                    _lowStockVariants = await StockSvc.GetLowStockVariantsAsync();
+                }),
+                Task.Run(async () => {
+                    _items             = await ItemSvc.GetAllWithLoansAsync();
+                    _todayReservations = await ReservaSvc.GetByDateAsync(DateTime.Today);
+                    var residents      = await ResidentSvc.GetAllAsync();
+                    _residentByRoom    = residents
+                        .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+                        .GroupBy(r => r.RoomNumber.ToUpper())
+                        .ToDictionary(g => g.Key, g => g.First());
+                }),
+                Task.Run(async () => {
+                    _deliveryStats     = await DeliverySvc.GetDashboardStatsAsync();
+                    _pendingDeliveries = await DeliverySvc.GetPendingAsync();
+                })
+            );
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task OpenMaintenance()

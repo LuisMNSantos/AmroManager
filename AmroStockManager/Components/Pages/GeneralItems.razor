@@ -134,7 +134,10 @@ else
     private List<GeneralItem> _items = [];
     private Dictionary<string, Resident> _residentByRoom = [];
 
-    protected override async Task OnInitializedAsync() => await LoadItems();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadItems();
+    }
 
     private async Task LoadItems()
     {
@@ -157,8 +160,8 @@ else
 
     private async Task OpenLendDialog(GeneralItem item)
     {
-        var linkedItem = item.LinkedItemId.HasValue
-            ? _items.FirstOrDefault(x => x.Id == item.LinkedItemId.Value)
+        var linkedItem = item.LinkedItemId is not null
+            ? _items.FirstOrDefault(x => x.Id == item.LinkedItemId)
             : null;
         var parameters = new DialogParameters<LendItemDialog>
         {
@@ -171,19 +174,26 @@ else
 
     private async Task ReturnItem(GeneralItemLoan loan)
     {
-        var linkedReservation = await ReservaSvc.GetActiveByLoanIdAsync(loan.Id);
-        var message = linkedReservation is not null
-            ? $"Devolver o cartão do {RoomDisplay(loan.RoomNumber)}? " +
-              $"A reserva associada ({SpaceLabel(linkedReservation.Space)} — {RoomDisplay(linkedReservation.RoomNumber)}) será automaticamente concluída."
-            : $"Marcar o empréstimo do {RoomDisplay(loan.RoomNumber)} como devolvido?";
-
-        var confirmed = await DialogService.ShowMessageBox(
-            "Devolver Artigo", message, yesText: "Sim, devolvido", cancelText: "Cancelar");
-
-        if (confirmed == true)
+        try
         {
-            await ItemSvc.ReturnItemAsync(loan.Id);
-            await LoadItems();
+            var linkedReservation = await ReservaSvc.GetActiveByLoanIdAsync(loan.Id);
+            var message = linkedReservation is not null
+                ? $"Devolver o cartão do {RoomDisplay(loan.RoomNumber)}? " +
+                  $"A reserva associada ({SpaceLabel(linkedReservation.Space)} — {RoomDisplay(linkedReservation.RoomNumber)}) será automaticamente concluída."
+                : $"Marcar o empréstimo do {RoomDisplay(loan.RoomNumber)} como devolvido?";
+
+            var confirmed = await DialogService.ShowMessageBox(
+                "Devolver Artigo", message, yesText: "Sim, devolvido", cancelText: "Cancelar");
+
+            if (confirmed == true)
+            {
+                await ItemSvc.ReturnItemAsync(loan.Id);
+                await LoadItems();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
     }
 
@@ -226,7 +236,7 @@ else
     {
         var parameters = new DialogParameters<ItemTypeFormDialog> { { x => x.Item, item } };
         var dialog = await DialogService.ShowAsync<ItemTypeFormDialog>(
-            item.Id == 0 ? "Adicionar Artigo" : "Editar Artigo", parameters);
+            string.IsNullOrEmpty(item.Id) ? "Adicionar Artigo" : "Editar Artigo", parameters);
         if ((await dialog.Result) is { Canceled: false }) await LoadItems();
     }
 

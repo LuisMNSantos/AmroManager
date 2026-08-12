@@ -1,6 +1,4 @@
 @inject MaintenanceService MaintSvc
-@inject BackupService BackupSvc
-@inject SyncService SyncSvc
 @inject ISnackbar Snackbar
 
 <MudDialog Style="min-width:520px;">
@@ -12,87 +10,6 @@
     </TitleContent>
     <DialogContent>
 
-        <!-- ── Sync section ── -->
-        <MudPaper Outlined="true" Class="pa-3 mb-4">
-            <div class="d-flex align-center gap-2 mb-3">
-                <MudIcon Icon="@Icons.Material.Filled.Sync" Color="Color.Primary" Size="Size.Small" />
-                <MudText Typo="Typo.subtitle2">Sincronização entre Computadores</MudText>
-                @if (!SyncSvc.IsConfigured)
-                {
-                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Style="height:20px;">Não configurado</MudChip>
-                }
-            </div>
-            <div class="d-flex align-center gap-3">
-                <div>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Última sincronização</MudText>
-                    <MudText Typo="Typo.body2" Style="font-weight:600;">
-                        @(SyncSvc.LastSync is not null
-                            ? SyncSvc.LastSync.Value.ToLocalTime().ToString("dd/MM/yy HH:mm")
-                            : "—")
-                    </MudText>
-                </div>
-                <MudSpacer />
-                <MudButton Variant="Variant.Outlined"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Sync"
-                           Disabled="@(_syncing || !SyncSvc.IsConfigured)"
-                           OnClick="DoSync">
-                    @(_syncing ? "A sincronizar…" : "Sincronizar Agora")
-                </MudButton>
-            </div>
-        </MudPaper>
-
-        <!-- ── Backup section ── -->
-        <MudPaper Outlined="true" Class="pa-3 mb-4">
-            <div class="d-flex align-center gap-2 mb-2">
-                <MudIcon Icon="@(BackupSvc.IsOneDrive ? Icons.Material.Filled.Cloud : Icons.Material.Filled.Storage)"
-                         Color="@(BackupSvc.IsOneDrive ? Color.Primary : Color.Default)"
-                         Size="Size.Small" />
-                <MudText Typo="Typo.subtitle2">Backup Automático</MudText>
-                @if (BackupSvc.IsOneDrive)
-                {
-                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Style="height:20px;">OneDrive</MudChip>
-                }
-                else
-                {
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small" Style="height:20px;">Local</MudChip>
-                }
-            </div>
-
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2"
-                     Style="word-break:break-all; font-size:0.72rem;">
-                @BackupSvc.BackupFolder
-            </MudText>
-
-            <div class="d-flex align-center gap-4 flex-wrap">
-                <div>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Último backup</MudText>
-                    <MudText Typo="Typo.body2" Style="font-weight:600;">
-                        @(_lastBackupTime is not null
-                            ? _lastBackupTime.Value.ToString("dd/MM/yy HH:mm")
-                            : "—")
-                    </MudText>
-                </div>
-                <div>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Cópias guardadas</MudText>
-                    <MudText Typo="Typo.body2" Style="font-weight:600;">@_backupCount / 7</MudText>
-                </div>
-                <MudSpacer />
-                <MudIconButton Icon="@Icons.Material.Filled.FolderOpen"
-                               Size="Size.Small"
-                               OnClick="OpenFolder" />
-                <MudButton Variant="Variant.Outlined"
-                           Size="Size.Small"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Backup"
-                           Disabled="_backing"
-                           OnClick="DoManualBackup">
-                    @(_backing ? "A fazer backup…" : "Fazer Backup")
-                </MudButton>
-            </div>
-        </MudPaper>
-
-        <!-- ── Cleanup section ── -->
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
             Elimina registos antigos (empréstimos devolvidos, reservas concluídas, movimentos de stock
             e encomendas/cartas entregues) para manter a base de dados leve.
@@ -174,53 +91,16 @@
     private int _months = 6;
     private bool _loadingPreview;
     private bool _working;
-    private bool _backing;
-    private bool _syncing;
     private CleanupPreview? _preview;
     private string? _exportedPath;
-    private DateTime? _lastBackupTime;
-    private int _backupCount;
 
     private int Total => _preview is null ? 0
         : _preview.ReturnedLoans + _preview.OldReservations + _preview.OldMovements + _preview.OldDeliveries;
 
     protected override async Task OnInitializedAsync()
     {
-        RefreshBackupInfo();
         await LoadPreview();
     }
-
-    private async Task DoSync()
-    {
-        _syncing = true;
-        var (ok, msg) = await SyncSvc.SyncAsync();
-        _syncing = false;
-        Snackbar.Add(msg, ok ? Severity.Success : Severity.Error);
-    }
-
-    private void RefreshBackupInfo()
-    {
-        _lastBackupTime = BackupSvc.LastBackupTime;
-        _backupCount    = BackupSvc.BackupCount;
-    }
-
-    private async Task DoManualBackup()
-    {
-        _backing = true;
-        try
-        {
-            await BackupSvc.RunBackupAsync();
-            RefreshBackupInfo();
-            Snackbar.Add("Backup concluído com sucesso.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Erro no backup: {ex.Message}", Severity.Error);
-        }
-        _backing = false;
-    }
-
-    private void OpenFolder() => BackupSvc.OpenBackupFolder();
 
     private async Task OnPeriodChanged(int months)
     {
@@ -256,7 +136,7 @@
         try
         {
             await MaintSvc.CleanupAsync(_months);
-            Snackbar.Add($"{Total} registos eliminados. Base de dados compactada.", Severity.Success);
+            Snackbar.Add($"{Total} registos eliminados.", Severity.Success);
             await LoadPreview();
             _exportedPath = null;
         }

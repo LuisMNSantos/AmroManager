@@ -3,7 +3,7 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(Item.Id == 0 ? "Adicionar Artigo" : "Editar Artigo")</MudText>
+        <MudText Typo="Typo.h6">@(string.IsNullOrEmpty(Item.Id) ? "Adicionar Artigo" : "Editar Artigo")</MudText>
     </TitleContent>
     <DialogContent>
         <MudGrid>

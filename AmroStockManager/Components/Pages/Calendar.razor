@@ -327,10 +327,17 @@ else
 
     private async Task ActivateReservation(Reservation res)
     {
-        var (ok, error) = await ReservaSvc.ActivateAsync(res.Id);
-        if (!ok) { Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error); return; }
-        Snackbar.Add("Cartão de acesso emitido. Reserva activa.", Severity.Success);
-        await LoadDay();
+        try
+        {
+            var (ok, error) = await ReservaSvc.ActivateAsync(res.Id);
+            if (!ok) { Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error); return; }
+            Snackbar.Add("Cartão de acesso emitido. Reserva activa.", Severity.Success);
+            await LoadDay();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao activar: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task CompleteReservation(Reservation res)
@@ -341,9 +348,16 @@ else
             yesText: "Sim, devolvido", cancelText: "Cancelar");
         if (confirmed == true)
         {
-            await ReservaSvc.CompleteAsync(res.Id);
-            Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
-            await LoadDay();
+            try
+            {
+                await ReservaSvc.CompleteAsync(res.Id);
+                Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+                await LoadDay();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Erro ao concluir: {ex.Message}", Severity.Error);
+            }
         }
     }
 
@@ -356,9 +370,16 @@ else
             yesText: "Sim, cancelar", cancelText: "Fechar");
         if (confirmed == true)
         {
-            await ReservaSvc.CancelAsync(res.Id);
-            Snackbar.Add("Reserva cancelada.", Severity.Success);
-            await LoadDay();
+            try
+            {
+                await ReservaSvc.CancelAsync(res.Id);
+                Snackbar.Add("Reserva cancelada.", Severity.Success);
+                await LoadDay();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Erro ao cancelar: {ex.Message}", Severity.Error);
+            }
         }
     }
 }

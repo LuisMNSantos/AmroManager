@@ -4,7 +4,6 @@
 @inject NavigationManager Nav
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Produtos</MudText>
     <div class="d-flex gap-2">
@@ -168,7 +167,10 @@ else
     private bool _loading = true;
     private List<Product> _products = [];
 
-    protected override async Task OnInitializedAsync() => await LoadProducts();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
 
     private async Task LoadProducts()
     {

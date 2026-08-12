@@ -1,5 +1,5 @@
 @page "/products/new"
-@page "/products/{Id:int}/edit"
+@page "/products/{Id}/edit"
 @inject ProductService ProductSvc
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -7,7 +7,7 @@
 <div class="d-flex align-center gap-3 mb-4">
     <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
                    OnClick="@(() => Nav.NavigateTo("/products"))" />
-    <MudText Typo="Typo.h4">@(Id == null ? "Adicionar Produto" : "Editar Produto")</MudText>
+    <MudText Typo="Typo.h4">@(string.IsNullOrEmpty(Id) ? "Adicionar Produto" : "Editar Produto")</MudText>
 </div>
 
 <MudPaper Elevation="2" Class="pa-6">
@@ -74,7 +74,7 @@
                         </MudSelect>
                     </MudTd>
                     <MudTd>
-                        @if (Id == null)
+                        @if (string.IsNullOrEmpty(Id))
                         {
                             <MudNumericField T="int" @bind-Value="context.Quantity"
                                             Min="0" Margin="Margin.Dense" />
@@ -106,7 +106,7 @@
                        Color="Color.Primary"
                        OnClick="Save"
                        Disabled="!_isValid">
-                @(Id == null ? "Criar Produto" : "Guardar Alterações")
+                @(string.IsNullOrEmpty(Id) ? "Criar Produto" : "Guardar Alterações")
             </MudButton>
             <MudButton Variant="Variant.Text"
                        OnClick="@(() => Nav.NavigateTo("/products"))">
@@ -117,7 +117,7 @@
 </MudPaper>
 
 @code {
-    [Parameter] public int? Id { get; set; }
+    [Parameter] public string? Id { get; set; }
 
     private Product _product = new() { SizeVariants = [] };
     private MudForm _form = null!;
@@ -125,9 +125,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (Id.HasValue)
+        if (!string.IsNullOrEmpty(Id))
         {
-            var existing = await ProductSvc.GetByIdAsync(Id.Value);
+            var existing = await ProductSvc.GetByIdAsync(Id);
             if (existing is not null)
                 _product = existing;
         }
@@ -152,12 +152,12 @@
         await _form.Validate();
         if (!_isValid) return;
 
-        if (Id.HasValue)
+        if (!string.IsNullOrEmpty(Id))
             await ProductSvc.UpdateAsync(_product);
         else
             await ProductSvc.CreateAsync(_product);
 
-        Snackbar.Add(Id.HasValue ? "Produto atualizado!" : "Produto criado!", Severity.Success);
+        Snackbar.Add(!string.IsNullOrEmpty(Id) ? "Produto atualizado!" : "Produto criado!", Severity.Success);
         Nav.NavigateTo("/products");
     }
 }
