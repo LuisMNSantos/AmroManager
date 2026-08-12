@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AmroStockManager.Data.Models;
 
 public enum ReservationSpace
@@ -6,9 +8,10 @@ public enum ReservationSpace
     Cinema  = 1
 }
 
-public class Reservation : ISyncable
+public class Reservation
 {
-    public int Id { get; set; }
+    [JsonPropertyName("sync_id")]
+    public string Id { get; set; } = string.Empty;
     public ReservationSpace Space { get; set; }
     public string RoomNumber { get; set; } = string.Empty;
     public string ReservedBy { get; set; } = string.Empty;
@@ -19,9 +22,10 @@ public class Reservation : ISyncable
     public bool IsCancelled { get; set; }
     public bool IsActivated { get; set; }
     public bool IsCompleted { get; set; }
-    public int? AccessCardLoanId { get; set; }
-    public GeneralItemLoan? AccessCardLoan { get; set; }
-    public string SyncId { get; set; } = string.Empty;
+    [JsonPropertyName("access_card_loan_sync_id")]
+    public string? AccessCardLoanId { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
+
+    [JsonIgnore] public GeneralItemLoan? AccessCardLoan { get; set; }
 }

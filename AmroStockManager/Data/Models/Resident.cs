@@ -1,13 +1,15 @@
+using System.Text.Json.Serialization;
+
 namespace AmroStockManager.Data.Models;
 
-public class Resident : ISyncable
+public class Resident
 {
-    public int Id { get; set; }
+    [JsonPropertyName("sync_id")]
+    public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string RoomNumber { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public bool IsCollaborator { get; set; }
-    public string SyncId { get; set; } = string.Empty;
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 }
