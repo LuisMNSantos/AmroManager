@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ResidentService(SupabaseClient db)
+public class ResidentService(SupabaseClient db, CacheService cache)
 {
     private static readonly string PinFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -14,11 +14,14 @@ public class ResidentService(SupabaseClient db)
     public void SavePin(string pin) =>
         File.WriteAllText(PinFile, pin.Trim());
 
-    public async Task<List<Resident>> GetAllAsync()
-    {
-        return await db.GetAsync<Resident>("residents",
-            "is_deleted=eq.false&order=is_collaborator.asc,room_number.asc,name.asc");
-    }
+    private static readonly TimeSpan _residentsTtl = TimeSpan.FromSeconds(60);
+    private const string _residentsKey = "residents:all";
+
+    public Task<List<Resident>> GetAllAsync() =>
+        cache.GetOrFetchAsync(_residentsKey,
+            () => db.GetAsync<Resident>("residents",
+                "is_deleted=eq.false&order=is_collaborator.asc,room_number.asc,name.asc"),
+            _residentsTtl);
 
     public async Task<Resident?> GetByRoomAsync(string roomNumber)
     {
@@ -100,17 +103,20 @@ public class ResidentService(SupabaseClient db)
         foreach (var r in residents)
             await db.InsertAsync<Resident>("residents", r);
 
+        cache.Invalidate(_residentsKey);
         return (residents.Count, skipped);
     }
 
     public async Task DeleteResidentAsync(string id)
     {
         await db.PatchAsync("residents", $"sync_id=eq.{id}", new { is_deleted = true, updated_at = DateTime.UtcNow });
+        cache.Invalidate(_residentsKey);
     }
 
     public async Task DeleteAllAsync()
     {
         await db.PatchAsync("residents", "is_deleted=eq.false", new { is_deleted = true, updated_at = DateTime.UtcNow });
+        cache.Invalidate(_residentsKey);
     }
 
     private static string[] ParseCsvLine(string line)

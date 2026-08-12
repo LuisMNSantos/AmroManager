@@ -2,9 +2,15 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class GeneralItemService(SupabaseClient db)
+public class GeneralItemService(SupabaseClient db, CacheService cache)
 {
-    public async Task<List<GeneralItem>> GetAllWithLoansAsync()
+    private static readonly TimeSpan _itemsTtl = TimeSpan.FromSeconds(30);
+    private const string _itemsKey = "general_items:all";
+
+    public Task<List<GeneralItem>> GetAllWithLoansAsync() =>
+        cache.GetOrFetchAsync(_itemsKey, FetchAllWithLoansAsync, _itemsTtl);
+
+    private async Task<List<GeneralItem>> FetchAllWithLoansAsync()
     {
         var itemsTask = db.GetAsync<GeneralItem>("general_items", "is_deleted=eq.false&order=name.asc");
         var loansTask = db.GetAsync<GeneralItemLoan>("general_item_loans", "is_deleted=eq.false");
@@ -54,6 +60,7 @@ public class GeneralItemService(SupabaseClient db)
             is_deleted           = false,
             updated_at           = DateTime.UtcNow
         });
+        cache.Invalidate(_itemsKey);
         return true;
     }
 
@@ -75,6 +82,7 @@ public class GeneralItemService(SupabaseClient db)
             is_deleted           = false,
             updated_at           = DateTime.UtcNow
         });
+        cache.Invalidate(_itemsKey);
         return loan?.Id;
     }
 
@@ -89,12 +97,14 @@ public class GeneralItemService(SupabaseClient db)
             is_returned = true,
             updated_at  = DateTime.UtcNow
         });
+        cache.Invalidate(_itemsKey);
     }
 
     public async Task DeleteItemAsync(string id)
     {
-        await db.PatchAsync("general_items",      $"sync_id=eq.{id}",                      new { is_deleted = true, updated_at = DateTime.UtcNow });
-        await db.PatchAsync("general_item_loans", $"general_item_sync_id=eq.{id}",          new { is_deleted = true, updated_at = DateTime.UtcNow });
+        await db.PatchAsync("general_items",      $"sync_id=eq.{id}",             new { is_deleted = true, updated_at = DateTime.UtcNow });
+        await db.PatchAsync("general_item_loans", $"general_item_sync_id=eq.{id}", new { is_deleted = true, updated_at = DateTime.UtcNow });
+        cache.Invalidate(_itemsKey);
     }
 
     public async Task<GeneralItem> AddOrUpdateItemAsync(GeneralItem item)
@@ -103,13 +113,13 @@ public class GeneralItemService(SupabaseClient db)
         {
             var created = await db.InsertAsync<GeneralItem>("general_items", new
             {
-                sync_id            = Guid.NewGuid().ToString(),
-                name               = item.Name,
-                total_quantity     = item.TotalQuantity,
-                description        = item.Description,
+                sync_id             = Guid.NewGuid().ToString(),
+                name                = item.Name,
+                total_quantity      = item.TotalQuantity,
+                description         = item.Description,
                 linked_item_sync_id = item.LinkedItemId,
-                updated_at         = DateTime.UtcNow,
-                is_deleted         = false
+                updated_at          = DateTime.UtcNow,
+                is_deleted          = false
             });
             item.Id = created!.Id;
         }
@@ -123,6 +133,7 @@ public class GeneralItemService(SupabaseClient db)
                 updated_at     = DateTime.UtcNow
             });
         }
+        cache.Invalidate(_itemsKey);
         return item;
     }
 
