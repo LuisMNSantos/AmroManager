@@ -2,8 +2,10 @@
 @using System.Globalization
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 
 <style>
     .cal-cell       { transition: background 0.12s; }
@@ -219,6 +221,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Realtime.TableChanged += OnTableChanged;
         var residents = await ResidentSvc.GetAllAsync();
         _residentByRoom = residents
             .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
@@ -226,6 +229,14 @@ else
             .ToDictionary(g => g.Key, g => g.First());
         await LoadMonth();
     }
+
+    private void OnTableChanged(string table)
+    {
+        if (table is "reservations" or "general_item_loans")
+            InvokeAsync(_view == "day" ? LoadDay : LoadMonth);
+    }
+
+    public void Dispose() => Realtime.TableChanged -= OnTableChanged;
 
     private string? GetResidentName(string room) =>
         _residentByRoom.TryGetValue(room.ToUpper(), out var r) ? r.Name : null;

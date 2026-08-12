@@ -2,8 +2,10 @@
 @using Microsoft.Maui.ApplicationModel
 @inject DeliveryService DeliverySvc
 @inject ResidentService ResidentSvc
+@inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Encomendas & Cartas</MudText>
@@ -187,8 +189,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Realtime.TableChanged += OnTableChanged;
         await Load();
     }
+
+    private void OnTableChanged(string table)
+    {
+        if (table is "deliveries")
+            InvokeAsync(Load);
+    }
+
+    public void Dispose() => Realtime.TableChanged -= OnTableChanged;
 
     private async Task Load()
     {

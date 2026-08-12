@@ -2,8 +2,10 @@
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Artigos Gerais</MudText>
@@ -136,8 +138,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Realtime.TableChanged += OnTableChanged;
         await LoadItems();
     }
+
+    private void OnTableChanged(string table)
+    {
+        if (table is "general_items" or "general_item_loans")
+            InvokeAsync(LoadItems);
+    }
+
+    public void Dispose() => Realtime.TableChanged -= OnTableChanged;
 
     private async Task LoadItems()
     {
