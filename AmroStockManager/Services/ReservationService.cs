@@ -7,6 +7,9 @@ public class ReservationService(SupabaseClient db)
     private const string KitchenCardName = "Cartão de Acesso – Cozinha";
     private const string CinemaCardName  = "Cartão de Acesso – Cinema";
 
+    public Task<List<Reservation>> GetAsync(string table, string query)
+        => db.GetAsync<Reservation>(table, query);
+
     public async Task<Dictionary<int, int>> GetCountsByMonthAsync(int year, int month)
     {
         var utcStart = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
@@ -172,6 +175,60 @@ public class ReservationService(SupabaseClient db)
         await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}", new { return_date = now, is_returned = true, updated_at = now });
         await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new { is_completed = true, updated_at = now });
         return true;
+    }
+
+    public async Task<List<Reservation>> GetOverdueCardsAsync(int hoursThreshold = 2)
+    {
+        var cutoff = DateTime.UtcNow.AddHours(-hoursThreshold).ToString("O");
+        return await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&is_activated=eq.true&is_completed=eq.false&end_time=lt.{cutoff}&order=end_time.asc");
+    }
+
+    public async Task<List<Reservation>> GetRecentByRoomAsync(string roomNumber, int limit = 5)
+    {
+        var room   = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var utcNow = DateTime.UtcNow.ToString("O");
+        return await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&room_number=eq.{room}&end_time=lt.{utcNow}&order=end_time.desc&limit={limit}");
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateAsync(
+        string reservationId, string roomNumber, DateTime startTime, DateTime endTime, string? notes)
+    {
+        var resList = await db.GetAsync<Reservation>("reservations",
+            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,is_activated,space");
+        if (resList is not [var reservation])
+            return (false, "Reserva não encontrada.");
+        if (reservation.IsActivated)
+            return (false, "Não é possível editar uma reserva já activada.");
+
+        var startUtc = startTime.Kind == DateTimeKind.Utc ? startTime : startTime.ToUniversalTime();
+        var endUtc   = endTime.Kind   == DateTimeKind.Utc ? endTime   : endTime.ToUniversalTime();
+
+        if (reservation.Space == ReservationSpace.Cozinha)
+        {
+            var ls = startUtc.ToLocalTime();
+            var le = endUtc.ToLocalTime();
+            if (ls.Hour < 8)  return (false, "A Cozinha MasterChef só abre às 08:00.");
+            if (le.Hour > 22 || (le.Hour == 22 && le.Minute > 0))
+                return (false, "A Cozinha MasterChef fecha às 22:00.");
+        }
+
+        var conflicts = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&space=eq.{(int)reservation.Space}" +
+            $"&start_time=lt.{endUtc:O}&end_time=gt.{startUtc:O}&sync_id=neq.{reservationId}&select=sync_id");
+        if (conflicts.Count > 0)
+            return (false, "Já existe uma reserva para este espaço nesse horário.");
+
+        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new
+        {
+            room_number = roomNumber.Trim(),
+            start_time  = startUtc,
+            end_time    = endUtc,
+            notes       = notes,
+            updated_at  = DateTime.UtcNow
+        });
+        return (true, null);
     }
 
     public async Task<bool> CancelAsync(string reservationId)

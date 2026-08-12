@@ -40,6 +40,14 @@ public class ResidentService(SupabaseClient db, CacheService cache)
         return residents.Select(r => $"#{r.RoomNumber} - {r.Name}");
     }
 
+    public async Task<List<Resident>> SearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return [];
+        var q = Uri.EscapeDataString(query.TrimStart('#').Trim());
+        return await db.GetAsync<Resident>("residents",
+            $"is_deleted=eq.false&or=(room_number.ilike.*{q}*,name.ilike.*{q}*)&order=room_number.asc&limit=10");
+    }
+
     public static string ParseRoomNumber(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;

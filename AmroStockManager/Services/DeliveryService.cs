@@ -23,6 +23,20 @@ public class DeliveryService(SupabaseClient db)
             $"is_deleted=eq.false&is_delivered=eq.false&room_number=eq.{room}&order=arrived_at.desc");
     }
 
+    public async Task<List<Delivery>> GetStalePendingAsync(int daysThreshold = 7)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-daysThreshold).ToString("O");
+        return await db.GetAsync<Delivery>("deliveries",
+            $"is_deleted=eq.false&is_delivered=eq.false&arrived_at=lt.{cutoff}&order=arrived_at.asc");
+    }
+
+    public async Task<List<Delivery>> GetRecentByRoomAsync(string roomNumber, int limit = 5)
+    {
+        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        return await db.GetAsync<Delivery>("deliveries",
+            $"is_deleted=eq.false&is_delivered=eq.true&room_number=eq.{room}&order=collected_at.desc&limit={limit}");
+    }
+
     public async Task<List<Delivery>> GetHistoryAsync(int limit = 100)
     {
         return await db.GetAsync<Delivery>("deliveries",
