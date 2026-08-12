@@ -1,112 +1,149 @@
-using Microsoft.EntityFrameworkCore;
-using AmroStockManager.Data;
 using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ProductService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
+public class ProductService(SupabaseClient db)
 {
     public async Task<List<Product>> GetAllAsync(string? search = null, string? type = null, bool lowStockOnly = false)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var query = db.Products.Include(p => p.SizeVariants).AsQueryable();
+        var q = new List<string> { "is_deleted=eq.false", "order=name.asc" };
+        if (!string.IsNullOrWhiteSpace(type) && type != "All")
+            q.Add($"type=eq.{Uri.EscapeDataString(type)}");
+
+        var productsTask = db.GetAsync<Product>("products", string.Join("&", q));
+        var variantsTask = db.GetAsync<SizeVariant>("size_variants", "is_deleted=eq.false");
+        await Task.WhenAll(productsTask, variantsTask);
+
+        var products = productsTask.Result;
+        var variantsByProduct = variantsTask.Result.GroupBy(v => v.ProductId)
+                                                   .ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var p in products)
+            p.SizeVariants = variantsByProduct.TryGetValue(p.Id, out var vs) ? vs : [];
 
         if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(p =>
-                EF.Functions.Like(p.Name, $"%{search}%") ||
-                EF.Functions.Like(p.Color, $"%{search}%") ||
-                EF.Functions.Like(p.SKU, $"%{search}%"));
-
-        if (!string.IsNullOrWhiteSpace(type) && type != "All")
-            query = query.Where(p => p.Type == type);
+        {
+            var s = search.Trim();
+            products = products.Where(p =>
+                p.Name.Contains(s, StringComparison.OrdinalIgnoreCase) ||
+                p.Color.Contains(s, StringComparison.OrdinalIgnoreCase) ||
+                p.SKU.Contains(s, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
         if (lowStockOnly)
-            query = query.Where(p => p.SizeVariants.Any(sv => sv.MinStockAlert > 0 && sv.Quantity <= sv.MinStockAlert));
+            products = products.Where(p => p.HasLowStock).ToList();
 
-        return await query.OrderBy(p => p.Name).ToListAsync();
+        return products;
     }
 
-    public async Task<Product?> GetByIdAsync(int id)
+    public async Task<Product?> GetByIdAsync(string id)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Products.Include(p => p.SizeVariants).FirstOrDefaultAsync(p => p.Id == id);
+        var productsTask = db.GetAsync<Product>("products", $"sync_id=eq.{id}");
+        var variantsTask = db.GetAsync<SizeVariant>("size_variants", $"product_sync_id=eq.{id}&is_deleted=eq.false");
+        await Task.WhenAll(productsTask, variantsTask);
+
+        var product = productsTask.Result.FirstOrDefault();
+        if (product is not null) product.SizeVariants = variantsTask.Result;
+        return product;
     }
 
     public async Task<Product> CreateAsync(Product product)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
         product.CreatedAt = DateTime.UtcNow;
-        db.Products.Add(product);
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        var productSyncId = Guid.NewGuid().ToString();
+        var created = await db.InsertAsync<Product>("products", new
+        {
+            sync_id    = productSyncId,
+            name       = product.Name,
+            type       = product.Type,
+            color      = product.Color,
+            sku        = product.SKU,
+            created_at = product.CreatedAt,
+            updated_at = DateTime.UtcNow,
+            is_deleted = false
+        });
+        product.Id = created!.Id;
+
+        foreach (var sv in product.SizeVariants)
+        {
+            await db.InsertAsync<SizeVariant>("size_variants", new
+            {
+                sync_id         = Guid.NewGuid().ToString(),
+                product_sync_id = product.Id,
+                size            = sv.Size,
+                quantity        = sv.Quantity,
+                min_stock_alert = sv.MinStockAlert,
+                updated_at      = DateTime.UtcNow,
+                is_deleted      = false
+            });
+        }
+
         return product;
     }
 
     public async Task UpdateAsync(Product product)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var existing = await db.Products
-            .Include(p => p.SizeVariants).ThenInclude(sv => sv.StockMovements)
-            .FirstOrDefaultAsync(p => p.Id == product.Id);
-        if (existing is null) return;
-
-        existing.Name = product.Name;
-        existing.Type = product.Type;
-        existing.Color = product.Color;
-        existing.SKU = product.SKU;
-
-        var incomingIds = product.SizeVariants.Where(sv => sv.Id > 0).Select(sv => sv.Id).ToHashSet();
-        foreach (var sv in existing.SizeVariants.Where(sv => !incomingIds.Contains(sv.Id)))
+        await db.PatchAsync("products", $"sync_id=eq.{product.Id}", new
         {
-            sv.IsDeleted = true;
-            foreach (var sm in sv.StockMovements) sm.IsDeleted = true;
+            name       = product.Name,
+            type       = product.Type,
+            color      = product.Color,
+            sku        = product.SKU,
+            updated_at = DateTime.UtcNow
+        });
+
+        var existing = await db.GetAsync<SizeVariant>("size_variants",
+            $"product_sync_id=eq.{product.Id}&is_deleted=eq.false&select=sync_id");
+        var incomingIds = product.SizeVariants.Where(sv => !string.IsNullOrEmpty(sv.Id))
+                                              .Select(sv => sv.Id).ToHashSet();
+
+        foreach (var ev in existing.Where(ev => !incomingIds.Contains(ev.Id)))
+        {
+            await db.PatchAsync("size_variants",   $"sync_id=eq.{ev.Id}",             new { is_deleted = true, updated_at = DateTime.UtcNow });
+            await db.PatchAsync("stock_movements", $"size_variant_sync_id=eq.{ev.Id}", new { is_deleted = true, updated_at = DateTime.UtcNow });
         }
 
-        foreach (var incoming in product.SizeVariants)
+        foreach (var sv in product.SizeVariants)
         {
-            if (incoming.Id == 0)
+            if (string.IsNullOrEmpty(sv.Id))
             {
-                existing.SizeVariants.Add(new SizeVariant
+                await db.InsertAsync<SizeVariant>("size_variants", new
                 {
-                    Size = incoming.Size,
-                    MinStockAlert = incoming.MinStockAlert,
-                    Quantity = incoming.Quantity
+                    sync_id         = Guid.NewGuid().ToString(),
+                    product_sync_id = product.Id,
+                    size            = sv.Size,
+                    quantity        = sv.Quantity,
+                    min_stock_alert = sv.MinStockAlert,
+                    updated_at      = DateTime.UtcNow,
+                    is_deleted      = false
                 });
             }
             else
             {
-                var ev = existing.SizeVariants.FirstOrDefault(sv => sv.Id == incoming.Id);
-                if (ev is not null)
+                await db.PatchAsync("size_variants", $"sync_id=eq.{sv.Id}", new
                 {
-                    ev.Size = incoming.Size;
-                    ev.MinStockAlert = incoming.MinStockAlert;
-                }
+                    size            = sv.Size,
+                    min_stock_alert = sv.MinStockAlert,
+                    updated_at      = DateTime.UtcNow
+                });
             }
         }
-
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(string id)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var product = await db.Products
-            .Include(p => p.SizeVariants).ThenInclude(sv => sv.StockMovements)
-            .FirstOrDefaultAsync(p => p.Id == id);
-        if (product is null) return;
-        product.IsDeleted = true;
-        foreach (var sv in product.SizeVariants)
+        var variants = await db.GetAsync<SizeVariant>("size_variants", $"product_sync_id=eq.{id}&select=sync_id");
+        if (variants.Count > 0)
         {
-            sv.IsDeleted = true;
-            foreach (var sm in sv.StockMovements) sm.IsDeleted = true;
+            var ids = string.Join(",", variants.Select(v => v.Id));
+            await db.PatchAsync("stock_movements", $"size_variant_sync_id=in.({ids})",
+                new { is_deleted = true, updated_at = DateTime.UtcNow });
         }
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        await db.PatchAsync("size_variants", $"product_sync_id=eq.{id}", new { is_deleted = true, updated_at = DateTime.UtcNow });
+        await db.PatchAsync("products",      $"sync_id=eq.{id}",          new { is_deleted = true, updated_at = DateTime.UtcNow });
     }
 
-    public static readonly string[] StandardSizes = ["XS", "S", "M", "L", "XL", "XXL"];
-    public static readonly string[] ProductTypes = ["Sweatshirt", "Shirt", "Hoodie", "T-Shirt", "Jacket", "Other"];
+    public static readonly string[] StandardSizes  = ["XS", "S", "M", "L", "XL", "XXL"];
+    public static readonly string[] ProductTypes   = ["Sweatshirt", "Shirt", "Hoodie", "T-Shirt", "Jacket", "Other"];
 
     public static int SizeOrder(string size) => size switch
     {

@@ -1,25 +1,19 @@
-using Microsoft.EntityFrameworkCore;
-using AmroStockManager.Data;
 using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ReservationService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
+public class ReservationService(SupabaseClient db)
 {
     private const string KitchenCardName = "Cartão de Acesso – Cozinha";
     private const string CinemaCardName  = "Cartão de Acesso – Cinema";
 
-    // Returns a count of non-cancelled reservations per day for the given month.
     public async Task<Dictionary<int, int>> GetCountsByMonthAsync(int year, int month)
     {
         var utcStart = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
         var utcEnd   = utcStart.AddMonths(1);
 
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var reservations = await db.Reservations
-            .Where(r => !r.IsCancelled && r.StartTime < utcEnd && r.EndTime > utcStart)
-            .Select(r => new { r.StartTime, r.EndTime })
-            .ToListAsync();
+        var reservations = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&start_time=lt.{utcEnd:O}&end_time=gt.{utcStart:O}&select=start_time,end_time");
 
         var counts = new Dictionary<int, int>();
         int daysInMonth = DateTime.DaysInMonth(year, month);
@@ -32,29 +26,49 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory, IBack
         return counts;
     }
 
-    // Returns all non-cancelled reservations that overlap with the given local date.
     public async Task<List<Reservation>> GetByDateAsync(DateTime localDate)
     {
         var utcStart = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Local).ToUniversalTime();
         var utcEnd   = utcStart.AddDays(1);
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Reservations
-            .Include(r => r.AccessCardLoan)
-            .Where(r => !r.IsCancelled && r.StartTime < utcEnd && r.EndTime > utcStart)
-            .OrderBy(r => r.StartTime)
-            .ToListAsync();
+        var list = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&start_time=lt.{utcEnd:O}&end_time=gt.{utcStart:O}&order=start_time.asc");
+        await PopulateAccessCardLoansAsync(list);
+        return list;
     }
 
-    // Looks up a non-cancelled reservation linked to a specific loan (used before the loan is returned).
-    public async Task<Reservation?> GetActiveByLoanIdAsync(int loanId)
+    public async Task<Reservation?> GetActiveByLoanIdAsync(string loanId)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Reservations
-            .FirstOrDefaultAsync(r => r.AccessCardLoanId == loanId && !r.IsCancelled);
+        var list = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&access_card_loan_sync_id=eq.{loanId}&limit=1");
+        return list.FirstOrDefault();
     }
 
-    // Creates the reservation without lending the card.
-    // Cozinha: validates 08:00–22:00. Cinema: allows multi-day (end date ≥ start date).
+    public async Task<List<Reservation>> GetUpcomingByRoomAsync(string roomNumber)
+    {
+        var room   = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var utcNow = DateTime.UtcNow.ToString("O");
+        var list = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&room_number=eq.{room}&end_time=gte.{utcNow}&order=start_time.asc");
+        await PopulateAccessCardLoansAsync(list);
+        return list;
+    }
+
+    private async Task PopulateAccessCardLoansAsync(List<Reservation> reservations)
+    {
+        var loanIds = reservations
+            .Where(r => r.AccessCardLoanId is not null)
+            .Select(r => r.AccessCardLoanId!)
+            .Distinct().ToList();
+        if (loanIds.Count == 0) return;
+
+        var loans = await db.GetAsync<GeneralItemLoan>("general_item_loans",
+            $"sync_id=in.({string.Join(",", loanIds)})");
+        var loanById = loans.ToDictionary(l => l.Id);
+        foreach (var r in reservations)
+            if (r.AccessCardLoanId is not null)
+                r.AccessCardLoan = loanById.GetValueOrDefault(r.AccessCardLoanId);
+    }
+
     public async Task<(bool Success, string? Error, Reservation? Result)> CreateAsync(
         ReservationSpace space, string roomNumber, string reservedBy,
         DateTime startTime, DateTime endTime, string? notes)
@@ -72,122 +86,111 @@ public class ReservationService(IDbContextFactory<AppDbContext> dbFactory, IBack
         var startUtc = startTime.Kind == DateTimeKind.Utc ? startTime : startTime.ToUniversalTime();
         var endUtc   = endTime.Kind   == DateTimeKind.Utc ? endTime   : endTime.ToUniversalTime();
 
-        await using var db = await dbFactory.CreateDbContextAsync();
-
-        var hasConflict = await db.Reservations.AnyAsync(r =>
-            !r.IsCancelled && r.Space == space && r.StartTime < endUtc && r.EndTime > startUtc);
-        if (hasConflict)
+        var conflicts = await db.GetCountAsync("reservations",
+            $"is_deleted=eq.false&is_cancelled=eq.false&space=eq.{(int)space}&start_time=lt.{endUtc:O}&end_time=gt.{startUtc:O}");
+        if (conflicts > 0)
             return (false, "Já existe uma reserva para este espaço nesse horário.", null);
 
-        var reservation = new Reservation
+        var now = DateTime.UtcNow;
+        var created = await db.InsertAsync<Reservation>("reservations", new
         {
-            Space      = space,
-            RoomNumber = roomNumber.Trim(),
-            ReservedBy = reservedBy.Trim(),
-            StartTime  = startUtc,
-            EndTime    = endUtc,
-            Notes      = notes,
-            CreatedAt  = DateTime.UtcNow
-        };
-
-        db.Reservations.Add(reservation);
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
-        return (true, null, reservation);
+            sync_id      = Guid.NewGuid().ToString(),
+            space        = (int)space,
+            room_number  = roomNumber.Trim(),
+            reserved_by  = reservedBy.Trim(),
+            start_time   = startUtc,
+            end_time     = endUtc,
+            notes        = notes,
+            created_at   = now,
+            is_cancelled = false,
+            is_activated = false,
+            is_completed = false,
+            is_deleted   = false,
+            updated_at   = now
+        });
+        return (true, null, created);
     }
 
-    // Returns non-cancelled reservations for a room that haven't ended yet.
-    public async Task<List<Reservation>> GetUpcomingByRoomAsync(string roomNumber)
+    public async Task<(bool Success, string? Error)> ActivateAsync(string reservationId)
     {
-        var room = roomNumber.Trim().ToUpper();
-        var utcNow = DateTime.UtcNow;
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Reservations
-            .Include(r => r.AccessCardLoan)
-            .Where(r => !r.IsCancelled && r.RoomNumber.ToUpper() == room && r.EndTime >= utcNow)
-            .OrderBy(r => r.StartTime)
-            .ToListAsync();
-    }
-
-    // Activates a scheduled reservation by lending the access card.
-    public async Task<(bool Success, string? Error)> ActivateAsync(int reservationId)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var reservation = await db.Reservations.FindAsync(reservationId);
-        if (reservation is null || reservation.IsCancelled)
+        var resList = await db.GetAsync<Reservation>("reservations",
+            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,is_cancelled,is_activated,space,room_number,reserved_by,access_card_loan_sync_id");
+        if (resList is not [var reservation])
             return (false, "Reserva inválida.");
-        if (reservation.AccessCardLoanId.HasValue)
+        if (reservation.IsCancelled)
+            return (false, "Reserva inválida.");
+        if (reservation.AccessCardLoanId is not null)
             return (false, "O cartão já está registado para esta reserva.");
 
         var cardName = reservation.Space == ReservationSpace.Cozinha ? KitchenCardName : CinemaCardName;
-        var card = await db.GeneralItems.Include(gi => gi.Loans)
-            .FirstOrDefaultAsync(gi => gi.Name == cardName);
-
-        if (card is null)
+        var cards = await db.GetAsync<GeneralItem>("general_items",
+            $"name=eq.{Uri.EscapeDataString(cardName)}&is_deleted=eq.false");
+        if (cards is not [var card])
             return (false, $"Cartão '{cardName}' não encontrado.");
+        card.Loans = await db.GetAsync<GeneralItemLoan>("general_item_loans",
+            $"general_item_sync_id=eq.{card.Id}&is_deleted=eq.false");
         if (card.AvailableCount <= 0)
             return (false, "O cartão de acesso está actualmente emprestado. Devolva-o primeiro.");
 
         var spaceLabel = reservation.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
-        var loan = new GeneralItemLoan
+        var now = DateTime.UtcNow;
+        var loan = await db.InsertAsync<GeneralItemLoan>("general_item_loans", new
         {
-            GeneralItemId     = card.Id,
-            GeneralItemSyncId = card.SyncId,
-            RoomNumber        = reservation.RoomNumber,
-            GivenBy           = reservation.ReservedBy,
-            Quantity          = 1,
-            Notes             = $"Reserva: {spaceLabel} — quarto {reservation.RoomNumber}",
-            LoanDate          = DateTime.UtcNow
-        };
-        db.GeneralItemLoans.Add(loan);
-        await db.SaveChangesAsync();
+            sync_id              = Guid.NewGuid().ToString(),
+            general_item_sync_id = card.Id,
+            room_number          = reservation.RoomNumber,
+            given_by             = reservation.ReservedBy,
+            quantity             = 1,
+            notes                = $"Reserva: {spaceLabel} — quarto {reservation.RoomNumber}",
+            loan_date            = now,
+            is_returned          = false,
+            is_deleted           = false,
+            updated_at           = now
+        });
 
-        reservation.AccessCardLoanId = loan.Id;
-        reservation.IsActivated = true;
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new
+        {
+            access_card_loan_sync_id = loan!.Id,
+            is_activated             = true,
+            updated_at               = now
+        });
         return (true, null);
     }
 
-    // Returns the access card, completing the reservation.
-    public async Task<bool> CompleteAsync(int reservationId)
+    public async Task<bool> CompleteAsync(string reservationId)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var reservation = await db.Reservations
-            .Include(r => r.AccessCardLoan)
-            .FirstOrDefaultAsync(r => r.Id == reservationId);
-
-        if (reservation?.AccessCardLoan is null || reservation.AccessCardLoan.IsReturned)
+        var resList = await db.GetAsync<Reservation>("reservations",
+            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,access_card_loan_sync_id,is_completed");
+        if (resList is not [var reservation] || reservation.AccessCardLoanId is null)
             return false;
 
-        reservation.AccessCardLoan.ReturnDate = DateTime.UtcNow;
-        reservation.IsCompleted = true;
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        var loanId = reservation.AccessCardLoanId;
+        var loans = await db.GetAsync<GeneralItemLoan>("general_item_loans", $"sync_id=eq.{loanId}&select=sync_id,is_returned");
+        if (loans is not [var loan] || loan.IsReturned) return false;
+
+        var now = DateTime.UtcNow;
+        await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}", new { return_date = now, is_returned = true, updated_at = now });
+        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new { is_completed = true, updated_at = now });
         return true;
     }
 
-    // Cancels a reservation and returns the card if it was active.
-    public async Task<bool> CancelAsync(int reservationId)
+    public async Task<bool> CancelAsync(string reservationId)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var reservation = await db.Reservations
-            .Include(r => r.AccessCardLoan)
-            .FirstOrDefaultAsync(r => r.Id == reservationId);
+        var resList = await db.GetAsync<Reservation>("reservations",
+            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,is_cancelled,access_card_loan_sync_id");
+        if (resList is not [var reservation] || reservation.IsCancelled) return false;
 
-        if (reservation is null || reservation.IsCancelled) return false;
+        var now = DateTime.UtcNow;
+        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new { is_cancelled = true, updated_at = now });
 
-        reservation.IsCancelled = true;
-
-        if (reservation.AccessCardLoanId.HasValue)
+        if (reservation.AccessCardLoanId is not null)
         {
-            var loan = await db.GeneralItemLoans.FindAsync(reservation.AccessCardLoanId.Value);
-            if (loan is not null && !loan.IsReturned)
-                loan.ReturnDate = DateTime.UtcNow;
+            var loanId = reservation.AccessCardLoanId;
+            var loans  = await db.GetAsync<GeneralItemLoan>("general_item_loans", $"sync_id=eq.{loanId}&select=sync_id,is_returned");
+            if (loans is [var loan] && !loan.IsReturned)
+                await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}", new { return_date = now, is_returned = true, updated_at = now });
         }
 
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
         return true;
     }
 }

@@ -1,6 +1,4 @@
 using System.Text;
-using Microsoft.EntityFrameworkCore;
-using AmroStockManager.Data;
 using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
@@ -11,58 +9,53 @@ public record CleanupPreview(
     int OldMovements,
     int OldDeliveries);
 
-public class MaintenanceService(IDbContextFactory<AppDbContext> dbFactory)
+public class MaintenanceService(SupabaseClient db)
 {
     public async Task<CleanupPreview> GetPreviewAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan);
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return new CleanupPreview(
-            ReturnedLoans:   await db.GeneralItemLoans.CountAsync(l => l.ReturnDate != null && l.ReturnDate < cutoff),
-            OldReservations: await db.Reservations.CountAsync(r => r.EndTime < cutoff),
-            OldMovements:    await db.StockMovements.CountAsync(m => m.Date < cutoff),
-            OldDeliveries:   await db.Deliveries.CountAsync(d => d.CollectedAt != null && d.CollectedAt < cutoff)
-        );
+        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var t1 = db.GetCountAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}");
+        var t2 = db.GetCountAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}");
+        var t3 = db.GetCountAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}");
+        var t4 = db.GetCountAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}");
+        await Task.WhenAll(t1, t2, t3, t4);
+        return new CleanupPreview(t1.Result, t2.Result, t3.Result, t4.Result);
     }
 
     public async Task<string> ExportToCsvAsync(int monthsOlderThan)
     {
         var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan);
+        var cutoffStr = cutoff.ToString("O");
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             $"AmroStock_Export_{DateTime.Now:yyyyMMdd_HHmmss}");
         Directory.CreateDirectory(dir);
 
-        await using var db = await dbFactory.CreateDbContextAsync();
-
-        // Returned loans
-        var loans = await db.GeneralItemLoans
-            .Include(l => l.GeneralItem)
-            .Where(l => l.ReturnDate != null && l.ReturnDate < cutoff)
-            .OrderByDescending(l => l.ReturnDate)
-            .ToListAsync();
+        var loans = await db.GetAsync<GeneralItemLoan>("general_item_loans",
+            $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoffStr}&order=return_date.desc");
         if (loans.Count > 0)
         {
+            var itemIds   = loans.Select(l => l.GeneralItemId).Distinct();
+            var items     = await db.GetAsync<GeneralItem>("general_items", $"sync_id=in.({string.Join(",", itemIds)})&select=sync_id,name");
+            var itemById  = items.ToDictionary(i => i.Id);
+            foreach (var l in loans) l.GeneralItem = itemById.GetValueOrDefault(l.GeneralItemId)!;
             var sb = new StringBuilder();
             sb.AppendLine("Data Empréstimo,Artigo,Quarto,Entregue Por,Quantidade,Notas,Data Devolução");
             foreach (var l in loans)
                 sb.AppendLine(string.Join(",", [
                     Csv(l.LoanDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
-                    Csv(l.GeneralItem.Name),
+                    Csv(l.GeneralItem?.Name),
                     Csv(l.RoomNumber),
                     Csv(l.GivenBy),
                     l.Quantity.ToString(),
                     Csv(l.Notes),
-                    Csv(l.ReturnDate!.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                    Csv(l.ReturnDate?.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
                 ]));
             await File.WriteAllTextAsync(Path.Combine(dir, "historico_emprestimos.csv"), sb.ToString(), Encoding.UTF8);
         }
 
-        // Old reservations
-        var reservations = await db.Reservations
-            .Where(r => r.EndTime < cutoff)
-            .OrderByDescending(r => r.StartTime)
-            .ToListAsync();
+        var reservations = await db.GetAsync<Reservation>("reservations",
+            $"is_deleted=eq.false&end_time=lt.{cutoffStr}&order=start_time.desc");
         if (reservations.Count > 0)
         {
             var sb = new StringBuilder();
@@ -80,21 +73,27 @@ public class MaintenanceService(IDbContextFactory<AppDbContext> dbFactory)
             await File.WriteAllTextAsync(Path.Combine(dir, "historico_reservas.csv"), sb.ToString(), Encoding.UTF8);
         }
 
-        // Old stock movements
-        var movements = await db.StockMovements
-            .Include(m => m.SizeVariant).ThenInclude(sv => sv.Product)
-            .Where(m => m.Date < cutoff)
-            .OrderByDescending(m => m.Date)
-            .ToListAsync();
+        var movements = await db.GetAsync<StockMovement>("stock_movements",
+            $"is_deleted=eq.false&date=lt.{cutoffStr}&order=date.desc");
         if (movements.Count > 0)
         {
+            var variantIds = movements.Select(m => m.SizeVariantId).Distinct();
+            var variants   = await db.GetAsync<SizeVariant>("size_variants", $"sync_id=in.({string.Join(",", variantIds)})");
+            var productIds = variants.Select(v => v.ProductId).Distinct();
+            var products   = await db.GetAsync<Product>("products", $"sync_id=in.({string.Join(",", productIds)})");
+            var productById = products.ToDictionary(p => p.Id);
+            var variantById = variants.ToDictionary(v => v.Id);
+            foreach (var v in variants)
+                v.Product = productById.GetValueOrDefault(v.ProductId) ?? new Product();
+            foreach (var m in movements)
+                m.SizeVariant = variantById.GetValueOrDefault(m.SizeVariantId) ?? new SizeVariant();
             var sb = new StringBuilder();
             sb.AppendLine("Data,Produto,Tamanho,Quarto,Movimento,Motivo,Notas");
             foreach (var m in movements)
                 sb.AppendLine(string.Join(",", [
                     Csv(m.Date.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
-                    Csv(m.SizeVariant.Product.Name),
-                    Csv(m.SizeVariant.Size),
+                    Csv(m.SizeVariant?.Product?.Name),
+                    Csv(m.SizeVariant?.Size),
                     Csv(m.RoomNumber),
                     m.ChangeAmount.ToString(),
                     Csv(m.Reason.ToString()),
@@ -103,11 +102,8 @@ public class MaintenanceService(IDbContextFactory<AppDbContext> dbFactory)
             await File.WriteAllTextAsync(Path.Combine(dir, "historico_stock.csv"), sb.ToString(), Encoding.UTF8);
         }
 
-        // Old collected deliveries
-        var deliveries = await db.Deliveries
-            .Where(d => d.CollectedAt != null && d.CollectedAt < cutoff)
-            .OrderByDescending(d => d.ArrivedAt)
-            .ToListAsync();
+        var deliveries = await db.GetAsync<Delivery>("deliveries",
+            $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoffStr}&order=arrived_at.desc");
         if (deliveries.Count > 0)
         {
             var sb = new StringBuilder();
@@ -118,7 +114,7 @@ public class MaintenanceService(IDbContextFactory<AppDbContext> dbFactory)
                     Csv(d.RoomNumber),
                     d.Quantity.ToString(),
                     Csv(d.ArrivedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
-                    Csv(d.CollectedAt!.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
+                    Csv(d.CollectedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
                     Csv(d.Notes)
                 ]));
             await File.WriteAllTextAsync(Path.Combine(dir, "historico_encomendas.csv"), sb.ToString(), Encoding.UTF8);
@@ -129,27 +125,13 @@ public class MaintenanceService(IDbContextFactory<AppDbContext> dbFactory)
 
     public async Task CleanupAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan);
-        await using var db = await dbFactory.CreateDbContextAsync();
+        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var patch  = new { is_deleted = true, updated_at = DateTime.UtcNow };
 
-        // 1. Delete old reservations (no cascade impact on loans)
-        var oldReservations = await db.Reservations.Where(r => r.EndTime < cutoff).ToListAsync();
-        db.Reservations.RemoveRange(oldReservations);
-        await db.SaveChangesAsync();
-
-        // 2. Delete old returned loans (SQLite SET NULL handles remaining reservation refs)
-        var oldLoans = await db.GeneralItemLoans.Where(l => l.ReturnDate != null && l.ReturnDate < cutoff).ToListAsync();
-        db.GeneralItemLoans.RemoveRange(oldLoans);
-        await db.SaveChangesAsync();
-
-        // 3. Delete old stock movements (no FK references)
-        await db.StockMovements.Where(m => m.Date < cutoff).ExecuteDeleteAsync();
-
-        // 4. Delete old collected deliveries (no FK references)
-        await db.Deliveries.Where(d => d.CollectedAt != null && d.CollectedAt < cutoff).ExecuteDeleteAsync();
-
-        // 5. Compact the database file
-        await db.Database.ExecuteSqlRawAsync("VACUUM");
+        await db.PatchAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}", patch);
+        await db.PatchAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}",                        patch);
+        await db.PatchAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}",                            patch);
+        await db.PatchAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}", patch);
     }
 
     private static string Csv(object? value) =>

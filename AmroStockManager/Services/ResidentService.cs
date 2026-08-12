@@ -1,10 +1,8 @@
-using AmroStockManager.Data;
 using AmroStockManager.Data.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace AmroStockManager.Services;
 
-public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgroundSync? sync = null)
+public class ResidentService(SupabaseClient db)
 {
     private static readonly string PinFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -18,37 +16,27 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgro
 
     public async Task<List<Resident>> GetAllAsync()
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Residents
-            .OrderBy(r => r.IsCollaborator)
-            .ThenBy(r => r.RoomNumber)
-            .ThenBy(r => r.Name)
-            .ToListAsync();
+        return await db.GetAsync<Resident>("residents",
+            "is_deleted=eq.false&order=is_collaborator.asc,room_number.asc,name.asc");
     }
 
     public async Task<Resident?> GetByRoomAsync(string roomNumber)
     {
         if (string.IsNullOrWhiteSpace(roomNumber)) return null;
-        var room = roomNumber.Trim().ToUpper();
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Residents.FirstOrDefaultAsync(r => r.RoomNumber.ToUpper() == room);
+        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var list = await db.GetAsync<Resident>("residents", $"is_deleted=eq.false&room_number=eq.{room}&limit=1");
+        return list.FirstOrDefault();
     }
 
-    // Returns autocomplete suggestions in "#RoomNumber - Name" format.
     public async Task<IEnumerable<string>> GetSuggestionsAsync(string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return [];
-        var q = query.TrimStart('#').Trim().ToLower();
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var matches = await db.Residents
-            .Where(r => r.RoomNumber.ToLower().Contains(q) || r.Name.ToLower().Contains(q))
-            .OrderBy(r => r.RoomNumber)
-            .Take(10)
-            .ToListAsync();
-        return matches.Select(r => $"#{r.RoomNumber} - {r.Name}");
+        var q = Uri.EscapeDataString(query.TrimStart('#').Trim());
+        var residents = await db.GetAsync<Resident>("residents",
+            $"is_deleted=eq.false&or=(room_number.ilike.*{q}*,name.ilike.*{q}*)&order=room_number.asc&limit=10");
+        return residents.Select(r => $"#{r.RoomNumber} - {r.Name}");
     }
 
-    // Parses "#101 - João Silva" or "101" → "101".
     public static string ParseRoomNumber(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
@@ -61,8 +49,6 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgro
         return input.ToUpper();
     }
 
-    // Replaces all residents with the contents of the CSV stream.
-    // Expected columns (with or without header): Nome, Quarto, Telemóvel, Colaborador
     public async Task<(int Imported, int Skipped)> ImportFromCsvAsync(Stream csvStream)
     {
         using var reader = new StreamReader(csvStream);
@@ -81,7 +67,7 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgro
                 startLine = 1;
         }
 
-        var residents = new List<Resident>();
+        var residents = new List<object>();
         int skipped = 0;
 
         for (int i = startLine; i < lines.Count; i++)
@@ -89,54 +75,46 @@ public class ResidentService(IDbContextFactory<AppDbContext> dbFactory, IBackgro
             var parts = ParseCsvLine(lines[i]);
             if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0])) { skipped++; continue; }
 
-            var name  = parts[0].Trim();
-            var room  = parts.Length > 1 ? parts[1].Trim().ToUpper() : string.Empty;
-            var phone = parts.Length > 2 ? parts[2].Trim() : null;
+            var name   = parts[0].Trim();
+            var room   = parts.Length > 1 ? parts[1].Trim().ToUpper() : string.Empty;
+            var phone  = parts.Length > 2 ? parts[2].Trim() : null;
             var collab = parts.Length > 3 &&
                          parts[3].Trim().ToLower() is "true" or "1" or "sim" or "yes" or "verdadeiro";
 
             if (string.IsNullOrWhiteSpace(name)) { skipped++; continue; }
 
-            residents.Add(new Resident
+            residents.Add(new
             {
-                Name          = name,
-                RoomNumber    = room,
-                PhoneNumber   = string.IsNullOrWhiteSpace(phone) ? null : phone,
-                IsCollaborator = collab
+                sync_id         = Guid.NewGuid().ToString(),
+                name            = name,
+                room_number     = room,
+                phone_number    = string.IsNullOrWhiteSpace(phone) ? (string?)null : phone,
+                is_collaborator = collab,
+                is_deleted      = false,
+                updated_at      = DateTime.UtcNow
             });
         }
 
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var existing = await db.Residents.ToListAsync();
-        foreach (var r in existing) r.IsDeleted = true;
-        db.Residents.AddRange(residents);
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        await db.PatchAsync("residents", "is_deleted=eq.false", new { is_deleted = true, updated_at = DateTime.UtcNow });
+
+        foreach (var r in residents)
+            await db.InsertAsync<Resident>("residents", r);
+
         return (residents.Count, skipped);
     }
 
-    public async Task DeleteResidentAsync(int id)
+    public async Task DeleteResidentAsync(string id)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var resident = await db.Residents.FindAsync(id);
-        if (resident is null) return;
-        resident.IsDeleted = true;
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        await db.PatchAsync("residents", $"sync_id=eq.{id}", new { is_deleted = true, updated_at = DateTime.UtcNow });
     }
 
     public async Task DeleteAllAsync()
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var all = await db.Residents.ToListAsync();
-        foreach (var r in all) r.IsDeleted = true;
-        await db.SaveChangesAsync();
-        sync?.TriggerBackgroundSync();
+        await db.PatchAsync("residents", "is_deleted=eq.false", new { is_deleted = true, updated_at = DateTime.UtcNow });
     }
 
     private static string[] ParseCsvLine(string line)
     {
-        // Handles quoted fields (e.g. "Silva, João")
         var result = new List<string>();
         bool inQuotes = false;
         var current = new System.Text.StringBuilder();
