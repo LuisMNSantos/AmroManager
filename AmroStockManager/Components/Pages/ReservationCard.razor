@@ -48,10 +48,14 @@
                            OnClick="@(() => OnActivate.InvokeAsync(Reservation))">
                     Activar
                 </MudButton>
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => OnCancel.InvokeAsync(Reservation))">
-                    Cancelar
-                </MudButton>
+                <div class="d-flex gap-1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OnEdit.InvokeAsync(Reservation))" />
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => OnCancel.InvokeAsync(Reservation))">
+                        Cancelar
+                    </MudButton>
+                </div>
             }
             else if (state == "Em Curso")
             {
@@ -71,6 +75,7 @@
     [Parameter] public EventCallback<Reservation> OnActivate { get; set; }
     [Parameter] public EventCallback<Reservation> OnComplete { get; set; }
     [Parameter] public EventCallback<Reservation> OnCancel   { get; set; }
+    [Parameter] public EventCallback<Reservation> OnEdit     { get; set; }
 
     private string GetState()
     {

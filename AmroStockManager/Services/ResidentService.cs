@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
@@ -8,11 +9,40 @@ public class ResidentService(SupabaseClient db, CacheService cache)
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AmroStockManager", "admin.pin");
 
-    public string GetPin() =>
-        File.Exists(PinFile) ? File.ReadAllText(PinFile).Trim() : "1234";
+    private const string _hashPrefix = "pbkdf2:";
+    private const int    _iterations = 100_000;
 
-    public void SavePin(string pin) =>
-        File.WriteAllText(PinFile, pin.Trim());
+    public bool VerifyPin(string input)
+    {
+        var stored = File.Exists(PinFile) ? File.ReadAllText(PinFile).Trim() : "1234";
+
+        // Legacy plaintext file — verify and transparently rehash on success
+        if (!stored.StartsWith(_hashPrefix))
+        {
+            if (input.Trim() != stored) return false;
+            SavePin(input.Trim());
+            return true;
+        }
+
+        var parts = stored[_hashPrefix.Length..].Split(':');
+        if (parts.Length != 2) return false;
+        try
+        {
+            var salt         = Convert.FromBase64String(parts[0]);
+            var expectedHash = Convert.FromBase64String(parts[1]);
+            var actualHash   = Rfc2898DeriveBytes.Pbkdf2(input.Trim(), salt, _iterations, HashAlgorithmName.SHA256, 32);
+            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+        }
+        catch { return false; }
+    }
+
+    public void SavePin(string pin)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(PinFile)!);
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(pin.Trim(), salt, _iterations, HashAlgorithmName.SHA256, 32);
+        File.WriteAllText(PinFile, $"{_hashPrefix}{Convert.ToBase64String(salt)}:{Convert.ToBase64String(hash)}");
+    }
 
     private static readonly TimeSpan _residentsTtl = TimeSpan.FromSeconds(60);
     private const string _residentsKey = "residents:all";
@@ -38,6 +68,14 @@ public class ResidentService(SupabaseClient db, CacheService cache)
         var residents = await db.GetAsync<Resident>("residents",
             $"is_deleted=eq.false&or=(room_number.ilike.*{q}*,name.ilike.*{q}*)&order=room_number.asc&limit=10");
         return residents.Select(r => $"#{r.RoomNumber} - {r.Name}");
+    }
+
+    public async Task<List<Resident>> SearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return [];
+        var q = Uri.EscapeDataString(query.TrimStart('#').Trim());
+        return await db.GetAsync<Resident>("residents",
+            $"is_deleted=eq.false&or=(room_number.ilike.*{q}*,name.ilike.*{q}*)&order=room_number.asc&limit=10");
     }
 
     public static string ParseRoomNumber(string? input)
@@ -105,6 +143,46 @@ public class ResidentService(SupabaseClient db, CacheService cache)
 
         cache.Invalidate(_residentsKey);
         return (residents.Count, skipped);
+    }
+
+    public async Task AddOrUpdateAsync(Resident r)
+    {
+        if (string.IsNullOrEmpty(r.Id))
+        {
+            await db.InsertAsync<Resident>("residents", new
+            {
+                sync_id         = Guid.NewGuid().ToString(),
+                name            = r.Name.Trim(),
+                room_number     = r.RoomNumber.Trim().ToUpper(),
+                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator = r.IsCollaborator,
+                is_deleted      = false,
+                updated_at      = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            await db.PatchAsync("residents", $"sync_id=eq.{r.Id}", new
+            {
+                name            = r.Name.Trim(),
+                room_number     = r.RoomNumber.Trim().ToUpper(),
+                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator = r.IsCollaborator,
+                updated_at      = DateTime.UtcNow
+            });
+        }
+        cache.Invalidate(_residentsKey);
+    }
+
+    public async Task<(int PendingDeliveries, int ActiveLoans, int UpcomingReservations)> GetActiveItemCountsForRoomAsync(string roomNumber)
+    {
+        var room   = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var utcNow = Uri.EscapeDataString(DateTime.UtcNow.ToString("O"));
+        var t1 = db.GetCountAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.false&room_number=eq.{room}");
+        var t2 = db.GetCountAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.false&room_number=eq.{room}");
+        var t3 = db.GetCountAsync("reservations",       $"is_deleted=eq.false&is_cancelled=eq.false&room_number=eq.{room}&end_time=gte.{utcNow}");
+        await Task.WhenAll(t1, t2, t3);
+        return (t1.Result, t2.Result, t3.Result);
     }
 
     public async Task DeleteResidentAsync(string id)

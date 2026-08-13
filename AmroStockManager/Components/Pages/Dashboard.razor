@@ -21,7 +21,33 @@
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
 }
-else if (_error is not null)
+else if (_alerts.Count > 0)
+{
+    <MudPaper Elevation="2" Class="pa-3 mb-4" Style="border-left: 4px solid var(--mud-palette-error);">
+        <div class="d-flex align-center gap-2 mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Color="Color.Error" />
+            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                @_alerts.Count alerta@(_alerts.Count > 1 ? "s" : "") que requer@(_alerts.Count == 1 ? "" : "em") ação
+            </MudText>
+        </div>
+        @foreach (var alert in _alerts)
+        {
+            <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                <MudIcon Icon="@alert.Icon" Color="@alert.Color" Size="Size.Small" />
+                <MudText Typo="Typo.body2" Style="flex:1;">@alert.Message</MudText>
+                @if (alert.NavigateTo is not null)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                               OnClick="@(() => Nav.NavigateTo(alert.NavigateTo))">
+                        Ver
+                    </MudButton>
+                }
+            </div>
+        }
+    </MudPaper>
+}
+
+@if (!_loading && _error is not null)
 {
     <MudAlert Severity="Severity.Error" Class="mt-4">
         <b>Erro ao carregar dados:</b><br />
@@ -347,8 +373,11 @@ else
 }
 
 @code {
+    private record DashboardAlert(string Message, string Icon, Color Color, string? NavigateTo);
+
     private bool _loading = true;
     private string? _error;
+    private List<DashboardAlert> _alerts = [];
 
     // Tab 1 — Produtos
     private (int totalProducts, int totalUnits, int lowStockCount) _stats;
@@ -407,6 +436,7 @@ else
                     _pendingDeliveries = await DeliverySvc.GetPendingAsync();
                 })
             );
+            await BuildAlertsAsync();
         }
         catch (Exception ex)
         {
@@ -416,6 +446,41 @@ else
         {
             _loading = false;
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task BuildAlertsAsync()
+    {
+        _alerts = [];
+
+        // Cartões de acesso não devolvidos após o fim da reserva
+        var overdueCards = await ReservaSvc.GetOverdueCardsAsync(hoursThreshold: 2);
+        foreach (var r in overdueCards)
+        {
+            var space = r.Space == ReservationSpace.Cozinha ? "Cozinha" : "Cinema";
+            var end   = r.EndTime.ToLocalTime();
+            _alerts.Add(new(
+                $"Cartão {space} do quarto #{r.RoomNumber} não devolvido (fim: {end:HH:mm dd/MM})",
+                Icons.Material.Filled.Key, Color.Error, "/calendario"));
+        }
+
+        // Encomendas há mais de 7 dias por levantar
+        var stale = await DeliverySvc.GetStalePendingAsync(daysThreshold: 7);
+        foreach (var d in stale)
+        {
+            var label = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+            var days  = (int)(DateTime.UtcNow - d.ArrivedAt).TotalDays;
+            _alerts.Add(new(
+                $"{label} do quarto #{d.RoomNumber} há {days} dias por levantar",
+                Icons.Material.Filled.LocalShipping, Color.Warning, "/encomendas"));
+        }
+
+        // Stock baixo
+        foreach (var sv in _lowStockVariants)
+        {
+            _alerts.Add(new(
+                $"Stock baixo: {sv.Product.Name} ({sv.Size}) — {sv.Quantity} un. (mín. {sv.MinStockAlert})",
+                Icons.Material.Filled.Warning, Color.Warning, "/products"));
         }
     }
 

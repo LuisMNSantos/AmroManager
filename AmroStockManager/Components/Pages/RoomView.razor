@@ -1,0 +1,324 @@
+@page "/quarto"
+@page "/quarto/{RoomNumber}"
+@inject ResidentService ResidentSvc
+@inject DeliveryService DeliverySvc
+@inject GeneralItemService ItemSvc
+@inject ReservationService ReservaSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@using System.Globalization
+
+<div class="d-flex align-center gap-3 mb-4 flex-wrap">
+    <MudText Typo="Typo.h4">Vista de Quarto</MudText>
+    <MudAutocomplete T="string"
+                     Value="_searchInput"
+                     Placeholder="Pesquisar quarto ou residente…"
+                     SearchFunc="SearchRooms"
+                     CoerceText="true"
+                     Immediate="true"
+                     MinimumLength="1"
+                     Clearable="true"
+                     Style="width:280px;"
+                     ValueChanged="OnSearchChanged" />
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else if (_roomNumber is null)
+{
+    <MudAlert Severity="Severity.Info">Pesquise um quarto ou residente para ver o resumo.</MudAlert>
+}
+else if (_resident is null && _pendingDeliveries.Count == 0 && _activeLoans.Count == 0 && _upcomingReservations.Count == 0)
+{
+    <MudAlert Severity="Severity.Warning">Nenhuma informação encontrada para o quarto <b>@_roomNumber</b>.</MudAlert>
+}
+else
+{
+    <!-- Residente -->
+    <MudPaper Elevation="2" Class="pa-4 mb-4">
+        <div class="d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" Size="Size.Large" />
+            <div>
+                @if (_resident is not null)
+                {
+                    <MudText Typo="Typo.h5" Style="font-weight:700;">@_resident.Name</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Quarto <b>#@_roomNumber</b>
+                        @if (!string.IsNullOrEmpty(_resident.PhoneNumber))
+                        {
+                            <span> · @_resident.PhoneNumber</span>
+                        }
+                    </MudText>
+                    @if (_resident.IsCollaborator)
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Class="mt-1">Colaborador</MudChip>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5">Quarto #@_roomNumber</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sem residente registado</MudText>
+                }
+            </div>
+        </div>
+    </MudPaper>
+
+    <MudGrid Spacing="3">
+
+        <!-- Encomendas por levantar -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4" Style="min-height:140px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Warning" />
+                    <MudText Typo="Typo.h6">Encomendas por Levantar</MudText>
+                    @if (_pendingDeliveries.Count > 0)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_pendingDeliveries.Count</MudChip>
+                    }
+                </div>
+                @if (_pendingDeliveries.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Nenhuma encomenda pendente.</MudText>
+                }
+                else
+                {
+                    @foreach (var d in _pendingDeliveries)
+                    {
+                        var label = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                        var icon  = d.Type == DeliveryType.Encomenda ? Icons.Material.Filled.Inventory2 : Icons.Material.Filled.Mail;
+                        var days  = (int)(DateTime.UtcNow - d.ArrivedAt).TotalDays;
+                        <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                            <MudIcon Icon="@icon" Size="Size.Small" Color="Color.Warning" />
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>@label</b>
+                                    @if (d.Quantity > 1) { <span> · @d.Quantity unid.</span> }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="@(days >= 7 ? Color.Error : Color.Secondary)">
+                                    Chegou há @days dia@(days != 1 ? "s" : "") (@d.ArrivedAt.ToLocalTime():dd/MM HH:mm)
+                                </MudText>
+                                @if (!string.IsNullOrEmpty(d.Notes))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@d.Notes</MudText>
+                                }
+                            </div>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                                       OnClick="@(() => MarkCollected(d))">Levantar</MudButton>
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Empréstimos activos -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4" Style="min-height:140px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Color="Color.Info" />
+                    <MudText Typo="Typo.h6">Empréstimos Activos</MudText>
+                    @if (_activeLoans.Count > 0)
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">@_activeLoans.Count</MudChip>
+                    }
+                </div>
+                @if (_activeLoans.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Nenhum artigo em empréstimo.</MudText>
+                }
+                else
+                {
+                    @foreach (var (loan, name) in _activeLoans)
+                    {
+                        <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>@name</b>
+                                    @if (loan.Quantity > 1) { <span> · @loan.Quantity unid.</span> }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    desde @loan.LoanDate.ToLocalTime().ToString("dd/MM HH:mm")
+                                </MudText>
+                            </div>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                                       OnClick="@(() => ReturnLoan(loan))">Devolver</MudButton>
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Reservas futuras -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4" Style="min-height:120px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6">Reservas Futuras</MudText>
+                </div>
+                @if (_upcomingReservations.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sem reservas agendadas.</MudText>
+                }
+                else
+                {
+                    @foreach (var r in _upcomingReservations)
+                    {
+                        var space = r.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                        <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2"><b>@space</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @r.StartTime.ToLocalTime().ToString("dd/MM HH:mm") – @r.EndTime.ToLocalTime().ToString("HH:mm")
+                                </MudText>
+                            </div>
+                            @if (!r.IsActivated)
+                            {
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small">Agendada</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Em Curso</MudChip>
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+
+        <!-- Histórico recente -->
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4" Style="min-height:120px;">
+                <div class="d-flex align-center gap-2 mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Secondary" />
+                    <MudText Typo="Typo.h6">Histórico Recente</MudText>
+                </div>
+                @if (_recentLoans.Count == 0 && _recentReservations.Count == 0 && _recentDeliveries.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sem histórico.</MudText>
+                }
+                @foreach (var (loan, name) in _recentLoans)
+                {
+                    <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06); opacity:0.75;">
+                        <MudIcon Icon="@Icons.Material.Filled.AssignmentReturn" Size="Size.Small" Color="Color.Success" />
+                        <div style="flex:1;">
+                            <MudText Typo="Typo.caption">
+                                <b>@name</b> devolvido — @(loan.ReturnDate?.ToLocalTime().ToString("dd/MM/yy") ?? "-")
+                            </MudText>
+                        </div>
+                    </div>
+                }
+                @foreach (var r in _recentReservations)
+                {
+                    var space = r.Space == ReservationSpace.Cozinha ? "Cozinha" : "Cinema";
+                    <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06); opacity:0.75;">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" Color="Color.Secondary" />
+                        <MudText Typo="Typo.caption">
+                            <b>@space</b> — @r.StartTime.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                        </MudText>
+                    </div>
+                }
+                @foreach (var d in _recentDeliveries)
+                {
+                    var label = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                    <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06); opacity:0.75;">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Secondary" />
+                        <MudText Typo="Typo.caption">
+                            <b>@label</b> levantada — @(d.CollectedAt?.ToLocalTime().ToString("dd/MM/yy") ?? "-")
+                        </MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public string? RoomNumber { get; set; }
+
+    private string _searchInput = string.Empty;
+    private string? _roomNumber;
+    private bool _loading;
+
+    private Resident? _resident;
+    private List<Delivery> _pendingDeliveries = [];
+    private List<(GeneralItemLoan Loan, string ItemName)> _activeLoans = [];
+    private List<Reservation> _upcomingReservations = [];
+    private List<(GeneralItemLoan Loan, string ItemName)> _recentLoans = [];
+    private List<Reservation> _recentReservations = [];
+    private List<Delivery> _recentDeliveries = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(RoomNumber))
+        {
+            _roomNumber   = RoomNumber.Trim().ToUpper();
+            _searchInput  = _roomNumber;
+            await LoadRoomData(_roomNumber);
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+        => ResidentSvc.GetSuggestionsAsync(value);
+
+    private async Task OnSearchChanged(string value)
+    {
+        _searchInput = value;
+        var room = ResidentService.ParseRoomNumber(value);
+        if (string.IsNullOrWhiteSpace(room)) return;
+        _roomNumber = room;
+        Nav.NavigateTo($"/quarto/{Uri.EscapeDataString(room)}", replace: true);
+        await LoadRoomData(room);
+    }
+
+    private async Task LoadRoomData(string room)
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            await Task.WhenAll(
+                Task.Run(async () => _resident             = await ResidentSvc.GetByRoomAsync(room)),
+                Task.Run(async () => _pendingDeliveries    = await DeliverySvc.GetPendingByRoomAsync(room)),
+                Task.Run(async () => _activeLoans          = await ItemSvc.GetActiveLoansByRoomAsync(room)),
+                Task.Run(async () => _upcomingReservations = await ReservaSvc.GetUpcomingByRoomAsync(room)),
+                Task.Run(async () => _recentLoans          = await ItemSvc.GetLoanHistoryByRoomAsync(room, 5)),
+                Task.Run(async () => _recentReservations   = await ReservaSvc.GetRecentByRoomAsync(room, 5)),
+                Task.Run(async () => _recentDeliveries     = await DeliverySvc.GetRecentByRoomAsync(room, 5))
+            );
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task MarkCollected(Delivery d)
+    {
+        try
+        {
+            await DeliverySvc.MarkCollectedAsync(d.Id);
+            Snackbar.Add("Encomenda marcada como levantada.", Severity.Success);
+            await LoadRoomData(_roomNumber!);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ReturnLoan(GeneralItemLoan loan)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Devolver Artigo",
+            $"Marcar o empréstimo como devolvido?",
+            yesText: "Sim", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        try
+        {
+            await ItemSvc.ReturnItemAsync(loan.Id);
+            Snackbar.Add("Artigo devolvido.", Severity.Success);
+            await LoadRoomData(_roomNumber!);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+    }
+}

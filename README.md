@@ -6,9 +6,26 @@ A Windows desktop application built to handle the day-to-day operational needs o
 
 ## Features
 
+### 📊 Dashboard
+Three-tab overview with proactive alerts and relevant statistics for each area:
+- **Produtos** — stock KPIs, low stock table, recent movements
+- **Artigos & Reservas** — active loans, today's reservations, overdue access card alerts
+- **Encomendas & Cartas** — pending delivery summary and quick-access list
+- Proactive alert bar highlights overdue access cards, packages waiting more than 7 days, and low-stock variants
+
+### 🔍 Pesquisa Global
+- Search icon in the AppBar opens a debounced cross-table search dialog
+- Results grouped into Residents, Pending Deliveries, and Upcoming Reservations
+- Clicking any result navigates directly to the relevant page
+
+### 🏠 Vista de Quarto
+- Dedicated page at `/quarto/{room}` aggregating everything for a room in one place
+- Shows: resident info, pending deliveries (with collect action), active loans (with return action), upcoming reservations, and recent history
+- Autocomplete search navigates to the room URL
+
 ### 📦 Product Inventory
-- Track product stock levels with full movement history
-- Low stock alerts on the dashboard
+- Track product stock levels with full size-variant breakdown and movement history
+- Low stock alerts configurable per variant
 - Stock adjustments and trade-in operations
 - CSV export of movement history
 
@@ -16,13 +33,14 @@ A Windows desktop application built to handle the day-to-day operational needs o
 - Lend and return items (speakers, irons, rackets, access cards, etc.)
 - Linked items support — lending ping pong rackets automatically prompts for ball quantity
 - Per-item loan history accessible via dialog
-- Delete items from the catalogue
 
 ### 📅 Reservation Calendar
 - Monthly grid view with colour-coded reservation count badges per day
-- Click any day to see the detailed Cozinha MasterChef / Cinema reservation view
+- Click any day to see the detailed Cozinha MasterChef / Cinema reservation list
 - Reservation state machine: **Agendada → Em Curso → Concluída**
-- Access cards are only issued when the user manually activates a reservation
+- Edit scheduled (not yet activated) reservations directly from the calendar
+- Space usage statistics: bar charts showing reservations by weekday and hour (last 90 days)
+- Access cards issued only when a reservation is manually activated
 - Kitchen time constraint enforced (08:00–22:00)
 - Multi-day Cinema reservations supported (e.g. 23:00 day 7 → 02:00 day 8)
 - Returning an access card in General Items automatically completes the linked reservation
@@ -30,25 +48,19 @@ A Windows desktop application built to handle the day-to-day operational needs o
 ### 📬 Packages & Letters
 - Register incoming packages and letters by room number
 - Track collection status with timestamps
-- Summary KPIs: pending packages, pending letters, arrived today, awaiting collection
+- Summary KPIs: pending packages, pending letters, arrived today
 - Collapsible history of collected items
 
-### 📊 Dashboard
-Three-tab overview with relevant statistics for each area:
-- **Produtos** — stock KPIs, low stock table, recent movements
-- **Artigos & Reservas** — active loans, today's reservations, card status
-- **Encomendas & Cartas** — pending delivery summary and quick-access list
+### 👥 Resident Management
+- Add and edit individual residents inline — no need to reimport the full CSV for updates
+- CSV bulk import replaces the entire list (with confirmation)
+- Per-resident cascade check before deletion: warns staff if the room has pending deliveries, active loans, or upcoming reservations
+- Delete individual residents or clear the entire list
 
-### 🛠️ Maintenance
-- Preview and clean up old records (returned loans, completed reservations, stock movements, collected deliveries) by configurable time period
+### 🛠️ Maintenance & GDPR
+- Preview and soft-delete old records (returned loans, completed reservations, stock movements, collected deliveries) by configurable time period
 - Export historical data to CSV before cleanup
-- Automatic database compaction (VACUUM) after cleanup
-
-### 💾 Automatic Backup
-- On every app launch, a consistent database backup is created using SQLite's `VACUUM INTO`
-- Keeps the last 7 copies automatically
-- Saves to **OneDrive** if detected, otherwise to **Documents/AmroStock_Backups/**
-- Manual backup and folder shortcut available in the Maintenance dialog
+- **Resident PII purge**: permanently hard-deletes soft-deleted resident records (name, phone, room) from the database after a configurable period, satisfying GDPR right-to-erasure obligations
 
 ---
 
@@ -58,8 +70,8 @@ Three-tab overview with relevant statistics for each area:
 |---|---|
 | Framework | .NET 9 MAUI Blazor Hybrid |
 | UI Components | MudBlazor 8 |
-| Database | SQLite (local) |
-| ORM | Entity Framework Core 9 |
+| Backend / Database | Supabase (PostgreSQL via PostgREST REST API) |
+| Real-time updates | Supabase Realtime (Phoenix WebSocket protocol) |
 | Language | C# |
 | Platform | Windows 10/11 |
 
@@ -67,10 +79,15 @@ Three-tab overview with relevant statistics for each area:
 
 ## Architecture
 
-- **MAUI Blazor Hybrid** — renders Blazor components inside a native Windows window via WebView2, giving a native app feel with web UI flexibility.
-- **Local SQLite database** — stored in `%LocalAppData%\AmroStockManager\stock.db`, accessed via `IDbContextFactory` for safe concurrent access.
-- **Schema evolution** — handled with raw `ALTER TABLE` and `CREATE TABLE IF NOT EXISTS` statements on startup, avoiding EF migrations on a deployed local database.
-- **Service layer** — each domain area (products, stock, general items, reservations, deliveries, maintenance, backup) has its own injectable singleton service.
+- **MAUI Blazor Hybrid** — renders Blazor components inside a native Windows window via WebView2.
+- **Always-online** — all data is fetched live from Supabase. No local database or offline cache. An active internet connection is required.
+- **SupabaseClient** — a singleton `HttpClient` wrapper that handles Supabase PostgREST REST calls (GET, POST, PATCH, DELETE) with automatic retry on transient failures (up to 2 retries with exponential back-off on 5xx/timeout).
+- **SupabaseRealtimeService** — connects to Supabase Realtime via the Phoenix WebSocket protocol, subscribes to `postgres_changes` events on all watched tables, invalidates the in-memory cache, and fires `TableChanged` events that pages subscribe to for live UI refresh.
+- **CacheService** — lightweight in-memory TTL cache used for frequently read, rarely changed data (residents: 60 s, general items: 30 s). All write paths explicitly invalidate the relevant cache key.
+- **ConnectivityService** — wraps MAUI's `IConnectivity` to surface a real-time connectivity banner when the device loses internet access.
+- **Service layer** — each domain area (products, stock, general items, reservations, deliveries, residents, maintenance) has its own injectable singleton service that calls `SupabaseClient` directly.
+- **Soft-delete** — all record deletions set `is_deleted = true`. Hard deletes are only performed during the GDPR resident purge.
+- **Security** — the admin PIN is stored as a PBKDF2-SHA256 hash (100 000 iterations, random 16-byte salt) in `%LocalAppData%\AmroStockManager\admin.pin`. Verification uses constant-time comparison to prevent timing attacks. Existing plaintext PINs are transparently rehashed on the next successful login.
 
 ---
 
@@ -79,13 +96,7 @@ Three-tab overview with relevant statistics for each area:
 ### Requirements
 - Windows 10 version 1903 or later
 - [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (pre-installed on Windows 11)
-
-### Installation
-1. Download `AmroStockManager-win-x64.zip` from the [Releases](../../releases) page
-2. Extract to any folder
-3. Run `AmroStockManager.exe`
-
-The database is created automatically on first launch and pre-seeded with default items. Backups start from the first run.
+- Active internet connection (Supabase access required)
 
 ### Building from Source
 ```bash
@@ -103,6 +114,16 @@ dotnet publish AmroStockManager/AmroStockManager.csproj \
   -p:PublishSingleFile=true
 ```
 
+> **Note:** `AppSecrets.cs` containing the Supabase URL and anon key is not committed to the repository. Create it under `AmroStockManager/` before building:
+> ```csharp
+> namespace AmroStockManager;
+> internal static class AppSecrets
+> {
+>     public const string SupabaseUrl = "https://your-project.supabase.co";
+>     public const string SupabaseKey = "your-anon-key";
+> }
+> ```
+
 ---
 
 ## Project Structure
@@ -110,25 +131,41 @@ dotnet publish AmroStockManager/AmroStockManager.csproj \
 ```
 AmroStockManager/
 ├── Components/
-│   ├── Layout/          # MainLayout, navigation drawer
-│   └── Pages/           # All pages and dialogs
+│   ├── Layout/
+│   │   └── MainLayout.razor          # App shell, nav drawer, connectivity banner, search button
+│   └── Pages/                        # All pages and dialogs
 │       ├── Dashboard.razor
 │       ├── Products.razor
 │       ├── GeneralItems.razor
 │       ├── Calendar.razor
 │       ├── Deliveries.razor
-│       └── ...dialogs
+│       ├── RoomView.razor            # /quarto/{room} aggregated view
+│       ├── Administration.razor      # Resident management + PIN + maintenance
+│       ├── GlobalSearchDialog.razor  # Cross-table search
+│       ├── ResidentFormDialog.razor  # Add / edit resident
+│       ├── EditReservationDialog.razor
+│       ├── MaintenanceDialog.razor
+│       └── ...other dialogs
 ├── Data/
-│   ├── Models/          # EF Core entity models
-│   └── AppDbContext.cs
-├── Services/            # Business logic layer
+│   └── Models/                       # Plain C# POCOs (no ORM attributes)
+│       ├── Product.cs / SizeVariant.cs / StockMovement.cs
+│       ├── GeneralItem.cs / GeneralItemLoan.cs
+│       ├── Resident.cs
+│       ├── Delivery.cs
+│       └── Reservation.cs
+├── Services/
+│   ├── SupabaseClient.cs             # PostgREST HTTP wrapper with retry logic
+│   ├── SupabaseRealtimeService.cs    # Phoenix WebSocket Realtime client
+│   ├── CacheService.cs               # In-memory TTL cache
+│   ├── ConnectivityService.cs        # Network availability wrapper
 │   ├── ProductService.cs
+│   ├── StockService.cs
 │   ├── GeneralItemService.cs
 │   ├── ReservationService.cs
 │   ├── DeliveryService.cs
-│   ├── MaintenanceService.cs
-│   └── BackupService.cs
-└── MauiProgram.cs       # App bootstrap, DI, DB init & schema evolution
+│   ├── ResidentService.cs            # Includes PIN hashing (PBKDF2)
+│   └── MaintenanceService.cs         # Cleanup + GDPR purge
+└── MauiProgram.cs                    # App bootstrap and DI registration
 ```
 
 ---

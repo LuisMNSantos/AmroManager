@@ -1,0 +1,153 @@
+@inject ResidentService ResidentSvc
+@inject DeliveryService DeliverySvc
+@inject ReservationService ReservaSvc
+@inject NavigationManager Nav
+
+<MudDialog Style="min-width:520px; max-width:680px;">
+    <DialogContent>
+        <MudTextField @ref="_inputRef"
+                      @bind-Value="_query"
+                      Placeholder="Pesquisar quarto, residente, encomenda…"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true"
+                      DebounceInterval="250"
+                      OnDebounceIntervalElapsed="Search"
+                      FullWidth="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Class="mb-2" />
+
+        @if (_searching)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
+        }
+        else if (_query.Length >= 2 && _residents.Count == 0 && _deliveries.Count == 0 && _reservations.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">Sem resultados para "@_query".</MudText>
+        }
+
+        <div style="max-height:380px; overflow-y:auto;">
+            @if (_residents.Count > 0)
+            {
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="px-1 mt-2 d-block">Residentes</MudText>
+                @foreach (var r in _residents)
+                {
+                    var room = r.RoomNumber;
+                    <MudPaper Outlined="true" Class="pa-2 mb-1"
+                              @onclick="@(() => GoToRoom(room))" Style="cursor:pointer;">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Primary" />
+                            <div>
+                                <MudText Typo="Typo.body2"><b>@r.Name</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Quarto #@r.RoomNumber
+                                    @if (!string.IsNullOrEmpty(r.PhoneNumber)) { <span> · @r.PhoneNumber</span> }
+                                </MudText>
+                            </div>
+                            <MudSpacer />
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
+                        </div>
+                    </MudPaper>
+                }
+            }
+
+            @if (_deliveries.Count > 0)
+            {
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="px-1 mt-3 d-block">Encomendas Pendentes</MudText>
+                @foreach (var d in _deliveries)
+                {
+                    var label = d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+                    var days  = (int)(DateTime.UtcNow - d.ArrivedAt).TotalDays;
+                    <MudPaper Outlined="true" Class="pa-2 mb-1"
+                              @onclick="@(() => GoTo("/encomendas"))" Style="cursor:pointer;">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Color="Color.Warning" />
+                            <div>
+                                <MudText Typo="Typo.body2"><b>@label — Quarto #@d.RoomNumber</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">há @days dia@(days!=1?"s":"") · @d.ArrivedAt.ToLocalTime().ToString("dd/MM")</MudText>
+                            </div>
+                            <MudSpacer />
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
+                        </div>
+                    </MudPaper>
+                }
+            }
+
+            @if (_reservations.Count > 0)
+            {
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="px-1 mt-3 d-block">Reservas Futuras</MudText>
+                @foreach (var r in _reservations)
+                {
+                    var space = r.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                    var date  = r.StartTime.ToLocalTime();
+                    <MudPaper Outlined="true" Class="pa-2 mb-1"
+                              @onclick="@(() => GoTo("/calendario"))" Style="cursor:pointer;">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Small" Color="Color.Primary" />
+                            <div>
+                                <MudText Typo="Typo.body2"><b>@space — Quarto #@r.RoomNumber</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@date.ToString("dd/MM HH:mm")</MudText>
+                            </div>
+                            <MudSpacer />
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" />
+                        </div>
+                    </MudPaper>
+                }
+            }
+        </div>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private MudTextField<string>? _inputRef;
+    private string _query = string.Empty;
+    private bool _searching;
+
+    private List<Resident> _residents     = [];
+    private List<Delivery> _deliveries    = [];
+    private List<Reservation> _reservations = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _inputRef is not null)
+            await _inputRef.FocusAsync();
+    }
+
+    private async Task Search()
+    {
+        if (_query.Trim().Length < 2) { _residents = []; _deliveries = []; _reservations = []; StateHasChanged(); return; }
+
+        _searching = true;
+        StateHasChanged();
+
+        var q    = _query.Trim();
+        var room = ResidentService.ParseRoomNumber(q);
+
+        try
+        {
+            await Task.WhenAll(
+                Task.Run(async () => _residents = await ResidentSvc.SearchAsync(q)),
+                Task.Run(async () => _deliveries = string.IsNullOrEmpty(room) ? [] :
+                    await DeliverySvc.GetPendingByRoomAsync(room)),
+                Task.Run(async () => _reservations = string.IsNullOrEmpty(room) ? [] :
+                    await ReservaSvc.GetUpcomingByRoomAsync(room))
+            );
+        }
+        finally { _searching = false; StateHasChanged(); }
+    }
+
+    private void GoToRoom(string room)
+    {
+        Nav.NavigateTo($"/quarto/{Uri.EscapeDataString(room)}");
+        MudDialog.Cancel();
+    }
+
+    private void GoTo(string url)
+    {
+        Nav.NavigateTo(url);
+        MudDialog.Cancel();
+    }
+}

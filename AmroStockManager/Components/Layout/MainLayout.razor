@@ -1,7 +1,9 @@
 @inherits LayoutComponentBase
 @using Microsoft.Maui
 @using Microsoft.Maui.Storage
+@using AmroStockManager.Components.Pages
 @inject ConnectivityService Connectivity
+@inject IDialogService DialogService
 @implements IDisposable
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDark" />
@@ -17,6 +19,10 @@
                        OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h6" Class="ml-2">AMRO Porto Manager</MudText>
         <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Search"
+                       Color="Color.Inherit"
+                       Title="Pesquisa global (Ctrl+K)"
+                       OnClick="OpenSearch" />
         <MudIconButton Icon="@(_isDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                        Color="Color.Inherit"
                        OnClick="ToggleDarkMode" />
@@ -46,6 +52,10 @@
                 </MudNavLink>
                 <MudNavLink Href="/encomendas" Icon="@Icons.Material.Filled.LocalShipping">
                     Encomendas & Cartas
+                </MudNavLink>
+                <MudDivider Class="my-2" />
+                <MudNavLink Href="/quarto" Icon="@Icons.Material.Filled.MeetingRoom">
+                    Vista de Quarto
                 </MudNavLink>
                 <MudDivider Class="my-2" />
                 <MudNavLink Href="/administracao" Icon="@Icons.Material.Filled.AdminPanelSettings">
@@ -121,6 +131,10 @@
     private void OnConnectivityChanged() => InvokeAsync(StateHasChanged);
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void OpenSearch() =>
+        DialogService.ShowAsync<GlobalSearchDialog>(string.Empty,
+            new DialogOptions { CloseOnEscapeKey = true, BackdropClick = true, NoHeader = true });
 
     private void ToggleDarkMode()
     {

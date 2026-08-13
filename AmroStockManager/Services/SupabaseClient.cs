@@ -37,17 +37,26 @@ public class SupabaseClient
 
     public async Task<int> GetCountAsync(string table, string? query = null)
     {
-        var url = query is not null ? $"rest/v1/{table}?{query}" : $"rest/v1/{table}";
+        // limit=0 → PostgREST returns no rows but still sets Content-Range with the total
+        var q   = query is not null ? $"{query}&limit=0" : "limit=0";
+        var url = $"rest/v1/{table}?{q}";
         var resp = await SendWithRetryAsync(() =>
         {
             var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Add("Prefer", "count=exact");
-            req.Headers.Range = new RangeHeaderValue(0, 0);
             return req;
         });
         await EnsureSuccessAsync(resp, url);
-        var contentRange = resp.Content.Headers.ContentRange;
-        return contentRange?.HasLength == true ? (int)contentRange.Length!.Value : 0;
+
+        // PostgREST returns "Content-Range: 0-24/573" or "*/0" — no unit prefix, so
+        // .NET's ContentRangeHeaderValue always fails to parse it. Read the raw string.
+        IEnumerable<string>? headerVals = null;
+        resp.Content.Headers.TryGetValues("Content-Range", out headerVals);
+        if (headerVals is null) resp.Headers.TryGetValues("Content-Range", out headerVals);
+
+        var raw   = headerVals?.FirstOrDefault();
+        var slash = raw?.IndexOf('/') ?? -1;
+        return slash >= 0 && int.TryParse(raw![(slash + 1)..], out var count) ? count : 0;
     }
 
     public async Task<T?> InsertAsync<T>(string table, object body)
@@ -64,6 +73,14 @@ public class SupabaseClient
         await EnsureSuccessAsync(resp, $"POST {table}");
         var list = await resp.Content.ReadFromJsonAsync<List<T>>(_opts);
         return list is { Count: > 0 } ? list[0] : default;
+    }
+
+    public async Task DeleteAsync(string table, string filter)
+    {
+        var resp = await SendWithRetryAsync(() =>
+            new HttpRequestMessage(HttpMethod.Delete, $"rest/v1/{table}?{filter}"),
+            retryOn5xx: false);
+        await EnsureSuccessAsync(resp, $"DELETE {table}?{filter}");
     }
 
     public async Task PatchAsync(string table, string filter, object patch)

@@ -36,6 +36,19 @@ public class GeneralItemService(SupabaseClient db, CacheService cache)
         return loans.Select(l => (l, nameById.TryGetValue(l.GeneralItemId, out var n) ? n : "?")).ToList();
     }
 
+    public async Task<List<(GeneralItemLoan Loan, string ItemName)>> GetLoanHistoryByRoomAsync(string roomNumber, int limit = 10)
+    {
+        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var loans = await db.GetAsync<GeneralItemLoan>("general_item_loans",
+            $"is_deleted=eq.false&is_returned=eq.true&room_number=eq.{room}&order=return_date.desc&limit={limit}");
+        if (loans.Count == 0) return [];
+
+        var ids      = string.Join(",", loans.Select(l => l.GeneralItemId).Distinct());
+        var items    = await db.GetAsync<GeneralItem>("general_items", $"sync_id=in.({ids})&select=sync_id,name");
+        var nameById = items.ToDictionary(i => i.Id, i => i.Name);
+        return loans.Select(l => (l, nameById.TryGetValue(l.GeneralItemId, out var n) ? n : "?")).ToList();
+    }
+
     public async Task<List<GeneralItemLoan>> GetHistoryAsync(string itemId)
     {
         return await db.GetAsync<GeneralItemLoan>("general_item_loans",
