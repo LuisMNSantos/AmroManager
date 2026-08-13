@@ -134,6 +134,18 @@ public class MaintenanceService(SupabaseClient db)
         await db.PatchAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}", patch);
     }
 
+    public Task<int> GetPiiPurgePreviewAsync(int monthsOlderThan)
+    {
+        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        return db.GetCountAsync("residents", $"is_deleted=eq.true&updated_at=lt.{cutoff}");
+    }
+
+    public async Task PurgePiiAsync(int monthsOlderThan)
+    {
+        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        await db.DeleteAsync("residents", $"is_deleted=eq.true&updated_at=lt.{cutoff}");
+    }
+
     private static string Csv(object? value) =>
         $"\"{(value?.ToString() ?? "").Replace("\"", "\"\"")}\"";
 }

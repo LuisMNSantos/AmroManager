@@ -65,6 +65,34 @@
             </MudAlert>
         }
 
+        <MudDivider Class="my-4" />
+
+        <!-- GDPR / PII purge -->
+        <div class="d-flex align-center gap-2 mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Warning" Size="Size.Small" />
+            <MudText Typo="Typo.subtitle2">Eliminação permanente de dados pessoais (GDPR)</MudText>
+        </div>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Remove definitivamente da base de dados os registos de residentes que foram eliminados
+            (soft-delete) há mais de <b>@_months meses</b>. Esta operação é <b>irreversível</b> e
+            elimina nome, quarto e telemóvel.
+        </MudText>
+
+        @if (_loadingPii)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Warning" Class="mb-3" />
+        }
+        else
+        {
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.body2">Residentes elegíveis para purga:</MudText>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(_piiCount > 0 ? Color.Warning : Color.Default)">
+                    @_piiCount
+                </MudChip>
+            </div>
+        }
+
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => MudDialog.Cancel())">Fechar</MudButton>
@@ -82,6 +110,13 @@
                    OnClick="Cleanup">
             Limpar Histórico
         </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.DeleteForever"
+                   Disabled="@(_piiCount == 0 || _working)"
+                   OnClick="PurgePii">
+            Purgar Dados Pessoais
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -90,22 +125,24 @@
 
     private int _months = 6;
     private bool _loadingPreview;
+    private bool _loadingPii;
     private bool _working;
     private CleanupPreview? _preview;
     private string? _exportedPath;
+    private int _piiCount;
 
     private int Total => _preview is null ? 0
         : _preview.ReturnedLoans + _preview.OldReservations + _preview.OldMovements + _preview.OldDeliveries;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadPreview();
+        await Task.WhenAll(LoadPreview(), LoadPiiPreview());
     }
 
     private async Task OnPeriodChanged(int months)
     {
         _months = months;
-        await LoadPreview();
+        await Task.WhenAll(LoadPreview(), LoadPiiPreview());
     }
 
     private async Task LoadPreview()
@@ -113,6 +150,13 @@
         _loadingPreview = true;
         _preview = await MaintSvc.GetPreviewAsync(_months);
         _loadingPreview = false;
+    }
+
+    private async Task LoadPiiPreview()
+    {
+        _loadingPii = true;
+        _piiCount = await MaintSvc.GetPiiPurgePreviewAsync(_months);
+        _loadingPii = false;
     }
 
     private async Task ExportCsv()
@@ -143,6 +187,22 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Erro ao limpar: {ex.Message}", Severity.Error);
+        }
+        _working = false;
+    }
+
+    private async Task PurgePii()
+    {
+        _working = true;
+        try
+        {
+            await MaintSvc.PurgePiiAsync(_months);
+            Snackbar.Add($"{_piiCount} residente(s) eliminados permanentemente.", Severity.Success);
+            await LoadPiiPreview();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao purgar: {ex.Message}", Severity.Error);
         }
         _working = false;
     }

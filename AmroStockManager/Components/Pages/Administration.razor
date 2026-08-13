@@ -226,7 +226,7 @@ else
 
     private async Task TryUnlock()
     {
-        if (_pinInput == ResidentSvc.GetPin())
+        if (ResidentSvc.VerifyPin(_pinInput))
         {
             _sessionUnlocked = true;
             _unlocked = true;

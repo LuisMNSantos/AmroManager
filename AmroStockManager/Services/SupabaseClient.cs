@@ -75,6 +75,14 @@ public class SupabaseClient
         return list is { Count: > 0 } ? list[0] : default;
     }
 
+    public async Task DeleteAsync(string table, string filter)
+    {
+        var resp = await SendWithRetryAsync(() =>
+            new HttpRequestMessage(HttpMethod.Delete, $"rest/v1/{table}?{filter}"),
+            retryOn5xx: false);
+        await EnsureSuccessAsync(resp, $"DELETE {table}?{filter}");
+    }
+
     public async Task PatchAsync(string table, string filter, object patch)
     {
         var resp = await SendWithRetryAsync(() =>
