@@ -145,6 +145,46 @@ public class ResidentService(SupabaseClient db, CacheService cache)
         return (residents.Count, skipped);
     }
 
+    public async Task AddOrUpdateAsync(Resident r)
+    {
+        if (string.IsNullOrEmpty(r.Id))
+        {
+            await db.InsertAsync<Resident>("residents", new
+            {
+                sync_id         = Guid.NewGuid().ToString(),
+                name            = r.Name.Trim(),
+                room_number     = r.RoomNumber.Trim().ToUpper(),
+                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator = r.IsCollaborator,
+                is_deleted      = false,
+                updated_at      = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            await db.PatchAsync("residents", $"sync_id=eq.{r.Id}", new
+            {
+                name            = r.Name.Trim(),
+                room_number     = r.RoomNumber.Trim().ToUpper(),
+                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator = r.IsCollaborator,
+                updated_at      = DateTime.UtcNow
+            });
+        }
+        cache.Invalidate(_residentsKey);
+    }
+
+    public async Task<(int PendingDeliveries, int ActiveLoans, int UpcomingReservations)> GetActiveItemCountsForRoomAsync(string roomNumber)
+    {
+        var room   = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var utcNow = Uri.EscapeDataString(DateTime.UtcNow.ToString("O"));
+        var t1 = db.GetCountAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.false&room_number=eq.{room}");
+        var t2 = db.GetCountAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.false&room_number=eq.{room}");
+        var t3 = db.GetCountAsync("reservations",       $"is_deleted=eq.false&is_cancelled=eq.false&room_number=eq.{room}&end_time=gte.{utcNow}");
+        await Task.WhenAll(t1, t2, t3);
+        return (t1.Result, t2.Result, t3.Result);
+    }
+
     public async Task DeleteResidentAsync(string id)
     {
         await db.PatchAsync("residents", $"sync_id=eq.{id}", new { is_deleted = true, updated_at = DateTime.UtcNow });

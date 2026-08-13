@@ -42,7 +42,12 @@
 <!-- ── Main content ── -->
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Administração</MudText>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
+                   Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="@(() => OpenResidentForm(null))">
+            Novo Residente
+        </MudButton>
         <MudButton StartIcon="@Icons.Material.Filled.FileUpload"
                    Variant="Variant.Outlined" Color="Color.Primary"
                    OnClick="ImportCsv">
@@ -160,7 +165,7 @@ else
 
     <MudPaper Elevation="2" Class="overflow-hidden">
         <!-- Table header -->
-        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 96px;
+        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 128px;
                     padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
             <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
@@ -172,7 +177,7 @@ else
         @foreach (var r in Filtered)
         {
             var resident = r;
-            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 96px;
+            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 128px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                         align-items:center;">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
@@ -187,11 +192,17 @@ else
                     @(resident.IsCollaborator ? "Colaborador" : "Residente")
                 </MudChip>
                 <div class="d-flex gap-1 align-center justify-end">
-                    <MudIconButton Icon="@Icons.Material.Filled.PersonSearch"
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    Color="Color.Primary" Size="Size.Small"
+                                   Title="Editar"
+                                   OnClick="@(() => OpenResidentForm(resident))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonSearch"
+                                   Color="Color.Default" Size="Size.Small"
+                                   Title="Ver quarto"
                                    OnClick="@(() => OpenDetailDialog(resident))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                    Color="Color.Error" Size="Size.Small"
+                                   Title="Eliminar"
                                    OnClick="@(() => DeleteResident(resident))" />
                 </div>
             </div>
@@ -303,15 +314,45 @@ else
         }
     }
 
+    private async Task OpenResidentForm(Resident? resident)
+    {
+        var parameters = new DialogParameters<ResidentFormDialog> { { x => x.Resident, resident } };
+        var title      = resident is null ? "Novo Residente" : "Editar Residente";
+        var result     = await DialogService.ShowAsync<ResidentFormDialog>(title, parameters);
+        if (!(await result.Result).Canceled)
+            await LoadResidents();
+    }
+
     private async Task DeleteResident(Resident r)
     {
+        var (deliveries, loans, reservations) = await ResidentSvc.GetActiveItemCountsForRoomAsync(r.RoomNumber);
+        var hasActive = deliveries > 0 || loans > 0 || reservations > 0;
+
+        string message;
+        if (hasActive)
+        {
+            var parts = new List<string>();
+            if (deliveries   > 0) parts.Add($"{deliveries} encomenda(s) por levantar");
+            if (loans        > 0) parts.Add($"{loans} empréstimo(s) ativo(s)");
+            if (reservations > 0) parts.Add($"{reservations} reserva(s) futura(s)");
+            message = $"Eliminar {r.Name} do quarto #{r.RoomNumber}?\n\n" +
+                      $"Atenção: este quarto tem {string.Join(", ", parts)}. " +
+                      $"Esses registos continuam no sistema mas sem residente associado.";
+        }
+        else
+        {
+            message = $"Eliminar {r.Name} do quarto #{r.RoomNumber}?";
+        }
+
         var confirmed = await DialogService.ShowMessageBox(
-            "Eliminar",
-            $"Eliminar {r.Name}?",
+            "Eliminar Residente",
+            (MarkupString)message,
             yesText: "Eliminar", cancelText: "Cancelar");
         if (confirmed != true) return;
+
         await ResidentSvc.DeleteResidentAsync(r.Id);
         await LoadResidents();
+        Snackbar.Add("Residente eliminado.", Severity.Success);
     }
 
     private async Task OpenDetailDialog(Resident resident)
