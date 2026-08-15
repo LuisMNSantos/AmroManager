@@ -1,6 +1,7 @@
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
 @inject DeliveryService DeliverySvc
+@inject ISnackbar Snackbar
 @using Microsoft.Maui.ApplicationModel
 
 <MudDialog Style="min-width:480px; max-width:600px;">
@@ -176,14 +177,21 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var loansTask      = ItemSvc.GetActiveLoansByRoomAsync(Resident.RoomNumber);
-        var reservTask     = ReservaSvc.GetUpcomingByRoomAsync(Resident.RoomNumber);
-        var deliveriesTask = DeliverySvc.GetPendingByRoomAsync(Resident.RoomNumber);
-        await Task.WhenAll(loansTask, reservTask, deliveriesTask);
-        _loans        = loansTask.Result;
-        _reservations = reservTask.Result;
-        _deliveries   = deliveriesTask.Result;
-        _loading      = false;
+        try
+        {
+            var loansTask      = ItemSvc.GetActiveLoansByRoomAsync(Resident.RoomNumber);
+            var reservTask     = ReservaSvc.GetUpcomingByRoomAsync(Resident.RoomNumber);
+            var deliveriesTask = DeliverySvc.GetPendingByRoomAsync(Resident.RoomNumber);
+            await Task.WhenAll(loansTask, reservTask, deliveriesTask);
+            _loans        = loansTask.Result;
+            _reservations = reservTask.Result;
+            _deliveries   = deliveriesTask.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
+        finally { _loading = false; }
     }
 
     private async Task OpenWhatsApp()

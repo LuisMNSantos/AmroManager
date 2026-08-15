@@ -138,6 +138,14 @@
     </MudItem>
 </MudGrid>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="LoadResidents" Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
+
 <!-- CSV hint -->
 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
     Formato CSV: <b>Nome, Quarto, Telemóvel, Colaborador</b> &nbsp;·&nbsp;
@@ -215,6 +223,7 @@ else
 
     private bool _unlocked = _sessionUnlocked;
     private bool _loading = true;
+    private string? _error;
     private string _pinInput = string.Empty;
     private bool _pinError;
     private bool _showChangePinForm;
@@ -260,7 +269,15 @@ else
 
     private async Task LoadResidents()
     {
-        _residents = await ResidentSvc.GetAllAsync();
+        _error = null;
+        try
+        {
+            _residents = await ResidentSvc.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
     }
 
     private void ChangePin()

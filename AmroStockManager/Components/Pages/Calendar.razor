@@ -34,6 +34,14 @@
     </div>
 </div>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="LoadMonth" Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
+
 @if (_showStats)
 {
     <MudPaper Elevation="2" Class="pa-4 mb-4">
@@ -275,6 +283,7 @@ else
     private DateTime _selectedDate = DateTime.Today;
     private bool _loadingMonth = true;
     private bool _loadingDay;
+    private string? _error;
     private List<Reservation> _reservations = [];
     private List<CalendarCell> _calendarCells = [];
     private Dictionary<int, int> _monthlyCounts = [];
@@ -336,10 +345,19 @@ else
 
     private async Task LoadMonth()
     {
+        _error = null;
         _loadingMonth = true;
-        _monthlyCounts = await ReservaSvc.GetCountsByMonthAsync(_currentMonth.Year, _currentMonth.Month);
-        BuildCalendarCells();
-        _loadingMonth = false;
+        StateHasChanged();
+        try
+        {
+            _monthlyCounts = await ReservaSvc.GetCountsByMonthAsync(_currentMonth.Year, _currentMonth.Month);
+            BuildCalendarCells();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loadingMonth = false; }
     }
 
     private void BuildCalendarCells()
@@ -378,8 +396,16 @@ else
     private async Task LoadDay()
     {
         _loadingDay = true;
-        _reservations = await ReservaSvc.GetByDateAsync(_selectedDate);
-        _loadingDay = false;
+        StateHasChanged();
+        try
+        {
+            _reservations = await ReservaSvc.GetByDateAsync(_selectedDate);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loadingDay = false; }
     }
 
     private async Task BackToMonth()

@@ -22,6 +22,10 @@
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
         }
+        else if (_searchError is not null)
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@_searchError</MudAlert>
+        }
         else if (_query.Length >= 2 && _residents.Count == 0 && _deliveries.Count == 0 && _reservations.Count == 0)
         {
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">Sem resultados para "@_query".</MudText>
@@ -105,6 +109,7 @@
     private MudTextField<string>? _inputRef;
     private string _query = string.Empty;
     private bool _searching;
+    private string? _searchError;
 
     private List<Resident> _residents     = [];
     private List<Delivery> _deliveries    = [];
@@ -118,9 +123,10 @@
 
     private async Task Search()
     {
-        if (_query.Trim().Length < 2) { _residents = []; _deliveries = []; _reservations = []; StateHasChanged(); return; }
+        if (_query.Trim().Length < 2) { _residents = []; _deliveries = []; _reservations = []; _searchError = null; StateHasChanged(); return; }
 
         _searching = true;
+        _searchError = null;
         StateHasChanged();
 
         var q    = _query.Trim();
@@ -135,6 +141,10 @@
                 Task.Run(async () => _reservations = string.IsNullOrEmpty(room) ? [] :
                     await ReservaSvc.GetUpcomingByRoomAsync(room))
             );
+        }
+        catch (Exception ex)
+        {
+            _searchError = $"Erro ao pesquisar: {ex.Message}";
         }
         finally { _searching = false; StateHasChanged(); }
     }

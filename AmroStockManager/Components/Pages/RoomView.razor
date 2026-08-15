@@ -27,6 +27,16 @@
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
 }
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error"
+                   OnClick="@(async () => { if (_roomNumber is not null) await LoadRoomData(_roomNumber); })"
+                   Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
 else if (_roomNumber is null)
 {
     <MudAlert Severity="Severity.Info">Pesquise um quarto ou residente para ver o resumo.</MudAlert>
@@ -241,6 +251,7 @@ else
     private string _searchInput = string.Empty;
     private string? _roomNumber;
     private bool _loading;
+    private string? _error;
 
     private Resident? _resident;
     private List<Delivery> _pendingDeliveries = [];
@@ -275,6 +286,7 @@ else
 
     private async Task LoadRoomData(string room)
     {
+        _error = null;
         _loading = true;
         StateHasChanged();
         try
@@ -288,6 +300,10 @@ else
                 Task.Run(async () => _recentReservations   = await ReservaSvc.GetRecentByRoomAsync(room, 5)),
                 Task.Run(async () => _recentDeliveries     = await DeliverySvc.GetRecentByRoomAsync(room, 5))
             );
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
         }
         finally
         {

@@ -17,6 +17,14 @@
     </MudButton>
 </div>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Load" Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
+
 @if (_loading)
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
@@ -183,6 +191,7 @@ else
 @code {
     private bool _loading = true;
     private bool _showHistory;
+    private string? _error;
     private List<Delivery> _pending = [];
     private List<Delivery> _history = [];
     private Dictionary<string, Resident> _residentByRoom = [];
@@ -203,17 +212,26 @@ else
 
     private async Task Load()
     {
+        _error = null;
         _loading = true;
-        var pendingTask   = DeliverySvc.GetPendingAsync();
-        var residentsTask = ResidentSvc.GetAllAsync();
-        await Task.WhenAll(pendingTask, residentsTask);
-        _pending = pendingTask.Result;
-        _residentByRoom = residentsTask.Result
-            .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
-            .GroupBy(r => r.RoomNumber.ToUpper())
-            .ToDictionary(g => g.Key, g => g.First());
-        if (_showHistory) _history = await DeliverySvc.GetHistoryAsync();
-        _loading = false;
+        StateHasChanged();
+        try
+        {
+            var pendingTask   = DeliverySvc.GetPendingAsync();
+            var residentsTask = ResidentSvc.GetAllAsync();
+            await Task.WhenAll(pendingTask, residentsTask);
+            _pending = pendingTask.Result;
+            _residentByRoom = residentsTask.Result
+                .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+                .GroupBy(r => r.RoomNumber.ToUpper())
+                .ToDictionary(g => g.Key, g => g.First());
+            if (_showHistory) _history = await DeliverySvc.GetHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loading = false; }
     }
 
     private Resident? GetResident(string room) =>

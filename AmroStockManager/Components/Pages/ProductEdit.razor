@@ -127,9 +127,16 @@
     {
         if (!string.IsNullOrEmpty(Id))
         {
-            var existing = await ProductSvc.GetByIdAsync(Id);
-            if (existing is not null)
-                _product = existing;
+            try
+            {
+                var existing = await ProductSvc.GetByIdAsync(Id);
+                if (existing is not null)
+                    _product = existing;
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Erro ao carregar produto: {ex.Message}", Severity.Error);
+            }
         }
     }
 
@@ -152,12 +159,19 @@
         await _form.Validate();
         if (!_isValid) return;
 
-        if (!string.IsNullOrEmpty(Id))
-            await ProductSvc.UpdateAsync(_product);
-        else
-            await ProductSvc.CreateAsync(_product);
+        try
+        {
+            if (!string.IsNullOrEmpty(Id))
+                await ProductSvc.UpdateAsync(_product);
+            else
+                await ProductSvc.CreateAsync(_product);
 
-        Snackbar.Add(!string.IsNullOrEmpty(Id) ? "Produto atualizado!" : "Produto criado!", Severity.Success);
-        Nav.NavigateTo("/products");
+            Snackbar.Add(!string.IsNullOrEmpty(Id) ? "Produto atualizado!" : "Produto criado!", Severity.Success);
+            Nav.NavigateTo("/products");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao guardar produto: {ex.Message}", Severity.Error);
+        }
     }
 }

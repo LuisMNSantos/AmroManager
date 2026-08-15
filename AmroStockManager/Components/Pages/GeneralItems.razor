@@ -17,6 +17,14 @@
     </MudButton>
 </div>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="LoadItems" Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
+
 @if (_loading)
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
@@ -133,6 +141,7 @@ else
 
 @code {
     private bool _loading = true;
+    private string? _error;
     private List<GeneralItem> _items = [];
     private Dictionary<string, Resident> _residentByRoom = [];
 
@@ -152,16 +161,25 @@ else
 
     private async Task LoadItems()
     {
+        _error = null;
         _loading = true;
-        var itemsTask     = ItemSvc.GetAllWithLoansAsync();
-        var residentsTask = ResidentSvc.GetAllAsync();
-        await Task.WhenAll(itemsTask, residentsTask);
-        _items = itemsTask.Result;
-        _residentByRoom = residentsTask.Result
-            .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
-            .GroupBy(r => r.RoomNumber.ToUpper())
-            .ToDictionary(g => g.Key, g => g.First());
-        _loading = false;
+        StateHasChanged();
+        try
+        {
+            var itemsTask     = ItemSvc.GetAllWithLoansAsync();
+            var residentsTask = ResidentSvc.GetAllAsync();
+            await Task.WhenAll(itemsTask, residentsTask);
+            _items = itemsTask.Result;
+            _residentByRoom = residentsTask.Result
+                .Where(r => !string.IsNullOrEmpty(r.RoomNumber))
+                .GroupBy(r => r.RoomNumber.ToUpper())
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loading = false; }
     }
 
     private string RoomDisplay(string room) =>

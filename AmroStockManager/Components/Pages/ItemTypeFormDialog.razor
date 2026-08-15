@@ -46,9 +46,16 @@
             Snackbar.Add("O nome é obrigatório.", Severity.Warning);
             return;
         }
-        await ItemSvc.AddOrUpdateItemAsync(Item);
-        Snackbar.Add("Guardado.", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
+        try
+        {
+            await ItemSvc.AddOrUpdateItemAsync(Item);
+            Snackbar.Add("Guardado.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();

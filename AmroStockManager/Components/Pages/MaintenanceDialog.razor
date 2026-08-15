@@ -148,15 +148,29 @@
     private async Task LoadPreview()
     {
         _loadingPreview = true;
-        _preview = await MaintSvc.GetPreviewAsync(_months);
-        _loadingPreview = false;
+        try
+        {
+            _preview = await MaintSvc.GetPreviewAsync(_months);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao carregar pré-visualização: {ex.Message}", Severity.Error);
+        }
+        finally { _loadingPreview = false; }
     }
 
     private async Task LoadPiiPreview()
     {
         _loadingPii = true;
-        _piiCount = await MaintSvc.GetPiiPurgePreviewAsync(_months);
-        _loadingPii = false;
+        try
+        {
+            _piiCount = await MaintSvc.GetPiiPurgePreviewAsync(_months);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao carregar dados PII: {ex.Message}", Severity.Error);
+        }
+        finally { _loadingPii = false; }
     }
 
     private async Task ExportCsv()

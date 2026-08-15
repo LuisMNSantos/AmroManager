@@ -100,24 +100,31 @@
             return;
         }
 
-        await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes);
-
-        var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
-        Snackbar.Add($"{label} para o quarto {roomNumber} registada.", Severity.Success);
-
-        // WhatsApp notification
-        var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
-        if (resident?.PhoneNumber is not null)
+        try
         {
-            var send = await DialogService.ShowMessageBox(
-                "Notificar Residente",
-                $"Enviar notificação WhatsApp a {resident.Name} ({resident.PhoneNumber})?",
-                yesText: "Enviar", cancelText: "Não");
-            if (send == true)
-                await OpenWhatsApp(resident, _type, _quantity);
-        }
+            await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes);
 
-        MudDialog.Close(DialogResult.Ok(true));
+            var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
+            Snackbar.Add($"{label} para o quarto {roomNumber} registada.", Severity.Success);
+
+            // WhatsApp notification
+            var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
+            if (resident?.PhoneNumber is not null)
+            {
+                var send = await DialogService.ShowMessageBox(
+                    "Notificar Residente",
+                    $"Enviar notificação WhatsApp a {resident.Name} ({resident.PhoneNumber})?",
+                    yesText: "Enviar", cancelText: "Não");
+                if (send == true)
+                    await OpenWhatsApp(resident, _type, _quantity);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
     }
 
     private static async Task OpenWhatsApp(Resident resident, DeliveryType type, int qty)

@@ -138,15 +138,21 @@
         }
 
         var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
-        var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, roomNumber, _notes);
-        if (!ok)
+        try
         {
-            Snackbar.Add("O artigo de saída está sem stock.", Severity.Error);
-            return;
+            var ok = await StockSvc.TradeAsync(_outVariantId, _inVariantId, roomNumber, _notes);
+            if (!ok)
+            {
+                Snackbar.Add("O artigo de saída está sem stock.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Troca registada com sucesso.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
         }
-
-        Snackbar.Add("Troca registada com sucesso.", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
     }
 
     private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct) =>

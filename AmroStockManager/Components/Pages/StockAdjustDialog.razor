@@ -86,9 +86,16 @@
         }
 
         var roomNumber = ResidentService.ParseRoomNumber(_roomInput);
-        await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, roomNumber);
-        Snackbar.Add($"Stock atualizado para {VariantItem.Size}.", Severity.Success);
-        MudDialog.Close(DialogResult.Ok(true));
+        try
+        {
+            await StockSvc.AdjustStockAsync(VariantItem.Id, _amount, _reason, _notes, roomNumber);
+            Snackbar.Add($"Stock atualizado para {VariantItem.Size}.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
     }
 
     private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct) =>

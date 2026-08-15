@@ -24,6 +24,14 @@
     </div>
 </div>
 
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <b>Erro ao carregar dados:</b> @_error
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="LoadProducts" Class="ml-2">Tentar novamente</MudButton>
+    </MudAlert>
+}
+
 <MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-4">
     <MudGrid>
         <MudItem xs="12" sm="5">
@@ -167,6 +175,7 @@ else
     private string _typeFilter = "All";
     private bool _lowStockOnly;
     private bool _loading = true;
+    private string? _error;
     private List<Product> _products = [];
 
     protected override async Task OnInitializedAsync()
@@ -185,9 +194,18 @@ else
 
     private async Task LoadProducts()
     {
+        _error = null;
         _loading = true;
-        _products = await ProductSvc.GetAllAsync(_search, _typeFilter, _lowStockOnly);
-        _loading = false;
+        StateHasChanged();
+        try
+        {
+            _products = await ProductSvc.GetAllAsync(_search, _typeFilter, _lowStockOnly);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loading = false; }
     }
 
     private async Task OpenSaleDialog(SizeVariant variant)
