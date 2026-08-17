@@ -1,6 +1,7 @@
 @page "/administracao"
 @using Microsoft.Maui.Storage
 @inject ResidentService ResidentSvc
+@inject RoomService RoomSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -62,6 +63,11 @@
                    Variant="Variant.Outlined" Color="Color.Error"
                    OnClick="ClearAll">
             Limpar Lista
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.CleaningServices"
+                   Variant="Variant.Outlined"
+                   OnClick="OpenMaintenance">
+            Manutenção
         </MudButton>
     </div>
 </div>
@@ -173,10 +179,11 @@ else
 
     <MudPaper Elevation="2" Class="overflow-hidden">
         <!-- Table header -->
-        <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 128px;
+        <div style="display:grid; grid-template-columns:90px 1fr 195px 155px 110px 128px;
                     padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
             <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Designação</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Telemóvel</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Tipo</MudText>
             <span></span>
@@ -185,13 +192,20 @@ else
         @foreach (var r in Filtered)
         {
             var resident = r;
-            <div style="display:grid; grid-template-columns:90px 1fr 160px 110px 128px;
+            _rooms.TryGetValue(resident.RoomNumber ?? "", out var roomInfo);
+            <div style="display:grid; grid-template-columns:90px 1fr 195px 155px 110px 128px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                         align-items:center;">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
                     @(string.IsNullOrEmpty(resident.RoomNumber) ? "—" : $"#{resident.RoomNumber}")
                 </MudText>
                 <MudText Typo="Typo.body2">@resident.Name</MudText>
+                <MudTooltip Text="@(roomInfo?.Designation ?? "")" Delay="400">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"
+                             Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;">
+                        @(roomInfo?.Designation ?? "—")
+                    </MudText>
+                </MudTooltip>
                 <MudText Typo="Typo.body2" Color="@(resident.PhoneNumber is null ? Color.Secondary : Color.Default)">
                     @(resident.PhoneNumber ?? "—")
                 </MudText>
@@ -231,6 +245,7 @@ else
     private string _confirmPin = string.Empty;
     private string _search = string.Empty;
     private List<Resident> _residents = [];
+    private Dictionary<string, Room> _rooms = [];
 
     private IEnumerable<Resident> Filtered => string.IsNullOrWhiteSpace(_search)
         ? _residents
@@ -272,7 +287,11 @@ else
         _error = null;
         try
         {
-            _residents = await ResidentSvc.GetAllAsync();
+            var residentsTask = ResidentSvc.GetAllAsync();
+            var roomsTask     = RoomSvc.GetAllAsync();
+            await Task.WhenAll(residentsTask, roomsTask);
+            _residents = residentsTask.Result;
+            _rooms     = roomsTask.Result;
         }
         catch (Exception ex)
         {
@@ -389,4 +408,7 @@ else
         await LoadResidents();
         Snackbar.Add("Lista limpa.", Severity.Success);
     }
+
+    private Task OpenMaintenance() =>
+        DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
 }

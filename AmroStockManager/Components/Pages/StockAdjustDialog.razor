@@ -23,13 +23,13 @@
                                  Label="Quantidade (negativo para reduzir)"
                                  FullWidth="true" />
             </MudItem>
-            @if (_reason == MovementReason.Sale || _reason == MovementReason.Trade)
+            @if (_reason == MovementReason.Sale || _reason == MovementReason.Trade || _reason == MovementReason.Restock)
             {
                 <MudItem xs="12">
                     <MudAutocomplete T="string"
                                      @bind-Value="_roomInput"
-                                     Label="Número do Quarto"
-                                     Required="true"
+                                     Label="@(_reason == MovementReason.Restock ? "Número do Quarto (devolução, opcional)" : "Número do Quarto*")"
+                                     Required="@(_reason != MovementReason.Restock)"
                                      RequiredError="Número do quarto obrigatório para uma venda"
                                      SearchFunc="SearchRooms"
                                      CoerceText="true"
@@ -78,7 +78,7 @@
             Snackbar.Add("A quantidade não pode ser zero.", Severity.Warning);
             return;
         }
-        if ((_reason == MovementReason.Sale || _reason == MovementReason.Trade)
+        if (_reason is MovementReason.Sale or MovementReason.Trade
             && string.IsNullOrWhiteSpace(_roomInput))
         {
             Snackbar.Add("Número do quarto obrigatório para uma venda.", Severity.Warning);

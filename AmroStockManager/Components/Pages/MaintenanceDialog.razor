@@ -15,12 +15,14 @@
             e encomendas/cartas entregues) para manter a base de dados leve.
         </MudText>
 
-        <MudSelect T="int" Value="_months" Label="Eliminar registos mais antigos que"
+        <MudSelect T="int" Value="_months"
+                   Label="@(_months == 0 ? "Eliminar registos" : "Eliminar registos mais antigos que")"
                    FullWidth="true" Class="mb-4" ValueChanged="OnPeriodChanged">
             <MudSelectItem Value="1">1 mês</MudSelectItem>
             <MudSelectItem Value="3">3 meses</MudSelectItem>
             <MudSelectItem Value="6">6 meses</MudSelectItem>
             <MudSelectItem Value="12">1 ano</MudSelectItem>
+            <MudSelectItem Value="0">Tudo até hoje</MudSelectItem>
         </MudSelect>
 
         @if (_loadingPreview)
@@ -74,7 +76,7 @@
         </div>
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
             Remove definitivamente da base de dados os registos de residentes que foram eliminados
-            (soft-delete) há mais de <b>@_months meses</b>. Esta operação é <b>irreversível</b> e
+            (soft-delete) @(_months == 0 ? "até hoje" : $"há mais de {_months} meses"). Esta operação é <b>irreversível</b> e
             elimina nome, quarto e telemóvel.
         </MudText>
 

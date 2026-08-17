@@ -11,9 +11,12 @@ public record CleanupPreview(
 
 public class MaintenanceService(SupabaseClient db)
 {
+    private static DateTime Cutoff(int months) =>
+        months == 0 ? DateTime.UtcNow.Date.AddDays(1) : DateTime.UtcNow.AddMonths(-months);
+
     public async Task<CleanupPreview> GetPreviewAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var cutoff = Cutoff(monthsOlderThan).ToString("O");
         var t1 = db.GetCountAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}");
         var t2 = db.GetCountAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}");
         var t3 = db.GetCountAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}");
@@ -24,7 +27,7 @@ public class MaintenanceService(SupabaseClient db)
 
     public async Task<string> ExportToCsvAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan);
+        var cutoff = Cutoff(monthsOlderThan);
         var cutoffStr = cutoff.ToString("O");
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -125,7 +128,7 @@ public class MaintenanceService(SupabaseClient db)
 
     public async Task CleanupAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var cutoff = Cutoff(monthsOlderThan).ToString("O");
         var patch  = new { is_deleted = true, updated_at = DateTime.UtcNow };
 
         await db.PatchAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}", patch);
@@ -136,13 +139,13 @@ public class MaintenanceService(SupabaseClient db)
 
     public Task<int> GetPiiPurgePreviewAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var cutoff = Cutoff(monthsOlderThan).ToString("O");
         return db.GetCountAsync("residents", $"is_deleted=eq.true&updated_at=lt.{cutoff}");
     }
 
     public async Task PurgePiiAsync(int monthsOlderThan)
     {
-        var cutoff = DateTime.UtcNow.AddMonths(-monthsOlderThan).ToString("O");
+        var cutoff = Cutoff(monthsOlderThan).ToString("O");
         await db.DeleteAsync("residents", $"is_deleted=eq.true&updated_at=lt.{cutoff}");
     }
 
