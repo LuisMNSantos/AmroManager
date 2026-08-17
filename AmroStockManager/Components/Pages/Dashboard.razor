@@ -24,25 +24,30 @@
 else if (_alerts.Count > 0)
 {
     <MudPaper Elevation="2" Class="pa-3 mb-4" Style="border-left: 4px solid var(--mud-palette-error);">
-        <div class="d-flex align-center gap-2 mb-2">
+        <div class="d-flex align-center gap-2" style="cursor:pointer;" @onclick="@(() => _alertsCollapsed = !_alertsCollapsed)">
             <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Color="Color.Error" />
-            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+            <MudText Typo="Typo.subtitle1" Style="font-weight:700; flex:1;">
                 @_alerts.Count alerta@(_alerts.Count > 1 ? "s" : "") que requer@(_alerts.Count == 1 ? "" : "em") ação
             </MudText>
+            <MudIcon Icon="@(_alertsCollapsed ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ExpandLess)"
+                     Color="Color.Default" Size="Size.Small" />
         </div>
-        @foreach (var alert in _alerts)
+        @if (!_alertsCollapsed)
         {
-            <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
-                <MudIcon Icon="@alert.Icon" Color="@alert.Color" Size="Size.Small" />
-                <MudText Typo="Typo.body2" Style="flex:1;">@alert.Message</MudText>
-                @if (alert.NavigateTo is not null)
-                {
-                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                               OnClick="@(() => Nav.NavigateTo(alert.NavigateTo))">
-                        Ver
-                    </MudButton>
-                }
-            </div>
+            @foreach (var alert in _alerts)
+            {
+                <div class="d-flex align-center gap-2 py-1 mt-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                    <MudIcon Icon="@alert.Icon" Color="@alert.Color" Size="Size.Small" />
+                    <MudText Typo="Typo.body2" Style="flex:1;">@alert.Message</MudText>
+                    @if (alert.NavigateTo is not null)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                   OnClick="@(() => Nav.NavigateTo(alert.NavigateTo))">
+                            Ver
+                        </MudButton>
+                    }
+                </div>
+            }
         }
     </MudPaper>
 }
@@ -378,6 +383,7 @@ else
     private bool _loading = true;
     private string? _error;
     private List<DashboardAlert> _alerts = [];
+    private bool _alertsCollapsed;
 
     // Tab 1 — Produtos
     private (int totalProducts, int totalUnits, int lowStockCount) _stats;
