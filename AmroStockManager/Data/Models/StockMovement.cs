@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace AmroStockManager.Data.Models;
 
-public enum MovementReason { Sale, Restock, Adjustment, Trade }
+public enum MovementReason { Sale, Restock, Adjustment, Trade, Distribution }
 
 public class StockMovement
 {

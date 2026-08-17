@@ -6,15 +6,10 @@
 @inject ResidentService ResidentSvc
 @inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
-@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @implements IDisposable
-<div class="d-flex align-center justify-space-between mb-4">
+<div class="mb-4">
     <MudText Typo="Typo.h4">Painel</MudText>
-    <MudIconButton Icon="@Icons.Material.Filled.CleaningServices"
-                   Color="Color.Default"
-                   Size="Size.Medium"
-                   OnClick="OpenMaintenance" />
 </div>
 
 @if (_loading)
@@ -490,11 +485,6 @@ else
         }
     }
 
-    private async Task OpenMaintenance()
-    {
-        await DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
-    }
-
     private async Task ExportStockCsv()
     {
         try
@@ -518,10 +508,11 @@ else
 
     private static string TraducirMotivo(MovementReason r) => r switch
     {
-        MovementReason.Sale       => "Venda",
-        MovementReason.Restock    => "Reposição",
-        MovementReason.Adjustment => "Ajuste",
-        MovementReason.Trade      => "Troca",
-        _                         => r.ToString()
+        MovementReason.Sale         => "Venda",
+        MovementReason.Restock      => "Reposição",
+        MovementReason.Adjustment   => "Ajuste",
+        MovementReason.Trade        => "Troca",
+        MovementReason.Distribution => "Distribuição",
+        _                           => r.ToString()
     };
 }

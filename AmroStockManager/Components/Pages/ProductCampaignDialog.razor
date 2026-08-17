@@ -1,0 +1,131 @@
+@inject DistributionService DistribSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudDialog Style="min-width:500px; max-width:680px;">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Campanhas — @Product.Name</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+        }
+        else if (_campaigns.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Nenhuma campanha de distribuição para este produto. Crie uma nova para começar.
+            </MudText>
+        }
+        else
+        {
+            @foreach (var c in _campaigns)
+            {
+                var campaign = c;
+                <MudPaper Outlined="true" Class="pa-3 mb-2">
+                    <div class="d-flex align-center gap-2 mb-1">
+                        <div style="flex:1;">
+                            <MudText Typo="Typo.subtitle2">@campaign.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@campaign.VariantLabel</MudText>
+                        </div>
+                        @if (campaign.PendingCount > 0)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@campaign.PendingCount em falta</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Completo</MudChip>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                       Title="Ver detalhes" OnClick="@(() => GoToDetail(campaign.Id))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                       Size="Size.Small" Title="Eliminar"
+                                       OnClick="@(() => DeleteCampaign(campaign))" />
+                    </div>
+                    <MudProgressLinear Value="@campaign.ProgressPct" Color="Color.Success"
+                                       Rounded="true" Size="Size.Small" Class="mb-1" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @campaign.DeliveredCount / @campaign.TotalRooms entregues
+                        · @campaign.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")
+                    </MudText>
+                </MudPaper>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Fechar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.AddCircle"
+                   OnClick="NewCampaign">
+            Nova Campanha
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Product Product { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<DistributionCampaign> _campaigns = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var variantIds = Product.SizeVariants.Select(v => v.Id);
+            _campaigns = await DistribSvc.GetByVariantsAsync(variantIds);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task NewCampaign()
+    {
+        var parameters = new DialogParameters<NewCampaignDialog>
+        {
+            { x => x.PreselectedProduct, Product }
+        };
+        var dialog = await DialogService.ShowAsync<NewCampaignDialog>("Nova Campanha", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true });
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is string campaignId)
+        {
+            MudDialog.Cancel();
+            Nav.NavigateTo($"/distribuicoes/{campaignId}");
+        }
+        else if (!result.Canceled)
+        {
+            await Load();
+        }
+    }
+
+    private void GoToDetail(string campaignId)
+    {
+        MudDialog.Cancel();
+        Nav.NavigateTo($"/distribuicoes/{campaignId}");
+    }
+
+    private async Task DeleteCampaign(DistributionCampaign campaign)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Campanha",
+            $"Eliminar a campanha '{campaign.Name}'? Todos os registos de entrega associados serão também eliminados.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        try
+        {
+            await DistribSvc.DeleteAsync(campaign.Id);
+            Snackbar.Add("Campanha eliminada.", Severity.Success);
+            await Load();
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+    }
+}

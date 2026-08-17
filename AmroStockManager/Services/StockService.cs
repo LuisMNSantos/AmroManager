@@ -124,6 +124,30 @@ public class StockService(SupabaseClient db)
         return low.OrderBy(sv => sv.Quantity).ToList();
     }
 
+    public async Task<List<StockMovement>> GetRoomMovementsAsync(string roomNumber)
+    {
+        var room      = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        var distValue = (int)MovementReason.Distribution;
+        var movements = await db.GetAsync<StockMovement>("stock_movements",
+            $"is_deleted=eq.false&room_number=eq.{room}&reason=neq.{distValue}&order=date.desc");
+        if (movements.Count == 0) return movements;
+
+        var variantIds = movements.Select(m => m.SizeVariantId).Distinct();
+        var variants   = await db.GetAsync<SizeVariant>("size_variants",
+            $"sync_id=in.({string.Join(",", variantIds)})");
+        var productIds = variants.Select(v => v.ProductId).Distinct();
+        var products   = await db.GetAsync<Product>("products",
+            $"sync_id=in.({string.Join(",", productIds)})&select=sync_id,name,color");
+
+        var productById = products.ToDictionary(p => p.Id);
+        var variantById = variants.ToDictionary(v => v.Id);
+        foreach (var v in variants)
+            v.Product = productById.GetValueOrDefault(v.ProductId) ?? new Product();
+        foreach (var m in movements)
+            m.SizeVariant = variantById.GetValueOrDefault(m.SizeVariantId) ?? new SizeVariant();
+        return movements;
+    }
+
     public async Task ExportToCsvAsync(string filePath)
     {
         var variantsTask = db.GetAsync<SizeVariant>("size_variants", "is_deleted=eq.false");

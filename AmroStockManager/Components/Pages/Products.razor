@@ -93,6 +93,10 @@ else
                     </MudText>
                 </CardHeaderContent>
                 <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.LocalShipping"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => OpenCampaignDialog(product))"
+                                   Tooltip="Campanhas de distribuição" />
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    OnClick="@(() => Nav.NavigateTo($"/products/{product.Id}/edit"))"
                                    Tooltip="Editar produto" />
@@ -250,6 +254,13 @@ else
             new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
         if (result is { Canceled: false }) await LoadProducts();
+    }
+
+    private async Task OpenCampaignDialog(Product product)
+    {
+        var parameters = new DialogParameters<ProductCampaignDialog> { { x => x.Product, product } };
+        await DialogService.ShowAsync<ProductCampaignDialog>(string.Empty, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
     }
 
     private async Task DeleteProduct(Product product)

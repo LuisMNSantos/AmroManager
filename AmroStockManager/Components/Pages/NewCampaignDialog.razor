@@ -1,0 +1,179 @@
+@inject ProductService ProductSvc
+@inject ResidentService ResidentSvc
+@inject DistributionService DistribSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Nova Campanha de Distribuição</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loadingProducts)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+        }
+
+        <MudTextField @bind-Value="_name" Label="Nome da campanha" FullWidth="true"
+                      Placeholder="ex: Camisolas Verão 2026" Class="mb-3"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+        @if (PreselectedProduct is not null)
+        {
+            <MudTextField Value="@PreselectedProduct.Name" Label="Produto" ReadOnly="true"
+                          FullWidth="true" Class="mb-3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        }
+        else
+        {
+            <MudSelect T="Product?" Value="_selectedProduct" Label="Produto"
+                       FullWidth="true" Class="mb-3" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       ValueChanged="OnProductChanged">
+                <MudSelectItem T="Product?" Value="null"><em>Selecionar produto…</em></MudSelectItem>
+                @foreach (var p in _products)
+                {
+                    <MudSelectItem T="Product?" Value="p">@p.Name @(!string.IsNullOrEmpty(p.Color) ? $"({p.Color})" : "")</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        @if (ActiveProduct is not null)
+        {
+            <MudSelect T="SizeVariant?" @bind-Value="_selectedVariant" Label="Tamanho / Variante"
+                       FullWidth="true" Class="mb-3" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem T="SizeVariant?" Value="null"><em>Selecionar tamanho…</em></MudSelectItem>
+                @foreach (var v in ActiveProduct.SizeVariants.Where(sv => !sv.IsDeleted))
+                {
+                    <MudSelectItem T="SizeVariant?" Value="v">@v.Size (stock: @v.Quantity)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudNumericField T="int" @bind-Value="_quantityPerRoom" Label="Quantidade por quarto"
+                         Min="1" Max="99" FullWidth="true" Class="mb-4"
+                         Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+        <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true"
+                      Lines="2" Class="mb-4" Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+        <div class="d-flex align-center gap-2 mb-2">
+            <MudText Typo="Typo.subtitle2" Style="flex:1;">Quartos a incluir</MudText>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.People"
+                       Disabled="_loadingResidents"
+                       OnClick="LoadAllResidentRooms">
+                Todos os residentes
+            </MudButton>
+        </div>
+        <MudTextField @bind-Value="_roomsText"
+                      Label="Quartos (um por linha ou separados por vírgula)"
+                      FullWidth="true" Lines="5"
+                      Placeholder="101&#10;102&#10;201"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      HelperText="@($"{RoomCount} quarto(s) válido(s)")" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!CanCreate || _saving)"
+                   OnClick="Create">
+            Criar Campanha
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Product? PreselectedProduct { get; set; }
+
+    private bool _loadingProducts = true;
+    private bool _loadingResidents;
+    private bool _saving;
+
+    private List<Product> _products = [];
+    private Product? _selectedProduct;
+    private SizeVariant? _selectedVariant;
+    private string _name = string.Empty;
+    private int _quantityPerRoom = 1;
+    private string _notes = string.Empty;
+    private string _roomsText = string.Empty;
+
+    private Product? ActiveProduct => PreselectedProduct ?? _selectedProduct;
+
+    private IReadOnlyList<string> ParsedRooms => _roomsText
+        .Split([',', '\n', '\r', ';'], StringSplitOptions.RemoveEmptyEntries)
+        .Select(r => r.Trim().ToUpper())
+        .Where(r => r.Length > 0)
+        .Distinct()
+        .OrderBy(r => r)
+        .ToList();
+
+    private int RoomCount => ParsedRooms.Count;
+
+    private bool CanCreate =>
+        !string.IsNullOrWhiteSpace(_name) &&
+        ActiveProduct is not null &&
+        _selectedVariant is not null &&
+        RoomCount > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PreselectedProduct is not null)
+        {
+            _loadingProducts = false;
+            return;
+        }
+        try { _products = await ProductSvc.GetAllAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Erro ao carregar produtos: {ex.Message}", Severity.Error); }
+        finally { _loadingProducts = false; }
+    }
+
+    private void OnProductChanged(Product? p)
+    {
+        _selectedProduct = p;
+        _selectedVariant = null;
+    }
+
+    private async Task LoadAllResidentRooms()
+    {
+        _loadingResidents = true;
+        try
+        {
+            var residents = await ResidentSvc.GetAllAsync();
+            var rooms = residents
+                .Where(r => !string.IsNullOrEmpty(r.RoomNumber) && !r.IsCollaborator)
+                .Select(r => r.RoomNumber.Trim().ToUpper())
+                .Distinct()
+                .OrderBy(r => r);
+            _roomsText = string.Join("\n", rooms);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+        finally { _loadingResidents = false; }
+    }
+
+    private async Task Create()
+    {
+        if (!CanCreate) return;
+
+        var product = ActiveProduct!;
+        var variantLabel = $"{product.Name}" +
+            (!string.IsNullOrEmpty(product.Color) ? $" ({product.Color})" : "") +
+            $" — {_selectedVariant!.Size}";
+
+        _saving = true;
+        try
+        {
+            var id = await DistribSvc.CreateAsync(
+                _name.Trim(),
+                _selectedVariant!.Id,
+                variantLabel,
+                _quantityPerRoom,
+                string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
+                ParsedRooms);
+            MudDialog.Close(DialogResult.Ok(id));
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao criar campanha: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+}
