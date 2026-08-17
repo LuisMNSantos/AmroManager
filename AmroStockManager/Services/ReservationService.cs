@@ -48,10 +48,12 @@ public class ReservationService(SupabaseClient db)
 
     public async Task<List<Reservation>> GetUpcomingByRoomAsync(string roomNumber)
     {
-        var room   = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
-        var utcNow = DateTime.UtcNow.ToString("O");
+        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        // Fetch all non-completed reservations; filter in-memory so activated-but-overdue ones are included
         var list = await db.GetAsync<Reservation>("reservations",
-            $"is_deleted=eq.false&is_cancelled=eq.false&room_number=eq.{room}&end_time=gte.{utcNow}&order=start_time.asc");
+            $"is_deleted=eq.false&is_cancelled=eq.false&is_completed=eq.false&room_number=eq.{room}&order=start_time.asc");
+        var now = DateTime.UtcNow;
+        list = list.Where(r => r.EndTime > now || r.IsActivated).ToList();
         await PopulateAccessCardLoansAsync(list);
         return list;
     }

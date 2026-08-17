@@ -4,6 +4,8 @@
 @inject DeliveryService DeliverySvc
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
+@inject DistributionService DistribSvc
+@inject StockService StockSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
@@ -41,7 +43,7 @@ else if (_roomNumber is null)
 {
     <MudAlert Severity="Severity.Info">Pesquise um quarto ou residente para ver o resumo.</MudAlert>
 }
-else if (_resident is null && _pendingDeliveries.Count == 0 && _activeLoans.Count == 0 && _upcomingReservations.Count == 0)
+else if (_resident is null && _pendingDeliveries.Count == 0 && _activeLoans.Count == 0 && _upcomingReservations.Count == 0 && _deliveredDistributions.Count == 0 && _outboundMovements.Count == 0)
 {
     <MudAlert Severity="Severity.Warning">Nenhuma informação encontrada para o quarto <b>@_roomNumber</b>.</MudAlert>
 }
@@ -160,22 +162,23 @@ else
             </MudPaper>
         </MudItem>
 
-        <!-- Reservas futuras -->
+        <!-- Reservas -->
         <MudItem xs="12" md="6">
             <MudPaper Elevation="2" Class="pa-4" Style="min-height:120px;">
                 <div class="d-flex align-center gap-2 mb-3">
                     <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" />
-                    <MudText Typo="Typo.h6">Reservas Futuras</MudText>
+                    <MudText Typo="Typo.h6">Reservas</MudText>
                 </div>
                 @if (_upcomingReservations.Count == 0)
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sem reservas agendadas.</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Sem reservas agendadas ou em curso.</MudText>
                 }
                 else
                 {
                     @foreach (var r in _upcomingReservations)
                     {
-                        var space = r.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                        var reserv = r;
+                        var space  = r.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
                         <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
                             <div style="flex:1;">
                                 <MudText Typo="Typo.body2"><b>@space</b></MudText>
@@ -183,19 +186,95 @@ else
                                     @r.StartTime.ToLocalTime().ToString("dd/MM HH:mm") – @r.EndTime.ToLocalTime().ToString("HH:mm")
                                 </MudText>
                             </div>
-                            @if (!r.IsActivated)
+                            @if (r.IsActivated)
                             {
-                                <MudChip T="string" Color="Color.Default" Size="Size.Small">Agendada</MudChip>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success"
+                                           StartIcon="@Icons.Material.Filled.AssignmentReturn"
+                                           OnClick="@(() => CompleteReservation(reserv))">
+                                    Devolver Cartão
+                                </MudButton>
                             }
                             else
                             {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Em Curso</MudChip>
+                                <MudChip T="string" Color="Color.Default" Size="Size.Small">Agendada</MudChip>
                             }
                         </div>
                     }
                 }
             </MudPaper>
         </MudItem>
+
+        <!-- Distribuições entregues -->
+        @if (_deliveredDistributions.Count > 0)
+        {
+            <MudItem xs="12">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <div class="d-flex align-center gap-2 mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">Produtos Distribuídos</MudText>
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">@_deliveredDistributions.Count</MudChip>
+                    </div>
+                    @foreach (var (rec, campaign) in _deliveredDistributions)
+                    {
+                        <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" />
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2"><b>@campaign.VariantLabel</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @campaign.Name · @(rec.DistributedAt?.ToLocalTime().ToString("dd/MM/yy HH:mm") ?? "-")
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
+
+        <!-- Movimentos de stock por quarto -->
+        @if (_outboundMovements.Count > 0)
+        {
+            <MudItem xs="12">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <div class="d-flex align-center gap-2 mb-3">
+                        <MudIcon Icon="@Icons.Material.Filled.SwapVert" Color="Color.Secondary" />
+                        <MudText Typo="Typo.h6">Movimentos de Stock</MudText>
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small">@_outboundMovements.Count</MudChip>
+                    </div>
+                    @foreach (var m in _outboundMovements)
+                    {
+                        var isReturn = m.ChangeAmount > 0;
+                        var qty      = Math.Abs(m.ChangeAmount);
+                        var label    = m.Reason switch
+                        {
+                            MovementReason.Sale     => "Entregue",
+                            MovementReason.Restock  => "Devolvido",
+                            MovementReason.Trade    => isReturn ? "Troca (recebido)" : "Troca (saída)",
+                            _                       => isReturn ? "Ajuste +" : "Ajuste −"
+                        };
+                        var icon  = isReturn ? Icons.Material.Filled.ArrowCircleUp : Icons.Material.Filled.ArrowCircleDown;
+                        var color = isReturn ? Color.Success : Color.Error;
+                        <div class="d-flex align-center gap-2 py-1" style="border-top:1px solid rgba(0,0,0,0.06);">
+                            <MudIcon Icon="@icon" Size="Size.Small" Color="@color" />
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2">
+                                    <b>@m.SizeVariant.Product.Name</b>
+                                    @if (!string.IsNullOrEmpty(m.SizeVariant.Product.Color))
+                                    {
+                                        <span style="color:var(--mud-palette-text-secondary);"> (@m.SizeVariant.Product.Color)</span>
+                                    }
+                                    · @m.SizeVariant.Size
+                                    @if (qty > 1) { <span> · @qty un.</span> }
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @label · @m.Date.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                                    @if (!string.IsNullOrEmpty(m.Notes)) { <span> · @m.Notes</span> }
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
 
         <!-- Histórico recente -->
         <MudItem xs="12" md="6">
@@ -260,6 +339,8 @@ else
     private List<(GeneralItemLoan Loan, string ItemName)> _recentLoans = [];
     private List<Reservation> _recentReservations = [];
     private List<Delivery> _recentDeliveries = [];
+    private List<(DistributionRecord Record, DistributionCampaign Campaign)> _deliveredDistributions = [];
+    private List<StockMovement> _outboundMovements = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -298,7 +379,9 @@ else
                 Task.Run(async () => _upcomingReservations = await ReservaSvc.GetUpcomingByRoomAsync(room)),
                 Task.Run(async () => _recentLoans          = await ItemSvc.GetLoanHistoryByRoomAsync(room, 5)),
                 Task.Run(async () => _recentReservations   = await ReservaSvc.GetRecentByRoomAsync(room, 5)),
-                Task.Run(async () => _recentDeliveries     = await DeliverySvc.GetRecentByRoomAsync(room, 5))
+                Task.Run(async () => _recentDeliveries          = await DeliverySvc.GetRecentByRoomAsync(room, 5)),
+                Task.Run(async () => _deliveredDistributions    = await DistribSvc.GetDeliveredByRoomAsync(room)),
+                Task.Run(async () => _outboundMovements         = await StockSvc.GetRoomMovementsAsync(room))
             );
         }
         catch (Exception ex)
@@ -334,6 +417,30 @@ else
             await ItemSvc.ReturnItemAsync(loan.Id);
             Snackbar.Add("Artigo devolvido.", Severity.Success);
             await LoadRoomData(_roomNumber!);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task CompleteReservation(Reservation r)
+    {
+        var space = r.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+        var confirmed = await DialogService.ShowMessageBox(
+            "Devolver Cartão",
+            $"Confirmar devolução do cartão de acesso — {space}? A reserva ficará concluída.",
+            yesText: "Sim, devolvido", cancelText: "Cancelar");
+        if (confirmed != true) return;
+        try
+        {
+            var ok = await ReservaSvc.CompleteAsync(r.Id);
+            if (ok)
+            {
+                Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+                await LoadRoomData(_roomNumber!);
+            }
+            else
+            {
+                Snackbar.Add("Não foi possível concluir — o cartão pode já ter sido devolvido.", Severity.Warning);
+            }
         }
         catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
     }

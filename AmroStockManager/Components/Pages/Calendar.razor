@@ -487,8 +487,11 @@ else
         {
             try
             {
-                await ReservaSvc.CompleteAsync(res.Id);
-                Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+                var ok = await ReservaSvc.CompleteAsync(res.Id);
+                if (ok)
+                    Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+                else
+                    Snackbar.Add("Não foi possível concluir — o cartão pode já ter sido devolvido.", Severity.Warning);
                 await LoadDay();
             }
             catch (Exception ex)
