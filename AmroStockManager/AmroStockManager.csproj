@@ -28,11 +28,12 @@
         <ApplicationDisplayVersion>2.4</ApplicationDisplayVersion>
         <ApplicationVersion>4</ApplicationVersion>
 
-        <!-- MSIX packaging -->
-        <WindowsPackageType>MSIX</WindowsPackageType>
+        <!-- MSIX packaging — Release only; Debug stays unpackaged for local development -->
+        <WindowsPackageType Condition="'$(Configuration)' == 'Release'">MSIX</WindowsPackageType>
+        <WindowsPackageType Condition="'$(Configuration)' != 'Release'">None</WindowsPackageType>
         <WindowsPackagePublisher>CN=AMRO Stock Manager, O=AMRO, C=PT</WindowsPackagePublisher>
-        <PackageCertificateThumbprint>B88CFD86F487C8E3ECBB67D747C7C0AEAD1BB8D8</PackageCertificateThumbprint>
-        <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
+        <PackageCertificateThumbprint Condition="'$(Configuration)' == 'Release'">B88CFD86F487C8E3ECBB67D747C7C0AEAD1BB8D8</PackageCertificateThumbprint>
+        <AppxPackageSigningEnabled Condition="'$(Configuration)' == 'Release'">true</AppxPackageSigningEnabled>
 
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
