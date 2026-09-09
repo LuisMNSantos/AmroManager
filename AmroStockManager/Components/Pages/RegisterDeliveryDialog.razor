@@ -12,22 +12,25 @@
         <MudGrid>
             <!-- Type selector -->
             <MudItem xs="12">
-                <MudButtonGroup Variant="Variant.Outlined" FullWidth="true" Class="mb-1">
-                    <MudButton Color="@(_type == DeliveryType.Encomenda ? Color.Primary : Color.Default)"
-                               Variant="@(_type == DeliveryType.Encomenda ? Variant.Filled : Variant.Outlined)"
+                <div class="d-flex mb-1" style="border:1px solid rgba(0,0,0,0.23); border-radius:4px; overflow:hidden;">
+                    <MudButton FullWidth="true"
+                               Color="@(_type == DeliveryType.Encomenda ? Color.Warning : Color.Default)"
+                               Variant="@(_type == DeliveryType.Encomenda ? Variant.Filled : Variant.Text)"
                                StartIcon="@Icons.Material.Filled.Inventory2"
                                OnClick="@(() => _type = DeliveryType.Encomenda)"
-                               Style="flex:1;">
+                               Style="border-radius:0; flex:1;">
                         Encomenda
                     </MudButton>
-                    <MudButton Color="@(_type == DeliveryType.Carta ? Color.Primary : Color.Default)"
-                               Variant="@(_type == DeliveryType.Carta ? Variant.Filled : Variant.Outlined)"
+                    <div style="width:1px; background:rgba(0,0,0,0.23);"></div>
+                    <MudButton FullWidth="true"
+                               Color="@(_type == DeliveryType.Carta ? Color.Info : Color.Default)"
+                               Variant="@(_type == DeliveryType.Carta ? Variant.Filled : Variant.Text)"
                                StartIcon="@Icons.Material.Filled.Mail"
                                OnClick="@(() => _type = DeliveryType.Carta)"
-                               Style="flex:1;">
+                               Style="border-radius:0; flex:1;">
                         Carta
                     </MudButton>
-                </MudButtonGroup>
+                </div>
             </MudItem>
 
             <!-- Room number with autocomplete -->
