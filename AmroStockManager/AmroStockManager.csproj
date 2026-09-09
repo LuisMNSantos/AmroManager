@@ -22,14 +22,17 @@
         <ApplicationTitle>AmroStockManager</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.amrostockmanager</ApplicationId>
+        <ApplicationId>com.amro.stockmanager</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationDisplayVersion>2.4</ApplicationDisplayVersion>
+        <ApplicationVersion>4</ApplicationVersion>
 
-        <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
-        <WindowsPackageType>None</WindowsPackageType>
+        <!-- MSIX packaging -->
+        <WindowsPackageType>MSIX</WindowsPackageType>
+        <WindowsPackagePublisher>CN=AMRO Stock Manager, O=AMRO, C=PT</WindowsPackagePublisher>
+        <PackageCertificateThumbprint>B88CFD86F487C8E3ECBB67D747C7C0AEAD1BB8D8</PackageCertificateThumbprint>
+        <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
 
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
