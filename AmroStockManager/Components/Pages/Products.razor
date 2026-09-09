@@ -85,12 +85,18 @@ else
                             </MudChip>
                         }
                     </div>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        @product.Type
-                        @if (!string.IsNullOrEmpty(product.Color)) { <span> · @product.Color</span> }
-                        @if (!string.IsNullOrEmpty(product.SKU)) { <span> · SKU: @product.SKU</span> }
-                        <span> · Total: @product.TotalStock un.</span>
-                    </MudText>
+                    <div class="d-flex align-center gap-2 flex-wrap">
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(ProductService.IsBrinde(product.Type) ? Color.Info : Color.Primary)"
+                                 Icon="@(ProductService.IsBrinde(product.Type) ? Icons.Material.Filled.CardGiftcard : Icons.Material.Filled.Checkroom)">
+                            @product.Type
+                        </MudChip>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            @if (!string.IsNullOrEmpty(product.Color)) { <span>@product.Color · </span> }
+                            @if (!string.IsNullOrEmpty(product.SKU)) { <span>SKU: @product.SKU · </span> }
+                            <span>@product.TotalStock un.</span>
+                        </MudText>
+                    </div>
                 </CardHeaderContent>
                 <CardHeaderActions>
                     <MudIconButton Icon="@Icons.Material.Filled.LocalShipping"

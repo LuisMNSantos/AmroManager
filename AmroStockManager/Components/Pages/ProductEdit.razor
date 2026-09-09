@@ -22,11 +22,23 @@
                               Immediate="true" />
             </MudItem>
             <MudItem xs="12" sm="3">
-                <MudSelect T="string" @bind-Value="_product.Type" Label="Tipo" Required="true" RequiredError="O tipo é obrigatório">
-                    @foreach (var t in ProductService.ProductTypes)
+                <MudSelect T="string" Value="_product.Type" Label="Tipo" Required="true" RequiredError="O tipo é obrigatório"
+                           ValueChanged="OnTypeChanged">
+                    <MudSelectItem T="string" Value="@("_vestuario_")" Disabled="true">
+                        <MudText Typo="Typo.caption" Style="font-weight:700; text-transform:uppercase; letter-spacing:.05em;">Vestuário</MudText>
+                    </MudSelectItem>
+                    @foreach (var t in ProductService.ClothingTypes)
                     {
                         <MudSelectItem T="string" Value="@t">@t</MudSelectItem>
                     }
+                    <MudSelectItem T="string" Value="@("_brindes_")" Disabled="true">
+                        <MudText Typo="Typo.caption" Style="font-weight:700; text-transform:uppercase; letter-spacing:.05em;">Brindes</MudText>
+                    </MudSelectItem>
+                    @foreach (var t in ProductService.BrindeTypes)
+                    {
+                        <MudSelectItem T="string" Value="@t">@t</MudSelectItem>
+                    }
+                    <MudSelectItem T="string" Value="@("Other")">Other</MudSelectItem>
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="3">
@@ -40,26 +52,33 @@
         <MudDivider Class="my-5" />
 
         <div class="d-flex align-center justify-space-between mb-3">
-            <MudText Typo="Typo.h6">Variantes de Tamanho</MudText>
+            <MudText Typo="Typo.h6">@(_isBrinde ? "Variantes" : "Variantes de Tamanho")</MudText>
             <MudButton StartIcon="@Icons.Material.Filled.Add"
                        Variant="Variant.Outlined"
                        Size="Size.Small"
                        OnClick="AddVariant">
-                Adicionar Tamanho
+                @(_isBrinde ? "Adicionar Variante" : "Adicionar Tamanho")
             </MudButton>
         </div>
 
         @if (_product.SizeVariants.Count == 0)
         {
             <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
-                Nenhum tamanho definido. Clique em "Adicionar Tamanho" para adicionar stock por tamanho.
+                @if (_isBrinde)
+                {
+                    <span>Nenhuma variante definida. Para brindes sem variante use "Único".</span>
+                }
+                else
+                {
+                    <span>Nenhum tamanho definido. Clique em "Adicionar Tamanho" para adicionar stock por tamanho.</span>
+                }
             </MudAlert>
         }
         else
         {
             <MudTable Items="@_product.SizeVariants" Dense="true" Hover="false" Elevation="0">
                 <HeaderContent>
-                    <MudTh Style="width:150px">Tamanho</MudTh>
+                    <MudTh Style="width:150px">@(_isBrinde ? "Variante" : "Tamanho")</MudTh>
                     <MudTh Style="width:160px">Qtd. Inicial</MudTh>
                     <MudTh Style="width:220px">Alerta de Stock (mín.)</MudTh>
                     <MudTh Style="width:60px"></MudTh>
@@ -122,6 +141,7 @@
     private Product _product = new() { SizeVariants = [] };
     private MudForm _form = null!;
     private bool _isValid;
+    private bool _isBrinde => ProductService.IsBrinde(_product.Type);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -140,11 +160,21 @@
         }
     }
 
+    private void OnTypeChanged(string newType)
+    {
+        _product.Type = newType;
+        // Auto-add "Único" variant when switching to a brinde type with no variants yet
+        if (ProductService.IsBrinde(newType) && _product.SizeVariants.Count == 0)
+            _product.SizeVariants.Add(new SizeVariant { Size = "Único", MinStockAlert = 0 });
+        StateHasChanged();
+    }
+
     private void AddVariant()
     {
         var usedSizes = _product.SizeVariants.Select(sv => sv.Size).ToHashSet();
-        var nextSize = ProductService.StandardSizes.FirstOrDefault(s => !usedSizes.Contains(s)) ?? "XS";
-        _product.SizeVariants.Add(new SizeVariant { Size = nextSize, MinStockAlert = 5 });
+        var defaultSize = _isBrinde ? "Único" : "XS";
+        var nextSize = ProductService.StandardSizes.FirstOrDefault(s => !usedSizes.Contains(s)) ?? defaultSize;
+        _product.SizeVariants.Add(new SizeVariant { Size = nextSize, MinStockAlert = _isBrinde ? 0 : 5 });
         StateHasChanged();
     }
 

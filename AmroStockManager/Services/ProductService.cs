@@ -142,11 +142,16 @@ public class ProductService(ISupabaseClient db)
         await db.PatchAsync("products",      $"sync_id=eq.{id}",          new { is_deleted = true, updated_at = DateTime.UtcNow });
     }
 
-    public static readonly string[] StandardSizes  = ["XS", "S", "M", "L", "XL", "XXL"];
-    public static readonly string[] ProductTypes   = ["Sweatshirt", "Shirt", "Hoodie", "T-Shirt", "Jacket", "Other"];
+    public static readonly string[] StandardSizes  = ["Único", "XS", "S", "M", "L", "XL", "XXL"];
+    public static readonly string[] ClothingTypes  = ["Sweatshirt", "Shirt", "Hoodie", "T-Shirt", "Jacket"];
+    public static readonly string[] BrindeTypes    = ["Garrafa", "Saco", "Caneca", "Boné", "Brinde"];
+    public static readonly string[] ProductTypes   = [.. ClothingTypes, .. BrindeTypes, "Other"];
+
+    public static bool IsBrinde(string? type) =>
+        type is not null && BrindeTypes.Contains(type, StringComparer.OrdinalIgnoreCase);
 
     public static int SizeOrder(string size) => size switch
     {
-        "XS" => 0, "S" => 1, "M" => 2, "L" => 3, "XL" => 4, "XXL" => 5, _ => 99
+        "Único" => 0, "XS" => 1, "S" => 2, "M" => 3, "L" => 4, "XL" => 5, "XXL" => 6, _ => 99
     };
 }
