@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller Uri="https://github.com/LuisMNSantos/amro-manager/releases/latest/download/AmroManager.appinstaller"
+              Version="2.4.0.4"
+              xmlns="http://schemas.microsoft.com/appx/appinstaller/2017/2">
+
+  <MainPackage Name="com.amro.stockmanager"
+               Version="2.4.0.4"
+               Publisher="CN=AMRO Stock Manager, O=AMRO, C=PT"
+               Uri="https://github.com/LuisMNSantos/amro-manager/releases/latest/download/AmroManager_x64.msix"
+               ProcessorArchitecture="x64" />
+
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="0"
+              ShowPrompt="true"
+              UpdateBlocksActivation="false" />
+  </UpdateSettings>
+
+</AppInstaller>
