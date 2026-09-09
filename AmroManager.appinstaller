@@ -6,7 +6,7 @@
   <MainPackage Name="com.amro.stockmanager"
                Version="2.4.0.4"
                Publisher="CN=AMRO Stock Manager, O=AMRO, C=PT"
-               Uri="https://github.com/LuisMNSantos/AmroManager/releases/latest/download/AmroManager_x64.msix"
+               Uri="https://github.com/LuisMNSantos/AmroManager/releases/download/v2.4/AmroManager_x64.msix"
                ProcessorArchitecture="x64" />
 
   <UpdateSettings>
