@@ -19,7 +19,7 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddMudServices();
 
-        builder.Services.AddSingleton<SupabaseClient>();
+        builder.Services.AddSingleton<ISupabaseClient, SupabaseClient>();
         builder.Services.AddSingleton<CacheService>();
         builder.Services.AddSingleton<ConnectivityService>(sp =>
             new ConnectivityService(Connectivity.Current));
@@ -34,6 +34,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ResidentService>();
         builder.Services.AddSingleton<RoomService>();
         builder.Services.AddSingleton<DistributionService>();
+        builder.Services.AddSingleton<BisLoanService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
