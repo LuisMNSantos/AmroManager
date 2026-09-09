@@ -46,5 +46,6 @@ AppSecrets.cs
 
 ## MSIX release artifacts (hosted on GitHub Releases)
 *.msix
-AmroStockManager.appinstaller
+*.appinstaller
 AmroStockManager/AmroStockManager_public.cer
+AmroManager_public.cer
