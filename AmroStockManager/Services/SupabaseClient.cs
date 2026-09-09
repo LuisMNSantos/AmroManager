@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace AmroStockManager.Services;
 
-public class SupabaseClient
+public class SupabaseClient : ISupabaseClient
 {
     private static readonly JsonSerializerOptions _opts = new()
     {

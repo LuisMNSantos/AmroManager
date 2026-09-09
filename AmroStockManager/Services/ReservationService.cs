@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ReservationService(SupabaseClient db)
+public class ReservationService(ISupabaseClient db)
 {
     private const string KitchenCardName = "Cartão de Acesso – Cozinha";
     private const string CinemaCardName  = "Cartão de Acesso – Cinema";

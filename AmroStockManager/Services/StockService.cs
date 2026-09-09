@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class StockService(SupabaseClient db)
+public class StockService(ISupabaseClient db)
 {
     public async Task AdjustStockAsync(string sizeVariantId, int change, MovementReason reason,
                                        string? notes = null, string? roomNumber = null)
