@@ -4,6 +4,7 @@
 @inject ReservationService ReservaSvc
 @inject DeliveryService DeliverySvc
 @inject ResidentService ResidentSvc
+@inject BisLoanService BisSvc
 @inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -401,7 +402,7 @@ else
     }
 
     private static readonly HashSet<string> _watchedTables =
-        ["reservations", "deliveries", "general_item_loans", "general_items", "products", "size_variants", "residents"];
+        ["reservations", "deliveries", "general_item_loans", "general_items", "products", "size_variants", "residents", "bis_loans"];
 
     private void OnTableChanged(string table)
     {
@@ -474,6 +475,20 @@ else
             _alerts.Add(new(
                 $"{label} do quarto #{d.RoomNumber} há {days} dias por levantar",
                 Icons.Material.Filled.LocalShipping, Color.Warning, "/encomendas"));
+        }
+
+        // Cartões BIS por devolver
+        var activeBis = await BisSvc.GetAllActiveAsync();
+        if (activeBis.Count > 0)
+        {
+            var oldest = activeBis.First();
+            var days   = oldest.DaysOut;
+            var suffix = activeBis.Count == 1
+                ? $"quarto #{oldest.RoomNumber} há {(days == 0 ? "menos de 1 dia" : $"{days}d")}"
+                : $"{activeBis.Count} quartos — mais antigo: #{oldest.RoomNumber} há {(days == 0 ? "menos de 1 dia" : $"{days}d")}";
+            _alerts.Add(new(
+                $"Cartão(ões) BIS por devolver — {suffix}",
+                Icons.Material.Filled.CreditCard, Color.Warning, "/administracao"));
         }
 
         // Stock baixo

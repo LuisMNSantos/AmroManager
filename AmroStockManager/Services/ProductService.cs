@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ProductService(SupabaseClient db)
+public class ProductService(ISupabaseClient db)
 {
     public async Task<List<Product>> GetAllAsync(string? search = null, string? type = null, bool lowStockOnly = false)
     {

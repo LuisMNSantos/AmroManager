@@ -9,7 +9,7 @@ public record CleanupPreview(
     int OldMovements,
     int OldDeliveries);
 
-public class MaintenanceService(SupabaseClient db)
+public class MaintenanceService(ISupabaseClient db)
 {
     private static DateTime Cutoff(int months) =>
         months == 0 ? DateTime.UtcNow.Date.AddDays(1) : DateTime.UtcNow.AddMonths(-months);

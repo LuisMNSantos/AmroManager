@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class DistributionService(SupabaseClient db, CacheService cache, StockService stockSvc)
+public class DistributionService(ISupabaseClient db, CacheService cache, StockService stockSvc)
 {
     private static readonly TimeSpan _ttl = TimeSpan.FromSeconds(30);
     private const string _cacheKey = "distributions:all";

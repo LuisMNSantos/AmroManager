@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class GeneralItemService(SupabaseClient db, CacheService cache)
+public class GeneralItemService(ISupabaseClient db, CacheService cache)
 {
     private static readonly TimeSpan _itemsTtl = TimeSpan.FromSeconds(30);
     private const string _itemsKey = "general_items:all";

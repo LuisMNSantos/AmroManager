@@ -8,7 +8,7 @@ public record DeliveryDashboardStats(
     int ArrivedToday,
     int CollectedToday);
 
-public class DeliveryService(SupabaseClient db)
+public class DeliveryService(ISupabaseClient db)
 {
     public async Task<List<Delivery>> GetPendingAsync()
     {

@@ -1,0 +1,53 @@
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-1">
+            Emitir cartão BIS para o quarto <b>#@RoomNumber</b>
+        </MudText>
+        @if (!string.IsNullOrEmpty(ResidentName))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@ResidentName</MudText>
+        }
+
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+            O residente deve devolver este cartão assim que recuperar o original.
+        </MudAlert>
+
+        <MudTextField @bind-Value="_givenBy"
+                      Label="Entregue por"
+                      Placeholder="Nome de quem entrega o cartão"
+                      Required="true"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Class="mb-3"
+                      Immediate="true" />
+
+        <MudTextField @bind-Value="_notes"
+                      Label="Notas (opcional)"
+                      Placeholder="Ex: perdeu na paragem do autocarro"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Lines="2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.CreditCard"
+                   OnClick="Submit"
+                   Disabled="@string.IsNullOrWhiteSpace(_givenBy)">
+            Dar BIS
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string RoomNumber    { get; set; } = string.Empty;
+    [Parameter] public string ResidentName  { get; set; } = string.Empty;
+
+    private string  _givenBy = string.Empty;
+    private string? _notes;
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok((_givenBy.Trim(), _notes)));
+}

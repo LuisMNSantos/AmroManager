@@ -2,6 +2,7 @@
 @using Microsoft.Maui.Storage
 @inject ResidentService ResidentSvc
 @inject RoomService RoomSvc
+@inject BisLoanService BisSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -172,20 +173,31 @@ else if (_residents.Count == 0)
 }
 else
 {
-    <!-- Search -->
-    <MudTextField @bind-Value="_search" Placeholder="Pesquisar nome ou quarto…"
-                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                  Immediate="true" FullWidth="true" Class="mb-3" />
+    <!-- Search + BIS filter -->
+    <div class="d-flex align-center gap-3 mb-3">
+        <MudTextField @bind-Value="_search" Placeholder="Pesquisar nome ou quarto…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" FullWidth="true" Style="flex:1;" />
+        <MudChip T="string"
+                 Color="@(_showBisOnly ? Color.Warning : Color.Default)"
+                 Variant="@(_showBisOnly ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Filled.CreditCard"
+                 OnClick="@(() => _showBisOnly = !_showBisOnly)"
+                 Style="cursor:pointer; white-space:nowrap;">
+            BIS em uso (@_activeBis.Count)
+        </MudChip>
+    </div>
 
     <MudPaper Elevation="2" Class="overflow-hidden">
         <!-- Table header -->
-        <div style="display:grid; grid-template-columns:90px 1fr 195px 155px 110px 128px;
+        <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 100px;
                     padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
             <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Designação</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Telemóvel</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Tipo</MudText>
+            <MudText Typo="Typo.caption" Style="font-weight:700;">Cartão BIS</MudText>
             <span></span>
         </div>
 
@@ -193,7 +205,8 @@ else
         {
             var resident = r;
             _rooms.TryGetValue(resident.RoomNumber ?? "", out var roomInfo);
-            <div style="display:grid; grid-template-columns:90px 1fr 195px 155px 110px 128px;
+            _activeBis.TryGetValue(resident.RoomNumber ?? "", out var bis);
+            <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 100px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                         align-items:center;">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
@@ -213,6 +226,43 @@ else
                          Color="@(resident.IsCollaborator ? Color.Secondary : Color.Primary)">
                     @(resident.IsCollaborator ? "Colaborador" : "Residente")
                 </MudChip>
+
+                <!-- BIS column -->
+                @if (string.IsNullOrEmpty(resident.RoomNumber))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+                else if (bis is null)
+                {
+                    <div class="d-flex align-center gap-1">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success"
+                                 Icon="@Icons.Material.Filled.CreditCard">
+                            Disponível
+                        </MudChip>
+                        <MudTooltip Text="Dar BIS">
+                            <MudIconButton Icon="@Icons.Material.Filled.AddCard"
+                                           Color="Color.Warning" Size="Size.Small"
+                                           OnClick="@(() => GiveBis(resident))" />
+                        </MudTooltip>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-center gap-1">
+                        <MudTooltip Text="@($"Dado por: {bis.GivenBy}\n{bis.LoanDate.ToLocalTime():dd/MM/yy HH:mm}")">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning"
+                                     Icon="@Icons.Material.Filled.CreditCard">
+                                Em uso · @(bis.DaysOut == 0 ? "hoje" : $"{bis.DaysOut}d")
+                            </MudChip>
+                        </MudTooltip>
+                        <MudTooltip Text="Receber BIS">
+                            <MudIconButton Icon="@Icons.Material.Filled.AssignmentReturn"
+                                           Color="Color.Success" Size="Size.Small"
+                                           OnClick="@(() => ReturnBis(resident, bis))" />
+                        </MudTooltip>
+                    </div>
+                }
+
                 <div class="d-flex gap-1 align-center justify-end">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    Color="Color.Primary" Size="Size.Small"
@@ -244,14 +294,16 @@ else
     private string _newPin = string.Empty;
     private string _confirmPin = string.Empty;
     private string _search = string.Empty;
+    private bool _showBisOnly;
     private List<Resident> _residents = [];
     private Dictionary<string, Room> _rooms = [];
+    private Dictionary<string, BisLoan> _activeBis = [];
 
-    private IEnumerable<Resident> Filtered => string.IsNullOrWhiteSpace(_search)
-        ? _residents
-        : _residents.Where(r =>
-            r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
-            r.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<Resident> Filtered => _residents
+        .Where(r => string.IsNullOrWhiteSpace(_search) ||
+                    r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    (r.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(r => !_showBisOnly || _activeBis.ContainsKey(r.RoomNumber ?? ""));
 
     protected override async Task OnInitializedAsync()
     {
@@ -289,9 +341,11 @@ else
         {
             var residentsTask = ResidentSvc.GetAllAsync();
             var roomsTask     = RoomSvc.GetAllAsync();
-            await Task.WhenAll(residentsTask, roomsTask);
+            var bisTask       = BisSvc.GetAllActiveByRoomAsync();
+            await Task.WhenAll(residentsTask, roomsTask, bisTask);
             _residents = residentsTask.Result;
             _rooms     = roomsTask.Result;
+            _activeBis = bisTask.Result;
         }
         catch (Exception ex)
         {
@@ -411,4 +465,41 @@ else
 
     private Task OpenMaintenance() =>
         DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
+
+    private async Task GiveBis(Resident resident)
+    {
+        var parameters = new DialogParameters<BisLoanDialog>
+        {
+            { x => x.RoomNumber,   resident.RoomNumber ?? "" },
+            { x => x.ResidentName, resident.Name }
+        };
+        var dialog = await DialogService.ShowAsync<BisLoanDialog>("Dar Cartão BIS", parameters);
+        var result = await dialog.Result;
+        if (result.Canceled) return;
+
+        var (givenBy, notes) = ((string, string?))result.Data!;
+        var (success, error) = await BisSvc.LendAsync(resident.RoomNumber!, givenBy, notes);
+        if (success)
+        {
+            Snackbar.Add($"Cartão BIS entregue ao quarto #{resident.RoomNumber}.", Severity.Success);
+            await LoadResidents();
+        }
+        else
+        {
+            Snackbar.Add(error ?? "Erro ao dar BIS.", Severity.Error);
+        }
+    }
+
+    private async Task ReturnBis(Resident resident, BisLoan loan)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Receber Cartão BIS",
+            $"Confirmar devolução do cartão BIS do quarto #{resident.RoomNumber} ({resident.Name})?",
+            yesText: "Confirmar devolução", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await BisSvc.ReturnAsync(loan.Id);
+        Snackbar.Add($"Cartão BIS do quarto #{resident.RoomNumber} devolvido.", Severity.Success);
+        await LoadResidents();
+    }
 }

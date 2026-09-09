@@ -2,7 +2,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class RoomService(SupabaseClient db, CacheService cache)
+public class RoomService(ISupabaseClient db, CacheService cache)
 {
     private const string CacheKey = "rooms_all";
 

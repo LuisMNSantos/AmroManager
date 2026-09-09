@@ -3,7 +3,7 @@ using AmroStockManager.Data.Models;
 
 namespace AmroStockManager.Services;
 
-public class ResidentService(SupabaseClient db, CacheService cache)
+public class ResidentService(ISupabaseClient db, CacheService cache)
 {
     private static readonly string PinFile = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
