@@ -90,6 +90,9 @@
       <label>Número de quarto <span class="required">*</span></label>
       <input type="text" id="room" placeholder="Ex: 101" required autocomplete="off" />
 
+      <label>Telemóvel <span class="required">*</span></label>
+      <input type="tel" id="phone" placeholder="Ex: +351 912 345 678" required autocomplete="tel" />
+
       <label>Notas (opcional)</label>
       <textarea id="notes" placeholder="Informação adicional..."></textarea>
 
@@ -107,11 +110,12 @@
       e.preventDefault();
       const btn  = document.getElementById('btn');
       const msg  = document.getElementById('msg');
-      const name = document.getElementById('name').value.trim();
-      const room = document.getElementById('room').value.trim().toUpperCase();
+      const name  = document.getElementById('name').value.trim();
+      const room  = document.getElementById('room').value.trim().toUpperCase();
+      const phone = document.getElementById('phone').value.trim() || null;
       const notes = document.getElementById('notes').value.trim() || null;
 
-      if (!name || !room) return;
+      if (!name || !room || !phone) return;
 
       btn.disabled = true;
       btn.textContent = 'A enviar...';
@@ -127,7 +131,7 @@
             'Content-Type': 'application/json',
             'Prefer': 'return=minimal'
           },
-          body: JSON.stringify({ name, room_number: room, notes })
+          body: JSON.stringify({ name, room_number: room, phone_number: phone, notes })
         });
 
         if (!res.ok) throw new Error(`Erro ${res.status}`);
