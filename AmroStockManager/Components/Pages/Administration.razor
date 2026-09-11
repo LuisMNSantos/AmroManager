@@ -401,6 +401,7 @@ else
         {
             _error = ex.Message;
         }
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ApproveRegistration(PendingRegistration reg)
