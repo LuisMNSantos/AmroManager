@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Registo de Residente — AMRO</title>
+  <title>AMRO — Registo</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -23,10 +23,29 @@
       max-width: 420px;
       box-shadow: 0 4px 24px rgba(0,0,0,.10);
     }
-    .logo {
-      text-align: center;
-      margin-bottom: 1.5rem;
+    .lang-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: .4rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
     }
+    .lang-btn {
+      background: none;
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      padding: .25rem .55rem;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: all .15s;
+      color: #555;
+    }
+    .lang-btn.active, .lang-btn:hover {
+      border-color: #1565C0;
+      color: #1565C0;
+      background: #e3f0ff;
+    }
+    .logo { text-align: center; margin-bottom: 1.5rem; }
     .logo h1 { font-size: 1.5rem; color: #1565C0; font-weight: 700; }
     .logo p  { color: #666; font-size: .9rem; margin-top: .25rem; }
     label {
@@ -48,7 +67,7 @@
     }
     input:focus, textarea:focus { border-color: #1565C0; }
     textarea { resize: vertical; min-height: 80px; }
-    button {
+    button[type=submit] {
       display: block;
       width: 100%;
       margin-top: 1.5rem;
@@ -62,8 +81,8 @@
       cursor: pointer;
       transition: background .2s;
     }
-    button:hover:not(:disabled) { background: #0d47a1; }
-    button:disabled { background: #90caf9; cursor: not-allowed; }
+    button[type=submit]:hover:not(:disabled) { background: #0d47a1; }
+    button[type=submit]:disabled { background: #90caf9; cursor: not-allowed; }
     .msg {
       margin-top: 1rem;
       padding: .75rem 1rem;
@@ -78,23 +97,31 @@
 </head>
 <body>
   <div class="card">
+    <div class="lang-bar">
+      <button class="lang-btn active" onclick="setLang('pt')">🇵🇹 PT</button>
+      <button class="lang-btn" onclick="setLang('es')">🇪🇸 ES</button>
+      <button class="lang-btn" onclick="setLang('en')">🇬🇧 EN</button>
+      <button class="lang-btn" onclick="setLang('fr')">🇫🇷 FR</button>
+      <button class="lang-btn" onclick="setLang('it')">🇮🇹 IT</button>
+    </div>
+
     <div class="logo">
       <h1>AMRO</h1>
-      <p>Registo de Residente</p>
+      <p id="t-subtitle">Registo de Residente</p>
     </div>
 
     <form id="form">
-      <label>Nome completo <span class="required">*</span></label>
-      <input type="text" id="name" placeholder="Ex: João Silva" required autocomplete="name" />
+      <label id="t-name-label">Nome completo <span class="required">*</span></label>
+      <input type="text" id="name" required autocomplete="name" />
 
-      <label>Número de quarto <span class="required">*</span></label>
-      <input type="text" id="room" placeholder="Ex: 101" required autocomplete="off" />
+      <label id="t-room-label">Número de quarto <span class="required">*</span></label>
+      <input type="text" id="room" required autocomplete="off" />
 
-      <label>Telemóvel <span class="required">*</span></label>
-      <input type="tel" id="phone" placeholder="Ex: +351 912 345 678" required autocomplete="tel" />
+      <label id="t-phone-label">Telemóvel <span class="required">*</span></label>
+      <input type="tel" id="phone" required autocomplete="tel" />
 
-      <label>Notas (opcional)</label>
-      <textarea id="notes" placeholder="Informação adicional..."></textarea>
+      <label id="t-notes-label">Notas (opcional)</label>
+      <textarea id="notes"></textarea>
 
       <button type="submit" id="btn">Enviar pedido de registo</button>
     </form>
@@ -106,10 +133,89 @@
     const SUPABASE_URL = 'https://cxohpkuuvvilnqdpxaie.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4b2hwa3V1dnZpbG5xZHB4YWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxOTE0MzksImV4cCI6MjEwMTc2NzQzOX0.F71ShyzHpih3WUlrxDDJ_i4QeE67eD40A6ldBHwma2U';
 
+    const i18n = {
+      pt: {
+        subtitle:  'Registo de Residente',
+        nameLabel: 'Nome completo', roomLabel: 'Número de quarto',
+        phoneLabel: 'Telemóvel', notesLabel: 'Notas (opcional)',
+        namePh: 'Ex: João Silva', roomPh: 'Ex: 101',
+        phonePh: '+351 912 345 678', notesPh: 'Informação adicional...',
+        submit: 'Enviar pedido de registo', sending: 'A enviar...',
+        success: '✓ Pedido enviado! A administração irá adicionar-te em breve.',
+        error: 'Erro ao enviar. Tenta novamente ou contacta a administração.',
+      },
+      es: {
+        subtitle:  'Registro de Residente',
+        nameLabel: 'Nombre completo', roomLabel: 'Número de habitación',
+        phoneLabel: 'Teléfono', notesLabel: 'Notas (opcional)',
+        namePh: 'Ej: Juan García', roomPh: 'Ej: 101',
+        phonePh: '+34 612 345 678', notesPh: 'Información adicional...',
+        submit: 'Enviar solicitud de registro', sending: 'Enviando...',
+        success: '✓ Solicitud enviada. La administración te añadirá en breve.',
+        error: 'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
+      },
+      en: {
+        subtitle:  'Resident Registration',
+        nameLabel: 'Full name', roomLabel: 'Room number',
+        phoneLabel: 'Phone number', notesLabel: 'Notes (optional)',
+        namePh: 'E.g. John Smith', roomPh: 'E.g. 101',
+        phonePh: '+44 7700 900000', notesPh: 'Additional information...',
+        submit: 'Submit registration request', sending: 'Sending...',
+        success: '✓ Request submitted! The administration will add you shortly.',
+        error: 'Error sending request. Please try again or contact the administration.',
+      },
+      fr: {
+        subtitle:  'Inscription Résident',
+        nameLabel: 'Nom complet', roomLabel: 'Numéro de chambre',
+        phoneLabel: 'Téléphone', notesLabel: 'Notes (facultatif)',
+        namePh: 'Ex : Jean Dupont', roomPh: 'Ex : 101',
+        phonePh: '+33 6 12 34 56 78', notesPh: 'Informations supplémentaires...',
+        submit: "Envoyer la demande d'inscription", sending: 'Envoi en cours...',
+        success: "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
+        error: "Erreur lors de l'envoi. Réessayez ou contactez l'administration.",
+      },
+      it: {
+        subtitle:  'Registrazione Residente',
+        nameLabel: 'Nome completo', roomLabel: 'Numero di stanza',
+        phoneLabel: 'Telefono', notesLabel: 'Note (facoltativo)',
+        namePh: 'Es: Mario Rossi', roomPh: 'Es: 101',
+        phonePh: '+39 320 123 4567', notesPh: 'Informazioni aggiuntive...',
+        submit: 'Invia richiesta di registrazione', sending: 'Invio in corso...',
+        success: "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
+        error: "Errore nell'invio. Riprova o contatta l'amministrazione.",
+      }
+    };
+
+    let currentLang = 'pt';
+
+    function setLang(lang) {
+      currentLang = lang;
+      const t = i18n[lang];
+      document.documentElement.lang = lang;
+      document.getElementById('t-subtitle').textContent    = t.subtitle;
+      document.getElementById('t-name-label').innerHTML    = t.nameLabel  + ' <span class="required">*</span>';
+      document.getElementById('t-room-label').innerHTML    = t.roomLabel  + ' <span class="required">*</span>';
+      document.getElementById('t-phone-label').innerHTML   = t.phoneLabel + ' <span class="required">*</span>';
+      document.getElementById('t-notes-label').textContent = t.notesLabel;
+      document.getElementById('name').placeholder  = t.namePh;
+      document.getElementById('room').placeholder  = t.roomPh;
+      document.getElementById('phone').placeholder = t.phonePh;
+      document.getElementById('notes').placeholder = t.notesPh;
+      document.getElementById('btn').textContent   = t.submit;
+      document.querySelectorAll('.lang-btn').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
+      const msg = document.getElementById('msg');
+      msg.className = 'msg';
+      msg.style.display = '';
+    }
+
+    setLang('pt');
+
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn  = document.getElementById('btn');
-      const msg  = document.getElementById('msg');
+      const t     = i18n[currentLang];
+      const btn   = document.getElementById('btn');
+      const msg   = document.getElementById('msg');
       const name  = document.getElementById('name').value.trim();
       const room  = document.getElementById('room').value.trim().toUpperCase();
       const phone = document.getElementById('phone').value.trim() || null;
@@ -118,7 +224,7 @@
       if (!name || !room || !phone) return;
 
       btn.disabled = true;
-      btn.textContent = 'A enviar...';
+      btn.textContent = t.sending;
       msg.className = 'msg';
       msg.style.display = '';
 
@@ -134,17 +240,17 @@
           body: JSON.stringify({ name, room_number: room, phone_number: phone, notes })
         });
 
-        if (!res.ok) throw new Error(`Erro ${res.status}`);
+        if (!res.ok) throw new Error(`${res.status}`);
 
-        msg.textContent = '✓ Pedido enviado! A administração irá adicionar-te em breve.';
+        msg.textContent = t.success;
         msg.className = 'msg success';
         document.getElementById('form').reset();
-      } catch (err) {
-        msg.textContent = `Erro ao enviar pedido. Tenta novamente ou contacta a administração.`;
+      } catch {
+        msg.textContent = t.error;
         msg.className = 'msg error';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Enviar pedido de registo';
+        btn.textContent = t.submit;
       }
     });
   </script>
