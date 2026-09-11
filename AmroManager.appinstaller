@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AppInstaller Uri="https://luismnsantos.github.io/AmroManager/AmroManager.appinstaller"
-              Version="2.4.0.4"
+              Version="2.5.0.5"
               xmlns="http://schemas.microsoft.com/appx/appinstaller/2018/2">
 
   <MainPackage Name="com.amro.stockmanager"
-               Version="2.4.0.4"
+               Version="2.5.0.5"
                Publisher="CN=AMRO Stock Manager, O=AMRO, C=PT"
-               Uri="https://github.com/LuisMNSantos/AmroManager/releases/download/v2.4/AmroManager_x64.msix"
+               Uri="https://github.com/LuisMNSantos/AmroManager/releases/download/v2.5/AmroManager_x64.msix"
                ProcessorArchitecture="x64" />
 
   <UpdateSettings>
