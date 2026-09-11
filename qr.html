@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <title>QR Code — Registo AMRO</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #fff;
+    }
+    .card {
+      text-align: center;
+      padding: 3rem 4rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 16px;
+    }
+    h1 { font-size: 1.8rem; color: #1565C0; margin-bottom: .4rem; }
+    .subtitle { color: #555; font-size: 1rem; margin-bottom: 2rem; }
+    .qr-img { display: block; margin: 0 auto; width: 260px; height: 260px; }
+    .url {
+      margin-top: 1.2rem;
+      font-size: .8rem;
+      color: #999;
+      letter-spacing: .02em;
+    }
+    .steps {
+      margin-top: 1.8rem;
+      font-size: .95rem;
+      color: #444;
+      line-height: 1.9;
+      text-align: left;
+      display: inline-block;
+    }
+    .steps b { color: #1565C0; }
+
+    @media print {
+      body { background: #fff; align-items: flex-start; padding-top: 2cm; }
+      .card { border: none; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>AMRO</h1>
+    <p class="subtitle">Novo residente? Regista-te aqui</p>
+
+    <img class="qr-img"
+         src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=1565C0&data=https%3A%2F%2Fluismnsantos.github.io%2FAmroManager%2Fregister"
+         alt="QR Code registo" />
+
+    <p class="url">luismnsantos.github.io/AmroManager/register</p>
+
+    <div class="steps">
+      <b>1.</b> Aponta a câmara para o QR code<br>
+      <b>2.</b> Preenche o teu nome, quarto e telemóvel<br>
+      <b>3.</b> A administração irá ativar o teu registo
+    </div>
+  </div>
+</body>
+</html>
