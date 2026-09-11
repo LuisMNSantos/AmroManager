@@ -87,7 +87,7 @@
         else
         {
             <div class="d-flex align-center justify-space-between mb-3">
-                <MudText Typo="Typo.body2">Residentes elegíveis para purga:</MudText>
+                <MudText Typo="Typo.body2">Residentes elegíveis para apagar:</MudText>
                 <MudChip T="string" Size="Size.Small"
                          Color="@(_piiCount > 0 ? Color.Warning : Color.Default)">
                     @_piiCount
@@ -117,7 +117,7 @@
                    StartIcon="@Icons.Material.Filled.DeleteForever"
                    Disabled="@(_piiCount == 0 || _working)"
                    OnClick="PurgePii">
-            Purgar Dados Pessoais
+            Apagar Dados Pessoais
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -218,7 +218,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Erro ao purgar: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Erro ao Apagar: {ex.Message}", Severity.Error);
         }
         _working = false;
     }

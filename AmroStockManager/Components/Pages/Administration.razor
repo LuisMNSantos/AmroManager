@@ -4,6 +4,7 @@
 @inject RoomService RoomSvc
 @inject BisLoanService BisSvc
 @inject PendingRegistrationService PendingRegSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -70,6 +71,11 @@
                    Variant="Variant.Outlined"
                    OnClick="OpenMaintenance">
             Manutenção
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.History"
+                   Variant="Variant.Outlined"
+                   OnClick="OpenAuditLog">
+            Histórico
         </MudButton>
     </div>
 </div>
@@ -401,6 +407,7 @@ else
         {
             _error = ex.Message;
         }
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ApproveRegistration(PendingRegistration reg)
@@ -421,9 +428,15 @@ else
                 ((string, string, string, string, Resident?))result!.Data!;
 
             if (action == "replace" && existing is not null)
+            {
                 await PendingRegSvc.ApproveAsReplaceAsync(reg, existing, name, room, phone);
+                await LogAsync("Registo aprovado (substituição)", $"{name} → quarto {room.ToUpper()}");
+            }
             else
+            {
                 await PendingRegSvc.ApproveAsNewAsync(reg, name, room, phone);
+                await LogAsync("Registo aprovado", $"{name} → quarto {room.ToUpper()}");
+            }
 
             _pendingRegs.Remove(reg);
             Snackbar.Add($"{name} adicionado ao quarto {room.ToUpper()}.", Severity.Success);
@@ -447,6 +460,7 @@ else
         {
             await PendingRegSvc.RejectAsync(reg.Id);
             _pendingRegs.Remove(reg);
+            await LogAsync("Registo rejeitado", $"{reg.Name}, quarto {reg.RoomNumber}");
             Snackbar.Add("Pedido rejeitado.", Severity.Info);
         }
         catch (Exception ex)
@@ -468,6 +482,7 @@ else
             return;
         }
         ResidentSvc.SavePin(_newPin);
+        _ = LogAsync("PIN alterado");
         Snackbar.Add("Código alterado com sucesso.", Severity.Success);
         _newPin = _confirmPin = string.Empty;
         _showChangePinForm = false;
@@ -498,6 +513,7 @@ else
             await using var stream = await result.OpenReadAsync();
             var (imported, skipped) = await ResidentSvc.ImportFromCsvAsync(stream);
             await LoadResidents();
+            await LogAsync("CSV importado", $"{imported} entradas{(skipped > 0 ? $", {skipped} ignoradas" : "")}");
             Snackbar.Add($"{imported} entradas importadas.{(skipped > 0 ? $" {skipped} ignoradas." : "")}", Severity.Success);
         }
         catch (Exception ex)
@@ -512,7 +528,13 @@ else
         var title      = resident is null ? "Novo Residente" : "Editar Residente";
         var result     = await DialogService.ShowAsync<ResidentFormDialog>(title, parameters);
         if (!(await result.Result).Canceled)
+        {
+            if (resident is null)
+                await LogAsync("Residente adicionado");
+            else
+                await LogAsync("Residente editado", $"{resident.Name} (#{resident.RoomNumber})");
             await LoadResidents();
+        }
     }
 
     private async Task DeleteResident(Resident r)
@@ -543,6 +565,7 @@ else
         if (confirmed != true) return;
 
         await ResidentSvc.DeleteResidentAsync(r.Id);
+        await LogAsync("Residente eliminado", $"{r.Name} (#{r.RoomNumber})");
         await LoadResidents();
         Snackbar.Add("Residente eliminado.", Severity.Success);
     }
@@ -561,12 +584,23 @@ else
             yesText: "Limpar tudo", cancelText: "Cancelar");
         if (confirmed != true) return;
         await ResidentSvc.DeleteAllAsync();
+        await LogAsync("Lista limpa", $"{_residents.Count} residentes eliminados");
         await LoadResidents();
         Snackbar.Add("Lista limpa.", Severity.Success);
     }
 
     private Task OpenMaintenance() =>
         DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
+
+    private Task OpenAuditLog() =>
+        DialogService.ShowAsync<AuditLogDialog>(string.Empty,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseOnEscapeKey = true });
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); }
+        catch { }
+    }
 
     private async Task GiveBis(Resident resident)
     {
@@ -583,6 +617,7 @@ else
         var (success, error) = await BisSvc.LendAsync(resident.RoomNumber!, givenBy, notes);
         if (success)
         {
+            await LogAsync("BIS entregue", $"Quarto #{resident.RoomNumber} ({resident.Name}) por {givenBy}");
             Snackbar.Add($"Cartão BIS entregue ao quarto #{resident.RoomNumber}.", Severity.Success);
             await LoadResidents();
         }
@@ -601,6 +636,7 @@ else
         if (confirmed != true) return;
 
         await BisSvc.ReturnAsync(loan.Id);
+        await LogAsync("BIS devolvido", $"Quarto #{resident.RoomNumber} ({resident.Name})");
         Snackbar.Add($"Cartão BIS do quarto #{resident.RoomNumber} devolvido.", Severity.Success);
         await LoadResidents();
     }
