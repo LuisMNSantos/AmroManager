@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registo de Residente — AMRO</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .logo h1 { font-size: 1.5rem; color: #1565C0; font-weight: 700; }
+    .logo p  { color: #666; font-size: .9rem; margin-top: .25rem; }
+    label {
+      display: block;
+      font-size: .85rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: .35rem;
+      margin-top: 1rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: .65rem .85rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color .2s;
+      outline: none;
+    }
+    input:focus, textarea:focus { border-color: #1565C0; }
+    textarea { resize: vertical; min-height: 80px; }
+    button {
+      display: block;
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: .8rem;
+      background: #1565C0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button:hover:not(:disabled) { background: #0d47a1; }
+    button:disabled { background: #90caf9; cursor: not-allowed; }
+    .msg {
+      margin-top: 1rem;
+      padding: .75rem 1rem;
+      border-radius: 8px;
+      font-size: .9rem;
+      display: none;
+    }
+    .msg.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    .msg.error   { background: #ffebee; color: #c62828; display: block; }
+    .required { color: #c62828; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <h1>AMRO</h1>
+      <p>Registo de Residente</p>
+    </div>
+
+    <form id="form">
+      <label>Nome completo <span class="required">*</span></label>
+      <input type="text" id="name" placeholder="Ex: João Silva" required autocomplete="name" />
+
+      <label>Número de quarto <span class="required">*</span></label>
+      <input type="text" id="room" placeholder="Ex: 101" required autocomplete="off" />
+
+      <label>Notas (opcional)</label>
+      <textarea id="notes" placeholder="Informação adicional..."></textarea>
+
+      <button type="submit" id="btn">Enviar pedido de registo</button>
+    </form>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
+    const SUPABASE_ANON_KEY = 'SUPABASE_ANON_KEY_PLACEHOLDER';
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn  = document.getElementById('btn');
+      const msg  = document.getElementById('msg');
+      const name = document.getElementById('name').value.trim();
+      const room = document.getElementById('room').value.trim().toUpperCase();
+      const notes = document.getElementById('notes').value.trim() || null;
+
+      if (!name || !room) return;
+
+      btn.disabled = true;
+      btn.textContent = 'A enviar...';
+      msg.className = 'msg';
+      msg.style.display = 'none';
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/pending_registrations`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ name, room_number: room, notes })
+        });
+
+        if (!res.ok) throw new Error(`Erro ${res.status}`);
+
+        msg.textContent = '✓ Pedido enviado! A administração irá adicionar-te em breve.';
+        msg.className = 'msg success';
+        document.getElementById('form').reset();
+      } catch (err) {
+        msg.textContent = `Erro ao enviar pedido. Tenta novamente ou contacta a administração.`;
+        msg.className = 'msg error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Enviar pedido de registo';
+      }
+    });
+  </script>
+</body>
+</html>
