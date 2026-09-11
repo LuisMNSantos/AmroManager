@@ -1,0 +1,112 @@
+@inject ResidentService ResidentSvc
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Success" />
+            <MudText Typo="Typo.h6">Aprovar Registo</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            @if (_existingResident is not null)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                    <b>Quarto @_editRoom já ocupado</b> — residente atual: <b>@_existingResident.Name</b>
+                    @if (!string.IsNullOrEmpty(_existingResident.PhoneNumber))
+                    { <span> · @_existingResident.PhoneNumber</span> }
+                    <br />
+                    <MudText Typo="Typo.caption">Edita os campos abaixo e escolhe a ação.</MudText>
+                </MudAlert>
+            }
+
+            <MudText Typo="Typo.overline" Color="Color.Secondary" Class="mb-1">Dados do pedido</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_editName" Label="Nome" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="_editRoom" Label="Quarto" Required="true"
+                                  OnBlur="OnRoomBlur" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="_editPhone" Label="Telemóvel" />
+                </MudItem>
+                @if (!string.IsNullOrEmpty(Registration.Notes))
+                {
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Notas do pedido: <i>@Registration.Notes</i>
+                        </MudText>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancelar</MudButton>
+        @if (_existingResident is not null)
+        {
+            <MudButton Color="Color.Warning" Variant="Variant.Outlined"
+                       OnClick="Replace" Disabled="_loading">
+                Substituir @_existingResident.Name
+            </MudButton>
+        }
+        <MudButton Color="Color.Success" Variant="Variant.Filled"
+                   OnClick="CreateNew" Disabled="_loading">
+            @(_existingResident is null ? "Criar Residente" : "Criar mesmo assim")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public PendingRegistration Registration { get; set; } = null!;
+
+    private bool _loading = true;
+    private Resident? _existingResident;
+
+    private string _editName  = string.Empty;
+    private string _editRoom  = string.Empty;
+    private string _editPhone = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _editName  = Registration.Name;
+        _editRoom  = Registration.RoomNumber;
+        _editPhone = Registration.PhoneNumber ?? string.Empty;
+        await CheckRoom();
+        _loading = false;
+    }
+
+    private async Task OnRoomBlur()
+    {
+        _loading = true;
+        StateHasChanged();
+        await CheckRoom();
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task CheckRoom()
+    {
+        if (string.IsNullOrWhiteSpace(_editRoom)) { _existingResident = null; return; }
+        _existingResident = await ResidentSvc.GetByRoomAsync(_editRoom.Trim().ToUpper());
+    }
+
+    private void CreateNew() =>
+        MudDialog.Close(DialogResult.Ok(("new", _editName, _editRoom, _editPhone, (Resident?)null)));
+
+    private void Replace()
+    {
+        if (_existingResident is null) return;
+        MudDialog.Close(DialogResult.Ok(("replace", _editName, _editRoom, _editPhone, _existingResident)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

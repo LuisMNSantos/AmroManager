@@ -35,6 +35,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<RoomService>();
         builder.Services.AddSingleton<DistributionService>();
         builder.Services.AddSingleton<BisLoanService>();
+        builder.Services.AddSingleton<PendingRegistrationService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

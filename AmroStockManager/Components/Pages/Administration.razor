@@ -3,6 +3,7 @@
 @inject ResidentService ResidentSvc
 @inject RoomService RoomSvc
 @inject BisLoanService BisSvc
+@inject PendingRegistrationService PendingRegSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -153,6 +154,45 @@
     </MudAlert>
 }
 
+<!-- Pending registrations -->
+@if (_pendingRegs.Count > 0)
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-left: 4px solid var(--mud-palette-warning);">
+        <div class="d-flex align-center gap-2 mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Pedidos de Registo</MudText>
+            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_pendingRegs.Count</MudChip>
+        </div>
+        <MudTable Items="@_pendingRegs" Dense="true" Hover="false" Elevation="0">
+            <HeaderContent>
+                <MudTh>Nome</MudTh>
+                <MudTh>Quarto</MudTh>
+                <MudTh>Notas</MudTh>
+                <MudTh>Recebido</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd><MudText><b>@context.Name</b></MudText></MudTd>
+                <MudTd><MudText>@context.RoomNumber</MudText></MudTd>
+                <MudTd><MudText Typo="Typo.body2" Color="Color.Secondary">@(context.Notes ?? "—")</MudText></MudTd>
+                <MudTd><MudText Typo="Typo.caption" Color="Color.Secondary">@context.RequestedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudText></MudTd>
+                <MudTd>
+                    <div class="d-flex gap-1">
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ApproveRegistration(context))">
+                            Aprovar
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RejectRegistration(context))">
+                            Rejeitar
+                        </MudButton>
+                    </div>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
 <!-- CSV hint -->
 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
     Formato CSV: <b>Nome, Quarto, Telemóvel, Colaborador</b> &nbsp;·&nbsp;
@@ -296,6 +336,7 @@ else
     private string _search = string.Empty;
     private bool _showBisOnly;
     private List<Resident> _residents = [];
+    private List<PendingRegistration> _pendingRegs = [];
     private Dictionary<string, Room> _rooms = [];
     private Dictionary<string, BisLoan> _activeBis = [];
 
@@ -342,14 +383,68 @@ else
             var residentsTask = ResidentSvc.GetAllAsync();
             var roomsTask     = RoomSvc.GetAllAsync();
             var bisTask       = BisSvc.GetAllActiveByRoomAsync();
-            await Task.WhenAll(residentsTask, roomsTask, bisTask);
-            _residents = residentsTask.Result;
-            _rooms     = roomsTask.Result;
-            _activeBis = bisTask.Result;
+            var pendingTask   = PendingRegSvc.GetAllAsync();
+            await Task.WhenAll(residentsTask, roomsTask, bisTask, pendingTask);
+            _residents   = residentsTask.Result;
+            _rooms       = roomsTask.Result;
+            _activeBis   = bisTask.Result;
+            _pendingRegs = pendingTask.Result;
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+        }
+    }
+
+    private async Task ApproveRegistration(PendingRegistration reg)
+    {
+        var parameters = new DialogParameters<ApproveRegistrationDialog>
+        {
+            { x => x.Registration, reg }
+        };
+        var dialog = await DialogService.ShowAsync<ApproveRegistrationDialog>(
+            string.Empty, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: true }) return;
+
+        try
+        {
+            var (action, name, room, phone, existing) =
+                ((string, string, string, string, Resident?))result!.Data!;
+
+            if (action == "replace" && existing is not null)
+                await PendingRegSvc.ApproveAsReplaceAsync(reg, existing, name, room, phone);
+            else
+                await PendingRegSvc.ApproveAsNewAsync(reg, name, room, phone);
+
+            _pendingRegs.Remove(reg);
+            Snackbar.Add($"{name} adicionado ao quarto {room.ToUpper()}.", Severity.Success);
+            await LoadResidents();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao aprovar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RejectRegistration(PendingRegistration reg)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Rejeitar Pedido",
+            $"Rejeitar o registo de '{reg.Name}' (quarto {reg.RoomNumber})?",
+            yesText: "Rejeitar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        try
+        {
+            await PendingRegSvc.RejectAsync(reg.Id);
+            _pendingRegs.Remove(reg);
+            Snackbar.Add("Pedido rejeitado.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao rejeitar: {ex.Message}", Severity.Error);
         }
     }
 
