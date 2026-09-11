@@ -56,7 +56,7 @@
       margin-bottom: .35rem;
       margin-top: 1rem;
     }
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       padding: .65rem .85rem;
       border: 1.5px solid #ddd;
@@ -64,9 +64,26 @@
       font-size: 1rem;
       transition: border-color .2s;
       outline: none;
+      background: white;
+      color: #333;
     }
-    input:focus, textarea:focus { border-color: #1565C0; }
+    input:focus, textarea:focus, select:focus { border-color: #1565C0; }
     textarea { resize: vertical; min-height: 80px; }
+    .phone-row {
+      display: flex;
+      gap: .5rem;
+    }
+    .phone-row select {
+      width: auto;
+      flex-shrink: 0;
+      padding-left: .6rem;
+      padding-right: .6rem;
+      cursor: pointer;
+    }
+    .phone-row input {
+      flex: 1;
+      min-width: 0;
+    }
     button[type=submit] {
       display: block;
       width: 100%;
@@ -118,7 +135,30 @@
       <input type="text" id="room" required autocomplete="off" />
 
       <label id="t-phone-label">Telemóvel <span class="required">*</span></label>
-      <input type="tel" id="phone" required autocomplete="tel" />
+      <div class="phone-row">
+        <select id="prefix" aria-label="Prefixo do país">
+          <option value="+351">🇵🇹 +351</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+39">🇮🇹 +39</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+55">🇧🇷 +55</option>
+          <option value="+31">🇳🇱 +31</option>
+          <option value="+32">🇧🇪 +32</option>
+          <option value="+41">🇨🇭 +41</option>
+          <option value="+48">🇵🇱 +48</option>
+          <option value="+40">🇷🇴 +40</option>
+          <option value="+212">🇲🇦 +212</option>
+          <option value="+244">🇦🇴 +244</option>
+          <option value="+238">🇨🇻 +238</option>
+          <option value="+245">🇬🇼 +245</option>
+          <option value="+258">🇲🇿 +258</option>
+          <option value="+221">🇸🇳 +221</option>
+          <option value="+86">🇨🇳 +86</option>
+        </select>
+        <input type="tel" id="phone-local" required autocomplete="tel-national" />
+      </div>
 
       <label id="t-notes-label">Notas (opcional)</label>
       <textarea id="notes"></textarea>
@@ -139,50 +179,55 @@
         nameLabel: 'Nome completo', roomLabel: 'Número de quarto',
         phoneLabel: 'Telemóvel', notesLabel: 'Notas (opcional)',
         namePh: 'Ex: João Silva', roomPh: 'Ex: 101',
-        phonePh: '+351 912 345 678', notesPh: 'Informação adicional...',
+        phonePh: '912 345 678', notesPh: 'Informação adicional...',
         submit: 'Enviar pedido de registo', sending: 'A enviar...',
         success: '✓ Pedido enviado! A administração irá adicionar-te em breve.',
         error: 'Erro ao enviar. Tenta novamente ou contacta a administração.',
+        dialCode: '+351',
       },
       es: {
         subtitle:  'Registro de Residente',
         nameLabel: 'Nombre completo', roomLabel: 'Número de habitación',
         phoneLabel: 'Teléfono', notesLabel: 'Notas (opcional)',
         namePh: 'Ej: Juan García', roomPh: 'Ej: 101',
-        phonePh: '+34 612 345 678', notesPh: 'Información adicional...',
+        phonePh: '612 345 678', notesPh: 'Información adicional...',
         submit: 'Enviar solicitud de registro', sending: 'Enviando...',
         success: '✓ Solicitud enviada. La administración te añadirá en breve.',
         error: 'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
+        dialCode: '+34',
       },
       en: {
         subtitle:  'Resident Registration',
         nameLabel: 'Full name', roomLabel: 'Room number',
         phoneLabel: 'Phone number', notesLabel: 'Notes (optional)',
         namePh: 'E.g. John Smith', roomPh: 'E.g. 101',
-        phonePh: '+44 7700 900000', notesPh: 'Additional information...',
+        phonePh: '7700 900000', notesPh: 'Additional information...',
         submit: 'Submit registration request', sending: 'Sending...',
         success: '✓ Request submitted! The administration will add you shortly.',
         error: 'Error sending request. Please try again or contact the administration.',
+        dialCode: '+44',
       },
       fr: {
         subtitle:  'Inscription Résident',
         nameLabel: 'Nom complet', roomLabel: 'Numéro de chambre',
         phoneLabel: 'Téléphone', notesLabel: 'Notes (facultatif)',
         namePh: 'Ex : Jean Dupont', roomPh: 'Ex : 101',
-        phonePh: '+33 6 12 34 56 78', notesPh: 'Informations supplémentaires...',
+        phonePh: '6 12 34 56 78', notesPh: 'Informations supplémentaires...',
         submit: "Envoyer la demande d'inscription", sending: 'Envoi en cours...',
         success: "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
         error: "Erreur lors de l'envoi. Réessayez ou contactez l'administration.",
+        dialCode: '+33',
       },
       it: {
         subtitle:  'Registrazione Residente',
         nameLabel: 'Nome completo', roomLabel: 'Numero di stanza',
         phoneLabel: 'Telefono', notesLabel: 'Note (facoltativo)',
         namePh: 'Es: Mario Rossi', roomPh: 'Es: 101',
-        phonePh: '+39 320 123 4567', notesPh: 'Informazioni aggiuntive...',
+        phonePh: '320 123 4567', notesPh: 'Informazioni aggiuntive...',
         submit: 'Invia richiesta di registrazione', sending: 'Invio in corso...',
         success: "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
         error: "Errore nell'invio. Riprova o contatta l'amministrazione.",
+        dialCode: '+39',
       }
     };
 
@@ -197,11 +242,12 @@
       document.getElementById('t-room-label').innerHTML    = t.roomLabel  + ' <span class="required">*</span>';
       document.getElementById('t-phone-label').innerHTML   = t.phoneLabel + ' <span class="required">*</span>';
       document.getElementById('t-notes-label').textContent = t.notesLabel;
-      document.getElementById('name').placeholder  = t.namePh;
-      document.getElementById('room').placeholder  = t.roomPh;
-      document.getElementById('phone').placeholder = t.phonePh;
-      document.getElementById('notes').placeholder = t.notesPh;
-      document.getElementById('btn').textContent   = t.submit;
+      document.getElementById('name').placeholder       = t.namePh;
+      document.getElementById('room').placeholder       = t.roomPh;
+      document.getElementById('phone-local').placeholder = t.phonePh;
+      document.getElementById('notes').placeholder      = t.notesPh;
+      document.getElementById('btn').textContent        = t.submit;
+      document.getElementById('prefix').value           = t.dialCode;
       document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
       const msg = document.getElementById('msg');
@@ -213,15 +259,17 @@
 
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const t     = i18n[currentLang];
-      const btn   = document.getElementById('btn');
-      const msg   = document.getElementById('msg');
-      const name  = document.getElementById('name').value.trim();
-      const room  = document.getElementById('room').value.trim().toUpperCase();
-      const phone = document.getElementById('phone').value.trim() || null;
-      const notes = document.getElementById('notes').value.trim() || null;
+      const t        = i18n[currentLang];
+      const btn      = document.getElementById('btn');
+      const msg      = document.getElementById('msg');
+      const name     = document.getElementById('name').value.trim();
+      const room     = document.getElementById('room').value.trim().toUpperCase();
+      const prefix   = document.getElementById('prefix').value;
+      const local    = document.getElementById('phone-local').value.trim();
+      const phone    = local ? prefix + local : null;
+      const notes    = document.getElementById('notes').value.trim() || null;
 
-      if (!name || !room || !phone) return;
+      if (!name || !room || !local) return;
 
       btn.disabled = true;
       btn.textContent = t.sending;
@@ -245,6 +293,7 @@
         msg.textContent = t.success;
         msg.className = 'msg success';
         document.getElementById('form').reset();
+        setLang(currentLang);
       } catch {
         msg.textContent = t.error;
         msg.className = 'msg error';
