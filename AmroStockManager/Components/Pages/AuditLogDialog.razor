@@ -1,0 +1,103 @@
+@using AmroStockManager.Data.Models
+@using AmroStockManager.Services
+@inject AuditLogService AuditSvc
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Histórico de Operações</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
+        }
+        else if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2">
+                Não foi possível carregar o histórico. Certifica-te que a tabela
+                <b>audit_logs</b> foi criada no Supabase.
+                <MudText Typo="Typo.caption" Class="mt-1">@_error</MudText>
+            </MudAlert>
+        }
+        else
+        {
+            <MudTextField @bind-Value="_search"
+                          Placeholder="Pesquisar operação ou detalhes..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          FullWidth="true"
+                          Class="mb-3" />
+
+            @if (_logs.Count == 0)
+            {
+                <MudText Color="Color.Secondary" Typo="Typo.body2">Sem registos ainda.</MudText>
+            }
+            else
+            {
+                <MudTable Items="@Filtered" Dense="true" Hover="true" Elevation="0"
+                          FixedHeader="true" Height="460px">
+                    <HeaderContent>
+                        <MudTh Style="width:130px">Data/Hora</MudTh>
+                        <MudTh Style="width:200px">Operação</MudTh>
+                        <MudTh>Detalhes</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @context.PerformedAt.ToLocalTime().ToString("dd/MM/yy HH:mm")
+                            </MudText>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2"><b>@context.Action</b></MudText>
+                        </MudTd>
+                        <MudTd>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @(context.Details ?? "—")
+                            </MudText>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                    @_logs.Count @(_logs.Count == 500 ? "entradas (limite 500)" : "entradas")
+                </MudText>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Fechar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private bool _loading = true;
+    private string? _error;
+    private string _search = string.Empty;
+    private List<AuditLog> _logs = [];
+
+    private IEnumerable<AuditLog> Filtered => _logs
+        .Where(l => string.IsNullOrWhiteSpace(_search) ||
+                    l.Action.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    (l.Details ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _logs = await AuditSvc.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
