@@ -17,9 +17,14 @@
 
   <!-- Include only the domain files needed for testing (no MAUI project reference) -->
   <ItemGroup>
+    <Compile Include="..\AmroStockManager\Data\Models\AuditLog.cs" />
     <Compile Include="..\AmroStockManager\Data\Models\BisLoan.cs" />
+    <Compile Include="..\AmroStockManager\Data\Models\PendingRegistration.cs" />
+    <Compile Include="..\AmroStockManager\Data\Models\Resident.cs" />
     <Compile Include="..\AmroStockManager\Services\ISupabaseClient.cs" />
+    <Compile Include="..\AmroStockManager\Services\AuditLogService.cs" />
     <Compile Include="..\AmroStockManager\Services\BisLoanService.cs" />
+    <Compile Include="..\AmroStockManager\Services\PendingRegistrationService.cs" />
   </ItemGroup>
 
   <ItemGroup>
