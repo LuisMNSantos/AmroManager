@@ -2,7 +2,6 @@
 @inject ResidentService ResidentSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-@using System.Globalization
 @using Microsoft.Maui.ApplicationModel
 
 <MudDialog>
@@ -153,13 +152,10 @@
         var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
         if (resident?.PhoneNumber is not null)
         {
-            var pt = CultureInfo.GetCultureInfo("pt-PT");
-            var spaceLabel = _space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
             var startLocal = startDt.ToLocalTime();
             var endLocal   = endDt.ToLocalTime();
-            var msg = $"Olá {resident.Name}! A sua reserva da {spaceLabel} foi confirmada para " +
-                      $"{startLocal.ToString("dddd d 'de' MMMM", pt)}, das {startLocal:HH:mm} às {endLocal:HH:mm}. " +
-                      $"O cartão de acesso será entregue na hora. — AMRO";
+            var lang       = MessageLocalizer.DetectLang(resident.PhoneNumber);
+            var msg        = MessageLocalizer.Reservation(resident.Name, _space, startLocal, endLocal, lang);
 
             var send = await DialogService.ShowMessageBox(
                 "Notificar por WhatsApp?",

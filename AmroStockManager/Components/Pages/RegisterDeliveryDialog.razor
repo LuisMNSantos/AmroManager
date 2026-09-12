@@ -132,12 +132,8 @@
 
     private static async Task OpenWhatsApp(Resident resident, DeliveryType type, int qty)
     {
-        var tipo = type == DeliveryType.Encomenda
-            ? (qty > 1 ? $"{qty} encomendas" : "1 encomenda")
-            : (qty > 1 ? $"{qty} cartas" : "1 carta");
-
-        var msg = $"Olá {resident.Name}! Tem {tipo} para levantar na receção. " +
-                  $"Chegou em {DateTime.Now:dd/MM HH:mm}.";
+        var lang = MessageLocalizer.DetectLang(resident.PhoneNumber);
+        var msg  = MessageLocalizer.DeliveryArrival(resident.Name, type, qty, DateTime.Now, lang);
 
         var phone = resident.PhoneNumber!
             .Replace("+", "").Replace(" ", "").Replace("-", "");
