@@ -10,6 +10,8 @@ public class Resident
     public string RoomNumber { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public bool IsCollaborator { get; set; }
+    [JsonPropertyName("collaborator_role")]
+    public string? CollaboratorRole { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 }
