@@ -265,17 +265,8 @@ else
 
     private async Task NotifyWhatsApp(Delivery d, Resident resident)
     {
-        var tipo = d.Type == DeliveryType.Encomenda
-            ? (d.Quantity > 1 ? $"{d.Quantity} encomendas" : "1 encomenda")
-            : (d.Quantity > 1 ? $"{d.Quantity} cartas" : "1 carta");
-
-        var age = DateTime.Now - d.ArrivedAt.ToLocalTime();
-        var quando = age.TotalMinutes < 60
-            ? "agora mesmo"
-            : age.TotalDays >= 1 ? $"há {(int)age.TotalDays} dia(s)" : $"há {(int)age.TotalHours}h";
-
-        var msg = $"Olá {resident.Name}! Tem {tipo} para levantar na receção. " +
-                  $"Chegou {quando} ({d.ArrivedAt.ToLocalTime():dd/MM HH:mm}).";
+        var lang = MessageLocalizer.DetectLang(resident.PhoneNumber);
+        var msg  = MessageLocalizer.DeliveryNotify(resident.Name, d.Type, d.Quantity, d.ArrivedAt.ToLocalTime(), lang);
 
         var phone = resident.PhoneNumber!
             .Replace("+", "").Replace(" ", "").Replace("-", "");

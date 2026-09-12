@@ -147,28 +147,50 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
 
     public async Task AddOrUpdateAsync(Resident r)
     {
+        var room = r.RoomNumber?.Trim().ToUpper() ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(room))
+        {
+            var conflict = await GetByRoomAsync(room);
+            if (conflict is not null && conflict.Id != r.Id)
+                throw new InvalidOperationException(
+                    $"Já existe um residente no quarto {room} ({conflict.Name}).");
+        }
+
+        if (string.IsNullOrEmpty(r.Id) && r.IsCollaborator && string.IsNullOrWhiteSpace(room))
+        {
+            var nameQ = Uri.EscapeDataString(r.Name.Trim());
+            var same  = await db.GetAsync<Resident>("residents",
+                $"is_deleted=eq.false&is_collaborator=eq.true&name=ilike.{nameQ}&limit=1");
+            if (same.Any())
+                throw new InvalidOperationException(
+                    $"Já existe um colaborador com o nome '{r.Name.Trim()}'.");
+        }
+
         if (string.IsNullOrEmpty(r.Id))
         {
             await db.InsertAsync<Resident>("residents", new
             {
-                sync_id         = Guid.NewGuid().ToString(),
-                name            = r.Name.Trim(),
-                room_number     = r.RoomNumber.Trim().ToUpper(),
-                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
-                is_collaborator = r.IsCollaborator,
-                is_deleted      = false,
-                updated_at      = DateTime.UtcNow
+                sync_id           = Guid.NewGuid().ToString(),
+                name              = r.Name.Trim(),
+                room_number       = room,
+                phone_number      = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator   = r.IsCollaborator,
+                collaborator_role = r.IsCollaborator ? r.CollaboratorRole : null,
+                is_deleted        = false,
+                updated_at        = DateTime.UtcNow
             });
         }
         else
         {
             await db.PatchAsync("residents", $"sync_id=eq.{r.Id}", new
             {
-                name            = r.Name.Trim(),
-                room_number     = r.RoomNumber.Trim().ToUpper(),
-                phone_number    = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
-                is_collaborator = r.IsCollaborator,
-                updated_at      = DateTime.UtcNow
+                name              = r.Name.Trim(),
+                room_number       = room,
+                phone_number      = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
+                is_collaborator   = r.IsCollaborator,
+                collaborator_role = r.IsCollaborator ? r.CollaboratorRole : null,
+                updated_at        = DateTime.UtcNow
             });
         }
         cache.Invalidate(_residentsKey);

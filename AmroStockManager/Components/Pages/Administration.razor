@@ -46,38 +46,80 @@
 <!-- ── Main content ── -->
 <div class="d-flex align-center justify-space-between mb-4">
     <MudText Typo="Typo.h4">Administração</MudText>
-    <div class="d-flex gap-2 flex-wrap">
-        <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
-                   Variant="Variant.Filled" Color="Color.Primary"
-                   OnClick="@(() => OpenResidentForm(null))">
-            Novo Residente
-        </MudButton>
-        <MudButton StartIcon="@Icons.Material.Filled.FileUpload"
-                   Variant="Variant.Outlined" Color="Color.Primary"
-                   OnClick="ImportCsv">
-            Importar CSV
-        </MudButton>
-        <MudButton StartIcon="@Icons.Material.Filled.Lock"
-                   Variant="Variant.Outlined"
-                   OnClick="@(() => _showChangePinForm = !_showChangePinForm)">
-            Alterar PIN
-        </MudButton>
-        <MudButton StartIcon="@Icons.Material.Filled.DeleteSweep"
-                   Variant="Variant.Outlined" Color="Color.Error"
-                   OnClick="ClearAll">
-            Limpar Lista
-        </MudButton>
-        <MudButton StartIcon="@Icons.Material.Filled.CleaningServices"
-                   Variant="Variant.Outlined"
-                   OnClick="OpenMaintenance">
-            Manutenção
-        </MudButton>
-        <MudButton StartIcon="@Icons.Material.Filled.History"
-                   Variant="Variant.Outlined"
-                   OnClick="OpenAuditLog">
-            Histórico
-        </MudButton>
-    </div>
+
+    <!-- Mobile: hamburger (xs/sm) -->
+    <MudHidden Breakpoint="Breakpoint.MdAndUp">
+        <MudMenu>
+            <ActivatorContent>
+                <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                               Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               Title="Menu" />
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Icon="@Icons.Material.Filled.PersonAdd"
+                             OnClick="@(() => OpenResidentForm(null))">
+                    Novo Residente
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.FileUpload"
+                             OnClick="ImportCsv">
+                    Importar CSV
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Lock"
+                             OnClick="@(() => _showChangePinForm = !_showChangePinForm)">
+                    Alterar PIN
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.DeleteSweep"
+                             OnClick="ClearAll">
+                    Limpar Lista
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.CleaningServices"
+                             OnClick="@(async () => await OpenMaintenance())">
+                    Manutenção
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.History"
+                             OnClick="@(async () => await OpenAuditLog())">
+                    Histórico
+                </MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+    </MudHidden>
+
+    <!-- Desktop: button bar (md+) -->
+    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+        <div class="d-flex gap-2 flex-wrap">
+            <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
+                       Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="@(() => OpenResidentForm(null))">
+                Novo Residente
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.FileUpload"
+                       Variant="Variant.Outlined" Color="Color.Primary"
+                       OnClick="ImportCsv">
+                Importar CSV
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.Lock"
+                       Variant="Variant.Outlined"
+                       OnClick="@(() => _showChangePinForm = !_showChangePinForm)">
+                Alterar PIN
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       Variant="Variant.Outlined" Color="Color.Error"
+                       OnClick="ClearAll">
+                Limpar Lista
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.CleaningServices"
+                       Variant="Variant.Outlined"
+                       OnClick="OpenMaintenance">
+                Manutenção
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Filled.History"
+                       Variant="Variant.Outlined"
+                       OnClick="OpenAuditLog">
+                Histórico
+            </MudButton>
+        </div>
+    </MudHidden>
 </div>
 
 <!-- Change PIN form -->
@@ -277,7 +319,9 @@ else
                 </MudText>
                 <MudChip T="string" Size="Size.Small"
                          Color="@(resident.IsCollaborator ? Color.Secondary : Color.Primary)">
-                    @(resident.IsCollaborator ? "Colaborador" : "Residente")
+                    @(resident.IsCollaborator
+                        ? (resident.CollaboratorRole == "admin" ? "Administrador" : "Concierge")
+                        : "Residente")
                 </MudChip>
 
                 <!-- BIS column -->

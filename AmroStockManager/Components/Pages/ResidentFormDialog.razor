@@ -4,13 +4,20 @@
 <MudDialog>
     <TitleContent>
         <div class="d-flex align-center gap-2">
-            <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Primary" />
-            <MudText Typo="Typo.h6">@(_isNew ? "Novo Residente" : "Editar Residente")</MudText>
+            <MudIcon Icon="@(_isCollaborator ? Icons.Material.Filled.Badge : Icons.Material.Filled.Person)"
+                     Color="Color.Primary" />
+            <MudText Typo="Typo.h6">
+                @(_isNew
+                    ? (_isCollaborator ? "Novo Colaborador" : "Novo Residente")
+                    : (_isCollaborator ? "Editar Colaborador" : "Editar Residente"))
+            </MudText>
         </div>
     </TitleContent>
     <DialogContent>
         <MudGrid Spacing="3">
-            <MudItem xs="12" sm="8">
+
+            <!-- Row 1: Name + Room (residents) -->
+            <MudItem xs="12" sm="@(_isCollaborator ? 12 : 8)">
                 <MudTextField @bind-Value="_name"
                               Label="Nome completo"
                               FullWidth="true"
@@ -18,15 +25,21 @@
                               Immediate="true"
                               Variant="Variant.Outlined" />
             </MudItem>
-            <MudItem xs="12" sm="4">
-                <MudTextField @bind-Value="_room"
-                              Label="Quarto"
-                              Placeholder="ex: 101, 201A"
-                              FullWidth="true"
-                              Required="true"
-                              Immediate="true"
-                              Variant="Variant.Outlined" />
-            </MudItem>
+
+            @if (!_isCollaborator)
+            {
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_room"
+                                  Label="Quarto"
+                                  Placeholder="ex: 101, 201A"
+                                  FullWidth="true"
+                                  Required="true"
+                                  Immediate="true"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+            }
+
+            <!-- Row 2: Phone + Collaborator toggle -->
             <MudItem xs="12" sm="8">
                 <MudTextField @bind-Value="_phone"
                               Label="Telemóvel (opcional)"
@@ -39,6 +52,27 @@
                              Label="Colaborador"
                              Color="Color.Primary" />
             </MudItem>
+
+            <!-- Row 3: Role + optional Room (collaborators only) -->
+            @if (_isCollaborator)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Função</MudText>
+                    <MudRadioGroup T="string" @bind-Value="_collaboratorRole" Class="d-flex gap-4">
+                        <MudRadio T="string" Value="@("concierge")" Color="Color.Primary">Concierge</MudRadio>
+                        <MudRadio T="string" Value="@("admin")" Color="Color.Secondary">Administrador</MudRadio>
+                    </MudRadioGroup>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_room"
+                                  Label="Quarto (opcional)"
+                                  Placeholder="ex: 101, 201A"
+                                  FullWidth="true"
+                                  Immediate="true"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+            }
+
         </MudGrid>
     </DialogContent>
     <DialogActions>
@@ -54,10 +88,11 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public Resident? Resident { get; set; }
 
-    private string _name  = string.Empty;
-    private string _room  = string.Empty;
+    private string _name             = string.Empty;
+    private string _room             = string.Empty;
     private string? _phone;
     private bool _isCollaborator;
+    private string _collaboratorRole = "concierge";
     private bool _saving;
 
     private bool _isNew => Resident is null || string.IsNullOrEmpty(Resident.Id);
@@ -66,30 +101,45 @@
     {
         if (Resident is not null)
         {
-            _name           = Resident.Name;
-            _room           = Resident.RoomNumber;
-            _phone          = Resident.PhoneNumber;
-            _isCollaborator = Resident.IsCollaborator;
+            _name             = Resident.Name;
+            _room             = Resident.RoomNumber;
+            _phone            = Resident.PhoneNumber;
+            _isCollaborator   = Resident.IsCollaborator;
+            _collaboratorRole = Resident.CollaboratorRole ?? "concierge";
         }
     }
 
     private async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(_name)) { Snackbar.Add("Nome obrigatório.", Severity.Warning); return; }
-        if (string.IsNullOrWhiteSpace(_room)) { Snackbar.Add("Quarto obrigatório.", Severity.Warning); return; }
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            Snackbar.Add("Nome obrigatório.", Severity.Warning);
+            return;
+        }
+        if (!_isCollaborator && string.IsNullOrWhiteSpace(_room))
+        {
+            Snackbar.Add("Quarto obrigatório para residentes.", Severity.Warning);
+            return;
+        }
 
         _saving = true;
         try
         {
             await ResidentSvc.AddOrUpdateAsync(new Resident
             {
-                Id              = Resident?.Id ?? string.Empty,
-                Name            = _name,
-                RoomNumber      = _room,
-                PhoneNumber     = string.IsNullOrWhiteSpace(_phone) ? null : _phone,
-                IsCollaborator  = _isCollaborator
+                Id               = Resident?.Id ?? string.Empty,
+                Name             = _name,
+                RoomNumber       = _room,
+                PhoneNumber      = string.IsNullOrWhiteSpace(_phone) ? null : _phone,
+                IsCollaborator   = _isCollaborator,
+                CollaboratorRole = _isCollaborator ? _collaboratorRole : null,
             });
             MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+            _saving = false;
         }
         catch (Exception ex)
         {
