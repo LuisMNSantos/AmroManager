@@ -203,6 +203,15 @@
             </div>
         </MudPaper>
     </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.MeetingRoom" Color="Color.Success" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Livres</MudText>
+                <MudText Typo="Typo.h5"><b>@VacantCount</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
 </MudGrid>
 
 @if (_error is not null)
@@ -271,7 +280,7 @@
 {
     <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
 }
-else if (_residents.Count == 0)
+else if (_residents.Count == 0 && _rooms.Count == 0)
 {
     <MudAlert Severity="Severity.Warning">
         Nenhum residente ou colaborador na lista. Importe um ficheiro CSV para começar.
@@ -279,18 +288,26 @@ else if (_residents.Count == 0)
 }
 else
 {
-    <!-- Search + BIS filter -->
-    <div class="d-flex align-center gap-3 mb-2">
+    <!-- Search + BIS filter + Vacant filter -->
+    <div class="d-flex align-center gap-3 mb-2 flex-wrap">
         <MudTextField @bind-Value="_search" Placeholder="Pesquisar nome ou quarto…"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                      Immediate="true" FullWidth="true" Style="flex:1;" />
+                      Immediate="true" FullWidth="true" Style="flex:1; min-width:160px;" />
         <MudChip T="string"
                  Color="@(_showBisOnly ? Color.Warning : Color.Default)"
                  Variant="@(_showBisOnly ? Variant.Filled : Variant.Outlined)"
                  Icon="@Icons.Material.Filled.CreditCard"
-                 OnClick="@(() => _showBisOnly = !_showBisOnly)"
+                 OnClick="@(() => { _showBisOnly = !_showBisOnly; if (_showBisOnly) _showVacantOnly = false; })"
                  Style="cursor:pointer; white-space:nowrap;">
             BIS em uso (@_activeBis.Count)
+        </MudChip>
+        <MudChip T="string"
+                 Color="@(_showVacantOnly ? Color.Success : Color.Default)"
+                 Variant="@(_showVacantOnly ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Filled.MeetingRoom"
+                 OnClick="@(() => { _showVacantOnly = !_showVacantOnly; if (_showVacantOnly) _showBisOnly = false; })"
+                 Style="cursor:pointer; white-space:nowrap;">
+            Livres (@VacantCount)
         </MudChip>
     </div>
 
@@ -330,36 +347,62 @@ else
             <span></span>
         </div>
 
-        @foreach (var r in Filtered)
+        @foreach (var row in Filtered)
         {
-            var resident = r;
-            _rooms.TryGetValue(resident.RoomNumber ?? "", out var roomInfo);
-            _activeBis.TryGetValue(resident.RoomNumber ?? "", out var bis);
+            var resident = row.Resident;
+            var roomInfo = row.Room;
+            var roomNumber = roomInfo?.Number ?? resident?.RoomNumber ?? "";
+            var isVacant = resident is null;
+            _activeBis.TryGetValue(roomNumber, out var bis);
             <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 100px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
-                        align-items:center;">
+                        align-items:center; @(isVacant ? "background:rgba(76,175,80,0.04);" : "")">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
-                    @(string.IsNullOrEmpty(resident.RoomNumber) ? "—" : $"#{resident.RoomNumber}")
+                    @(string.IsNullOrEmpty(roomNumber) ? "—" : $"#{roomNumber}")
                 </MudText>
-                <MudText Typo="Typo.body2">@resident.Name</MudText>
+                @if (isVacant)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-style:italic;">—</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">@resident!.Name</MudText>
+                }
                 <MudTooltip Text="@(roomInfo?.Designation ?? "")" Delay="400">
                     <MudText Typo="Typo.caption" Color="Color.Secondary"
                              Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;">
                         @(roomInfo?.Designation ?? "—")
                     </MudText>
                 </MudTooltip>
-                <MudText Typo="Typo.body2" Color="@(resident.PhoneNumber is null ? Color.Secondary : Color.Default)">
-                    @(resident.PhoneNumber ?? "—")
-                </MudText>
-                <MudChip T="string" Size="Size.Small"
-                         Color="@(resident.IsCollaborator ? Color.Secondary : Color.Primary)">
-                    @(resident.IsCollaborator
-                        ? (resident.CollaboratorRole == "admin" ? "Administrador" : "Concierge")
-                        : "Residente")
-                </MudChip>
+                @if (isVacant)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="@(resident!.PhoneNumber is null ? Color.Secondary : Color.Default)">
+                        @(resident!.PhoneNumber ?? "—")
+                    </MudText>
+                }
+                @if (isVacant)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success"
+                             Icon="@Icons.Material.Filled.MeetingRoom">
+                        Livre
+                    </MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(resident!.IsCollaborator ? Color.Secondary : Color.Primary)">
+                        @(resident!.IsCollaborator
+                            ? (resident!.CollaboratorRole == "admin" ? "Administrador" : "Concierge")
+                            : "Residente")
+                    </MudChip>
+                }
 
                 <!-- BIS column -->
-                @if (string.IsNullOrEmpty(resident.RoomNumber))
+                @if (isVacant || string.IsNullOrEmpty(roomNumber))
                 {
                     <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
                 }
@@ -373,7 +416,7 @@ else
                         <MudTooltip Text="Dar BIS">
                             <MudIconButton Icon="@Icons.Material.Filled.AddCard"
                                            Color="Color.Warning" Size="Size.Small"
-                                           OnClick="@(() => GiveBis(resident))" />
+                                           OnClick="@(() => GiveBis(resident!))" />
                         </MudTooltip>
                     </div>
                 }
@@ -389,24 +432,34 @@ else
                         <MudTooltip Text="Receber BIS">
                             <MudIconButton Icon="@Icons.Material.Filled.AssignmentReturn"
                                            Color="Color.Success" Size="Size.Small"
-                                           OnClick="@(() => ReturnBis(resident, bis))" />
+                                           OnClick="@(() => ReturnBis(resident!, bis))" />
                         </MudTooltip>
                     </div>
                 }
 
                 <div class="d-flex gap-1 align-center justify-end">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Color="Color.Primary" Size="Size.Small"
-                                   Title="Editar"
-                                   OnClick="@(() => OpenResidentForm(resident))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.PersonSearch"
-                                   Color="Color.Default" Size="Size.Small"
-                                   Title="Ver quarto"
-                                   OnClick="@(() => OpenDetailDialog(resident))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                   Color="Color.Error" Size="Size.Small"
-                                   Title="Eliminar"
-                                   OnClick="@(() => DeleteResident(resident))" />
+                    @if (isVacant)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                       Color="Color.Primary" Size="Size.Small"
+                                       Title="Adicionar residente"
+                                       OnClick="@(() => OpenResidentForm(null))" />
+                    }
+                    else
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Color="Color.Primary" Size="Size.Small"
+                                       Title="Editar"
+                                       OnClick="@(() => OpenResidentForm(resident!))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonSearch"
+                                       Color="Color.Default" Size="Size.Small"
+                                       Title="Ver quarto"
+                                       OnClick="@(() => OpenDetailDialog(resident!))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error" Size="Size.Small"
+                                       Title="Eliminar"
+                                       OnClick="@(() => DeleteResident(resident!))" />
+                    }
                 </div>
             </div>
         }
@@ -426,11 +479,14 @@ else
     private string _confirmPin = string.Empty;
     private string _search = string.Empty;
     private bool _showBisOnly;
+    private bool _showVacantOnly;
     private int? _floorFilter;
     private List<Resident> _residents = [];
     private List<PendingRegistration> _pendingRegs = [];
     private Dictionary<string, Room> _rooms = [];
     private Dictionary<string, BisLoan> _activeBis = [];
+
+    private record DisplayRow(Resident? Resident, Room? Room);
 
     private static int? GetFloor(string? room)
     {
@@ -438,19 +494,53 @@ else
         return room[0] - '0';
     }
 
-    private IEnumerable<int> AvailableFloors => _residents
-        .Select(r => GetFloor(r.RoomNumber))
+    private int VacantCount
+    {
+        get
+        {
+            var occupied = _residents
+                .Where(r => r.RoomNumber is not null)
+                .Select(r => r.RoomNumber!.ToUpper())
+                .ToHashSet();
+            return _rooms.Keys.Count(k => !occupied.Contains(k.ToUpper()));
+        }
+    }
+
+    private IEnumerable<int> AvailableFloors => _rooms.Keys
+        .Select(k => GetFloor(k))
         .Where(f => f.HasValue)
         .Select(f => f!.Value)
         .Distinct()
         .OrderBy(f => f);
 
-    private IEnumerable<Resident> Filtered => _residents
-        .Where(r => string.IsNullOrWhiteSpace(_search) ||
-                    r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
-                    (r.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
-        .Where(r => !_showBisOnly || _activeBis.ContainsKey(r.RoomNumber ?? ""))
-        .Where(r => _floorFilter is null || GetFloor(r.RoomNumber) == _floorFilter);
+    private IEnumerable<DisplayRow> AllRows
+    {
+        get
+        {
+            var occupied = _residents
+                .Where(r => r.RoomNumber is not null)
+                .Select(r => r.RoomNumber!.ToUpper())
+                .ToHashSet();
+
+            var residentRows = _residents.Select(r =>
+                new DisplayRow(r, _rooms.GetValueOrDefault(r.RoomNumber ?? "")));
+
+            var vacantRows = _rooms.Values
+                .Where(room => !occupied.Contains(room.Number.ToUpper()))
+                .Select(room => new DisplayRow(null, room));
+
+            return residentRows.Concat(vacantRows);
+        }
+    }
+
+    private IEnumerable<DisplayRow> Filtered => AllRows
+        .Where(row => !_showVacantOnly || row.Resident is null)
+        .Where(row => string.IsNullOrWhiteSpace(_search) ||
+                      (row.Resident?.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                      (row.Room?.Number ?? row.Resident?.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(row => !_showBisOnly || _activeBis.ContainsKey(row.Room?.Number ?? row.Resident?.RoomNumber ?? ""))
+        .Where(row => _floorFilter is null || GetFloor(row.Room?.Number ?? row.Resident?.RoomNumber) == _floorFilter)
+        .OrderBy(row => row.Room?.Number ?? row.Resident?.RoomNumber ?? "zzz");
 
     protected override async Task OnInitializedAsync()
     {
