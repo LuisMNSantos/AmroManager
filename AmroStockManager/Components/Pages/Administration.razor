@@ -269,7 +269,7 @@ else if (_residents.Count == 0)
 else
 {
     <!-- Search + BIS filter -->
-    <div class="d-flex align-center gap-3 mb-3">
+    <div class="d-flex align-center gap-3 mb-2">
         <MudTextField @bind-Value="_search" Placeholder="Pesquisar nome ou quarto…"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                       Immediate="true" FullWidth="true" Style="flex:1;" />
@@ -281,6 +281,29 @@ else
                  Style="cursor:pointer; white-space:nowrap;">
             BIS em uso (@_activeBis.Count)
         </MudChip>
+    </div>
+
+    <!-- Floor filter -->
+    <div class="d-flex align-center gap-2 mb-3 flex-wrap">
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;">Piso:</MudText>
+        <MudChip T="string"
+                 Color="@(_floorFilter is null ? Color.Primary : Color.Default)"
+                 Variant="@(_floorFilter is null ? Variant.Filled : Variant.Outlined)"
+                 Size="Size.Small" OnClick="@(() => _floorFilter = null)"
+                 Style="cursor:pointer;">
+            Todos
+        </MudChip>
+        @foreach (var floor in AvailableFloors)
+        {
+            var f = floor;
+            <MudChip T="string"
+                     Color="@(_floorFilter == f ? Color.Primary : Color.Default)"
+                     Variant="@(_floorFilter == f ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small" OnClick="@(() => _floorFilter = f)"
+                     Style="cursor:pointer;">
+                Piso @f
+            </MudChip>
+        }
     </div>
 
     <MudPaper Elevation="2" Class="overflow-hidden">
@@ -392,16 +415,31 @@ else
     private string _confirmPin = string.Empty;
     private string _search = string.Empty;
     private bool _showBisOnly;
+    private int? _floorFilter;
     private List<Resident> _residents = [];
     private List<PendingRegistration> _pendingRegs = [];
     private Dictionary<string, Room> _rooms = [];
     private Dictionary<string, BisLoan> _activeBis = [];
 
+    private static int? GetFloor(string? room)
+    {
+        if (string.IsNullOrWhiteSpace(room) || !char.IsDigit(room[0])) return null;
+        return room[0] - '0';
+    }
+
+    private IEnumerable<int> AvailableFloors => _residents
+        .Select(r => GetFloor(r.RoomNumber))
+        .Where(f => f.HasValue)
+        .Select(f => f!.Value)
+        .Distinct()
+        .OrderBy(f => f);
+
     private IEnumerable<Resident> Filtered => _residents
         .Where(r => string.IsNullOrWhiteSpace(_search) ||
                     r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                     (r.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
-        .Where(r => !_showBisOnly || _activeBis.ContainsKey(r.RoomNumber ?? ""));
+        .Where(r => !_showBisOnly || _activeBis.ContainsKey(r.RoomNumber ?? ""))
+        .Where(r => _floorFilter is null || GetFloor(r.RoomNumber) == _floorFilter);
 
     protected override async Task OnInitializedAsync()
     {
