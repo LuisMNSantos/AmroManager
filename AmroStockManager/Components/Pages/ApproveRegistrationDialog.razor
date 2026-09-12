@@ -57,10 +57,13 @@
                 Substituir @_existingResident.Name
             </MudButton>
         }
-        <MudButton Color="Color.Success" Variant="Variant.Filled"
-                   OnClick="CreateNew" Disabled="_loading">
-            @(_existingResident is null ? "Criar Residente" : "Criar mesmo assim")
-        </MudButton>
+        else
+        {
+            <MudButton Color="Color.Success" Variant="Variant.Filled"
+                       OnClick="CreateNew" Disabled="_loading">
+                Criar Residente
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
