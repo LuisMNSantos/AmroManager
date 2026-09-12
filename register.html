@@ -68,6 +68,7 @@
       color: #333;
     }
     input:focus, textarea:focus, select:focus { border-color: #1565C0; }
+    input.invalid { border-color: #c62828; }
     textarea { resize: vertical; min-height: 80px; }
     .phone-row {
       display: flex;
@@ -84,6 +85,13 @@
       flex: 1;
       min-width: 0;
     }
+    .field-hint {
+      font-size: .78rem;
+      margin-top: .3rem;
+      color: #c62828;
+      display: none;
+    }
+    .field-hint.visible { display: block; }
     button[type=submit] {
       display: block;
       width: 100%;
@@ -133,6 +141,7 @@
 
       <label id="t-room-label">Número de quarto <span class="required">*</span></label>
       <input type="text" id="room" required autocomplete="off" />
+      <span class="field-hint" id="room-hint"></span>
 
       <label id="t-phone-label">Telemóvel <span class="required">*</span></label>
       <div class="phone-row">
@@ -173,67 +182,92 @@
     const SUPABASE_URL = 'https://cxohpkuuvvilnqdpxaie.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4b2hwa3V1dnZpbG5xZHB4YWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxOTE0MzksImV4cCI6MjEwMTc2NzQzOX0.F71ShyzHpih3WUlrxDDJ_i4QeE67eD40A6ldBHwma2U';
 
+    // Loaded on page start. null = still loading or failed → skip validation (fail open).
+    let _validRooms = null;
+
+    (async function loadRooms() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rooms?select=number`, {
+          headers: {
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0)
+            _validRooms = new Set(data.map(r => String(r.number).toUpperCase()));
+        }
+      } catch { /* network error — skip room validation */ }
+    })();
+
     const i18n = {
       pt: {
-        subtitle:  'Registo de Residente',
-        nameLabel: 'Nome completo', roomLabel: 'Número de quarto',
-        phoneLabel: 'Telemóvel', notesLabel: 'Notas (opcional)',
-        namePh: 'Ex: João Silva', roomPh: 'Ex: 101',
-        phonePh: '912 345 678', notesPh: 'Informação adicional...',
-        submit: 'Enviar pedido de registo', sending: 'A enviar...',
-        success: '✓ Pedido enviado! A administração irá adicionar-te em breve.',
-        error: 'Erro ao enviar. Tenta novamente ou contacta a administração.',
-        dialCode: '+351',
+        subtitle:    'Registo de Residente',
+        nameLabel:   'Nome completo',      roomLabel:  'Número de quarto',
+        phoneLabel:  'Telemóvel',          notesLabel: 'Notas (opcional)',
+        namePh:      'Ex: João Silva',     roomPh:     'Ex: 101',
+        phonePh:     '912 345 678',        notesPh:    'Informação adicional...',
+        submit:      'Enviar pedido de registo',        sending:     'A enviar...',
+        success:     '✓ Pedido enviado! A administração irá adicionar-te em breve.',
+        error:       'Erro ao enviar. Tenta novamente ou contacta a administração.',
+        invalidRoom: 'Quarto não encontrado. Verifica o número ou contacta a administração.',
+        dialCode:    '+351',
       },
       es: {
-        subtitle:  'Registro de Residente',
-        nameLabel: 'Nombre completo', roomLabel: 'Número de habitación',
-        phoneLabel: 'Teléfono', notesLabel: 'Notas (opcional)',
-        namePh: 'Ej: Juan García', roomPh: 'Ej: 101',
-        phonePh: '612 345 678', notesPh: 'Información adicional...',
-        submit: 'Enviar solicitud de registro', sending: 'Enviando...',
-        success: '✓ Solicitud enviada. La administración te añadirá en breve.',
-        error: 'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
-        dialCode: '+34',
+        subtitle:    'Registro de Residente',
+        nameLabel:   'Nombre completo',    roomLabel:  'Número de habitación',
+        phoneLabel:  'Teléfono',           notesLabel: 'Notas (opcional)',
+        namePh:      'Ej: Juan García',    roomPh:     'Ej: 101',
+        phonePh:     '612 345 678',        notesPh:    'Información adicional...',
+        submit:      'Enviar solicitud de registro',    sending:     'Enviando...',
+        success:     '✓ Solicitud enviada. La administración te añadirá en breve.',
+        error:       'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
+        invalidRoom: 'Habitación no encontrada. Verifica el número o contacta con la administración.',
+        dialCode:    '+34',
       },
       en: {
-        subtitle:  'Resident Registration',
-        nameLabel: 'Full name', roomLabel: 'Room number',
-        phoneLabel: 'Phone number', notesLabel: 'Notes (optional)',
-        namePh: 'E.g. John Smith', roomPh: 'E.g. 101',
-        phonePh: '7700 900000', notesPh: 'Additional information...',
-        submit: 'Submit registration request', sending: 'Sending...',
-        success: '✓ Request submitted! The administration will add you shortly.',
-        error: 'Error sending request. Please try again or contact the administration.',
-        dialCode: '+44',
+        subtitle:    'Resident Registration',
+        nameLabel:   'Full name',          roomLabel:  'Room number',
+        phoneLabel:  'Phone number',       notesLabel: 'Notes (optional)',
+        namePh:      'E.g. John Smith',    roomPh:     'E.g. 101',
+        phonePh:     '7700 900000',        notesPh:    'Additional information...',
+        submit:      'Submit registration request',     sending:     'Sending...',
+        success:     '✓ Request submitted! The administration will add you shortly.',
+        error:       'Error sending request. Please try again or contact reception.',
+        invalidRoom: 'Room not found. Please check the number or contact reception.',
+        dialCode:    '+44',
       },
       fr: {
-        subtitle:  'Inscription Résident',
-        nameLabel: 'Nom complet', roomLabel: 'Numéro de chambre',
-        phoneLabel: 'Téléphone', notesLabel: 'Notes (facultatif)',
-        namePh: 'Ex : Jean Dupont', roomPh: 'Ex : 101',
-        phonePh: '6 12 34 56 78', notesPh: 'Informations supplémentaires...',
-        submit: "Envoyer la demande d'inscription", sending: 'Envoi en cours...',
-        success: "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
-        error: "Erreur lors de l'envoi. Réessayez ou contactez l'administration.",
-        dialCode: '+33',
+        subtitle:    'Inscription Résident',
+        nameLabel:   'Nom complet',        roomLabel:  'Numéro de chambre',
+        phoneLabel:  'Téléphone',          notesLabel: 'Notes (facultatif)',
+        namePh:      'Ex : Jean Dupont',   roomPh:     'Ex : 101',
+        phonePh:     '6 12 34 56 78',      notesPh:    'Informations supplémentaires...',
+        submit:      "Envoyer la demande d'inscription", sending:   'Envoi en cours...',
+        success:     "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
+        error:       "Erreur lors de l'envoi. Réessayez ou contactez la réception.",
+        invalidRoom: 'Chambre introuvable. Vérifiez le numéro ou contactez la réception.',
+        dialCode:    '+33',
       },
       it: {
-        subtitle:  'Registrazione Residente',
-        nameLabel: 'Nome completo', roomLabel: 'Numero di stanza',
-        phoneLabel: 'Telefono', notesLabel: 'Note (facoltativo)',
-        namePh: 'Es: Mario Rossi', roomPh: 'Es: 101',
-        phonePh: '320 123 4567', notesPh: 'Informazioni aggiuntive...',
-        submit: 'Invia richiesta di registrazione', sending: 'Invio in corso...',
-        success: "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
-        error: "Errore nell'invio. Riprova o contatta l'amministrazione.",
-        dialCode: '+39',
+        subtitle:    'Registrazione Residente',
+        nameLabel:   'Nome completo',      roomLabel:  'Numero di stanza',
+        phoneLabel:  'Telefono',           notesLabel: 'Note (facoltativo)',
+        namePh:      'Es: Mario Rossi',    roomPh:     'Es: 101',
+        phonePh:     '320 123 4567',       notesPh:    'Informazioni aggiuntive...',
+        submit:      'Invia richiesta di registrazione', sending:   'Invio in corso...',
+        success:     "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
+        error:       "Errore nell'invio. Riprova o contatta la reception.",
+        invalidRoom: 'Stanza non trovata. Controlla il numero o contatta la reception.',
+        dialCode:    '+39',
       }
     };
 
     let currentLang = 'pt';
 
-    function setLang(lang) {
+    // clearMsg: true when switching language (user action), false when restoring after submit
+    function setLang(lang, clearMsg = true) {
       currentLang = lang;
       const t = i18n[lang];
       document.documentElement.lang = lang;
@@ -242,63 +276,91 @@
       document.getElementById('t-room-label').innerHTML    = t.roomLabel  + ' <span class="required">*</span>';
       document.getElementById('t-phone-label').innerHTML   = t.phoneLabel + ' <span class="required">*</span>';
       document.getElementById('t-notes-label').textContent = t.notesLabel;
-      document.getElementById('name').placeholder       = t.namePh;
-      document.getElementById('room').placeholder       = t.roomPh;
-      document.getElementById('phone-local').placeholder = t.phonePh;
-      document.getElementById('notes').placeholder      = t.notesPh;
-      document.getElementById('btn').textContent        = t.submit;
-      document.getElementById('prefix').value           = t.dialCode;
+      document.getElementById('name').placeholder          = t.namePh;
+      document.getElementById('room').placeholder          = t.roomPh;
+      document.getElementById('phone-local').placeholder   = t.phonePh;
+      document.getElementById('notes').placeholder         = t.notesPh;
+      document.getElementById('btn').textContent           = t.submit;
+      document.getElementById('prefix').value              = t.dialCode;
       document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
+      if (clearMsg) {
+        const msg = document.getElementById('msg');
+        msg.className   = 'msg';
+        msg.textContent = '';
+      }
+    }
+
+    function showMsg(text, type) {
       const msg = document.getElementById('msg');
-      msg.className = 'msg';
-      msg.style.display = '';
+      msg.textContent = text;
+      msg.className   = 'msg ' + type;
+      msg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function setRoomError(text) {
+      const hint  = document.getElementById('room-hint');
+      const input = document.getElementById('room');
+      if (text) {
+        hint.textContent = text;
+        hint.classList.add('visible');
+        input.classList.add('invalid');
+      } else {
+        hint.textContent = '';
+        hint.classList.remove('visible');
+        input.classList.remove('invalid');
+      }
     }
 
     setLang('pt');
 
+    document.getElementById('room').addEventListener('input', () => setRoomError(''));
+
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const t        = i18n[currentLang];
-      const btn      = document.getElementById('btn');
-      const msg      = document.getElementById('msg');
-      const name     = document.getElementById('name').value.trim();
-      const room     = document.getElementById('room').value.trim().toUpperCase();
-      const prefix   = document.getElementById('prefix').value;
-      const local    = document.getElementById('phone-local').value.trim();
-      const phone    = local ? prefix + local : null;
-      const notes    = document.getElementById('notes').value.trim() || null;
+      const t     = i18n[currentLang];
+      const btn   = document.getElementById('btn');
+      const name  = document.getElementById('name').value.trim();
+      const room  = document.getElementById('room').value.trim().toUpperCase();
+      const local = document.getElementById('phone-local').value.trim();
+      const phone = local ? document.getElementById('prefix').value + local : null;
+      const notes = document.getElementById('notes').value.trim() || null;
 
       if (!name || !room || !local) return;
 
-      btn.disabled = true;
+      // Room validation — only when DB data is available
+      if (_validRooms !== null && !_validRooms.has(room)) {
+        setRoomError(t.invalidRoom);
+        return;
+      }
+
+      setRoomError('');
+      btn.disabled    = true;
       btn.textContent = t.sending;
-      msg.className = 'msg';
-      msg.style.display = '';
 
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/pending_registrations`, {
           method: 'POST',
           headers: {
-            'apikey': SUPABASE_ANON_KEY,
+            'apikey':        SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
+            'Content-Type':  'application/json',
+            'Prefer':        'return=minimal'
           },
           body: JSON.stringify({ name, room_number: room, phone_number: phone, notes })
         });
 
         if (!res.ok) throw new Error(`${res.status}`);
 
-        msg.textContent = t.success;
-        msg.className = 'msg success';
+        // Reset form then restore language state (without clearing the message),
+        // then show the success message so it is always visible.
         document.getElementById('form').reset();
-        setLang(currentLang);
+        setLang(currentLang, false);
+        showMsg(t.success, 'success');
       } catch {
-        msg.textContent = t.error;
-        msg.className = 'msg error';
+        showMsg(t.error, 'error');
       } finally {
-        btn.disabled = false;
+        btn.disabled    = false;
         btn.textContent = t.submit;
       }
     });
