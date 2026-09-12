@@ -165,7 +165,7 @@ public class ReservationService(ISupabaseClient db)
     public async Task<bool> CompleteAsync(string reservationId)
     {
         var resList = await db.GetAsync<Reservation>("reservations",
-            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,access_card_loan_sync_id,is_completed");
+            $"sync_id=eq.{reservationId}&is_deleted=eq.false&select=sync_id,access_card_loan_sync_id,is_completed,end_time");
         if (resList is not [var reservation] || reservation.AccessCardLoanId is null)
             return false;
 
@@ -174,8 +174,14 @@ public class ReservationService(ISupabaseClient db)
         if (loans is not [var loan] || loan.IsReturned) return false;
 
         var now = DateTime.UtcNow;
-        await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}", new { return_date = now, is_returned = true, updated_at = now });
-        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}", new { is_completed = true, updated_at = now });
+        // If card returned before scheduled end, shrink end_time to now so the
+        // remaining slot becomes immediately available for new reservations.
+        var effectiveEnd = now < reservation.EndTime ? now : reservation.EndTime;
+
+        await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}",
+            new { return_date = now, is_returned = true, updated_at = now });
+        await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}",
+            new { is_completed = true, end_time = effectiveEnd, updated_at = now });
         return true;
     }
 
