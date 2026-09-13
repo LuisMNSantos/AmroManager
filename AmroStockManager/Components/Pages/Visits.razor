@@ -371,13 +371,21 @@ else
 
         if (siblings.Any())
         {
-            var allNames = string.Join(", ", new[] { visit }.Concat(siblings).Select(v => v.VisitorName));
-            var choice = await DialogService.ShowMessageBox(
-                "Registar Saída",
-                $"Há {siblings.Count + 1} visitas activas no quarto #{visit.RoomNumber}: {allNames}. Registar saída de todos?",
-                yesText: "Saída de Todos", noText: "Só Este", cancelText: "Cancelar");
-            if (choice == null) return;
-            toCheckOut = choice == true ? new[] { visit }.Concat(siblings).ToList() : [visit];
+            var allVisits = new[] { visit }.Concat(siblings).ToList();
+            var parameters = new DialogParameters<VisitCheckoutDialog>
+            {
+                { x => x.Visits, allVisits },
+                { x => x.RoomNumber, visit.RoomNumber }
+            };
+            var dialog = await DialogService.ShowAsync<VisitCheckoutDialog>(
+                string.Empty, parameters,
+                new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
+            var result = await dialog.Result;
+            if (result is { Canceled: true }) return;
+
+            var selectedIds = (List<string>)result!.Data!;
+            toCheckOut = allVisits.Where(v => selectedIds.Contains(v.Id)).ToList();
+            if (toCheckOut.Count == 0) return;
         }
         else
         {

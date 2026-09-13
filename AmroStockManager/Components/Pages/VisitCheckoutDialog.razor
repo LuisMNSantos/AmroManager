@@ -1,0 +1,70 @@
+@using AmroStockManager.Data.Models
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Saída — Quarto #@RoomNumber</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-2">Selecione os visitantes a registar saída:</MudText>
+        @foreach (var visit in Visits)
+        {
+            <div>
+                <MudCheckBox T="bool"
+                             Value="_selected[visit.Id]"
+                             ValueChanged="v => OnVisitorToggled(visit.Id, v)"
+                             Label="@visit.VisitorName"
+                             Color="Color.Primary" />
+            </div>
+        }
+        <MudDivider Class="mt-2 mb-1" />
+        <MudCheckBox T="bool"
+                     Value="_selectAll"
+                     ValueChanged="OnSelectAll"
+                     Label="Selecionar todos"
+                     Color="Color.Secondary" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Cancel()">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Confirm"
+                   Disabled="@(!_selected.Any(kv => kv.Value))">
+            Confirmar Saída
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<Visit> Visits { get; set; } = [];
+    [Parameter] public string RoomNumber { get; set; } = string.Empty;
+
+    private Dictionary<string, bool> _selected = [];
+    private bool _selectAll = true;
+
+    protected override void OnInitialized()
+    {
+        _selected = Visits.ToDictionary(v => v.Id, _ => true);
+    }
+
+    private void OnSelectAll(bool value)
+    {
+        _selectAll = value;
+        foreach (var k in _selected.Keys.ToList())
+            _selected[k] = value;
+    }
+
+    private void OnVisitorToggled(string id, bool value)
+    {
+        _selected[id] = value;
+        _selectAll = _selected.Values.All(v => v);
+    }
+
+    private void Confirm()
+    {
+        var ids = _selected.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+        MudDialog.Close(DialogResult.Ok(ids));
+    }
+}
