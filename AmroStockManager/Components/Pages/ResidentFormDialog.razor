@@ -73,6 +73,23 @@
                 </MudItem>
             }
 
+            <!-- Row 4: Renewer perk (residents only) -->
+            @if (!_isCollaborator)
+            {
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch @bind-Value="_isRenewer" Color="Color.Success" Label="Renovador" />
+                </MudItem>
+                @if (_isRenewer)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField T="int" @bind-Value="_freeOvernights"
+                                         Label="Overnights grátis"
+                                         Min="0" Max="365"
+                                         Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+            }
+
         </MudGrid>
     </DialogContent>
     <DialogActions>
@@ -93,6 +110,8 @@
     private string? _phone;
     private bool _isCollaborator;
     private string _collaboratorRole = "concierge";
+    private bool _isRenewer;
+    private int  _freeOvernights;
     private bool _saving;
 
     private bool _isNew => Resident is null || string.IsNullOrEmpty(Resident.Id);
@@ -106,6 +125,8 @@
             _phone            = Resident.PhoneNumber;
             _isCollaborator   = Resident.IsCollaborator;
             _collaboratorRole = Resident.CollaboratorRole ?? "concierge";
+            _isRenewer        = Resident.IsRenewer;
+            _freeOvernights   = Resident.FreeOvernights;
         }
     }
 
@@ -133,6 +154,8 @@
                 PhoneNumber      = string.IsNullOrWhiteSpace(_phone) ? null : _phone,
                 IsCollaborator   = _isCollaborator,
                 CollaboratorRole = _isCollaborator ? _collaboratorRole : null,
+                IsRenewer        = !_isCollaborator && _isRenewer,
+                FreeOvernights   = !_isCollaborator && _isRenewer ? _freeOvernights : 0,
             });
             MudDialog.Close(DialogResult.Ok(true));
         }

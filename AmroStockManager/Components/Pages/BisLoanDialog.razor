@@ -1,3 +1,4 @@
+@inject ResidentService ResidentSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -14,14 +15,18 @@
             O residente deve devolver este cartão assim que recuperar o original.
         </MudAlert>
 
-        <MudTextField @bind-Value="_givenBy"
-                      Label="Entregue por"
-                      Placeholder="Nome de quem entrega o cartão"
-                      Required="true"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Class="mb-3"
-                      Immediate="true" />
+        <MudAutocomplete T="string"
+                         @bind-Value="_givenBy"
+                         Label="Entregue por"
+                         Placeholder="Nome de quem entrega o cartão"
+                         Required="true"
+                         SearchFunc="SearchCollaborators"
+                         Strict="false"
+                         CoerceText="true"
+                         Variant="Variant.Outlined"
+                         FullWidth="true"
+                         Class="mb-3"
+                         Immediate="true" />
 
         <MudTextField @bind-Value="_notes"
                       Label="Notas (opcional)"
@@ -48,6 +53,21 @@
 
     private string  _givenBy = string.Empty;
     private string? _notes;
+    private List<string> _collaborators = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await ResidentSvc.GetAllAsync();
+        _collaborators = all.Where(r => r.IsCollaborator).Select(r => r.Name).ToList();
+    }
+
+    private Task<IEnumerable<string>> SearchCollaborators(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrWhiteSpace(value)
+            ? _collaborators
+            : _collaborators.Where(c => c.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
 
     private void Submit() => MudDialog.Close(DialogResult.Ok((_givenBy.Trim(), _notes)));
 }

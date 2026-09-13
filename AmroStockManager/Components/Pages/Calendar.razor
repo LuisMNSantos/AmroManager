@@ -107,7 +107,7 @@
             <div style="display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid rgba(0,0,0,0.12);">
                 @foreach (var h in new[] { "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom" })
                 {
-                    <div style="padding:8px 0; text-align:center; background:#f5f5f5;">
+                    <div style="padding:8px 0; text-align:center; background:var(--mud-palette-background-grey);">
                         <MudText Typo="Typo.caption" Color="Color.Secondary"
                                  Style="font-weight:700; letter-spacing:0.04em;">@h</MudText>
                     </div>
@@ -124,7 +124,7 @@
                     bool isLastCol = (i % 7) == 6;
                     bool isLastRow = i >= _calendarCells.Count - 7;
 
-                    string bg = isToday ? "rgba(21,101,192,0.10)" : inMonth ? "transparent" : "#fafafa";
+                    string bg = isToday ? "rgba(21,101,192,0.10)" : inMonth ? "transparent" : "var(--mud-palette-background-grey)";
                     string boxShadow = isToday ? "inset 0 0 0 2px #1565C0" : "none";
                     string borderRight = isLastCol ? "none" : "1px solid rgba(0,0,0,0.08)";
                     string borderBottom = isLastRow ? "none" : "1px solid rgba(0,0,0,0.08)";

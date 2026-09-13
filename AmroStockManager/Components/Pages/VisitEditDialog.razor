@@ -1,0 +1,164 @@
+@inject RoomService RoomSvc
+@inject ResidentService ResidentSvc
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.EditCalendar" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Editar Visita</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="3">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_visitorName"
+                              Label="Nome da visita"
+                              Required="true"
+                              Immediate="true"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudAutocomplete T="string" @bind-Value="_roomNumber"
+                                 Label="Quarto"
+                                 Required="true"
+                                 SearchFunc="SearchRoom"
+                                 Variant="Variant.Outlined"
+                                 ResetValueOnEmptyText="true"
+                                 CoerceText="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudAutocomplete T="string"
+                                 @bind-Value="_registeredBy"
+                                 Label="Registado por"
+                                 SearchFunc="SearchCollaborators"
+                                 Strict="false"
+                                 CoerceText="true"
+                                 Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    Entrada
+                </MudText>
+                <div class="d-flex gap-3">
+                    <MudDatePicker @bind-Date="_inDate" Label="Data" Variant="Variant.Outlined"
+                                   Style="flex:1;" />
+                    <MudTimePicker @bind-Time="_inTime" Label="Hora" Variant="Variant.Outlined"
+                                   AmPm="false" Style="flex:1;" />
+                </div>
+            </MudItem>
+
+            <MudItem xs="12">
+                <div class="d-flex align-center gap-3 mb-2">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saída</MudText>
+                    <MudSwitch @bind-Value="_hasCheckOut" Color="Color.Success" Size="Size.Small"
+                               Label="@(_hasCheckOut ? "Registada" : "Ainda activa")" />
+                </div>
+                @if (_hasCheckOut)
+                {
+                    <div class="d-flex gap-3">
+                        <MudDatePicker @bind-Date="_outDate" Label="Data" Variant="Variant.Outlined"
+                                       Style="flex:1;" />
+                        <MudTimePicker @bind-Time="_outTime" Label="Hora" Variant="Variant.Outlined"
+                                       AmPm="false" Style="flex:1;" />
+                    </div>
+                }
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes"
+                              Label="Notas"
+                              Lines="2"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!CanSubmit)">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Visit Visit { get; set; } = null!;
+
+    private string    _visitorName  = string.Empty;
+    private string    _roomNumber   = string.Empty;
+    private string    _registeredBy = string.Empty;
+    private string    _notes        = string.Empty;
+    private DateTime? _inDate;
+    private TimeSpan? _inTime;
+    private bool      _hasCheckOut;
+    private DateTime? _outDate;
+    private TimeSpan? _outTime;
+    private List<string> _allRooms = [];
+    private List<string> _collaborators = [];
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_visitorName) &&
+        !string.IsNullOrWhiteSpace(_roomNumber) &&
+        _inDate.HasValue && _inTime.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allRooms = (await RoomSvc.GetAllNumbersAsync()).ToList();
+        var all = await ResidentSvc.GetAllAsync();
+        _collaborators = all.Where(r => r.IsCollaborator).Select(r => r.Name).ToList();
+
+        var localIn = Visit.CheckedInAt.ToLocalTime();
+        _visitorName  = Visit.VisitorName;
+        _roomNumber   = Visit.RoomNumber;
+        _registeredBy = Visit.RegisteredBy ?? string.Empty;
+        _notes        = Visit.Notes ?? string.Empty;
+        _inDate       = localIn.Date;
+        _inTime       = localIn.TimeOfDay;
+
+        if (Visit.CheckedOutAt.HasValue)
+        {
+            _hasCheckOut = true;
+            var localOut = Visit.CheckedOutAt.Value.ToLocalTime();
+            _outDate = localOut.Date;
+            _outTime = localOut.TimeOfDay;
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchCollaborators(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrWhiteSpace(value)
+            ? _collaborators
+            : _collaborators.Where(c => c.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    private Task<IEnumerable<string>> SearchRoom(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrEmpty(value)
+            ? _allRooms.Take(20)
+            : _allRooms.Where(r => r.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    private void Submit()
+    {
+        if (!CanSubmit) return;
+
+        var checkedIn = DateTime.SpecifyKind(
+            _inDate!.Value.Add(_inTime!.Value), DateTimeKind.Local).ToUniversalTime();
+
+        DateTime? checkedOut = null;
+        if (_hasCheckOut && _outDate.HasValue && _outTime.HasValue)
+            checkedOut = DateTime.SpecifyKind(
+                _outDate.Value.Add(_outTime.Value), DateTimeKind.Local).ToUniversalTime();
+
+        MudDialog.Close(DialogResult.Ok((
+            _visitorName, _roomNumber.Trim().ToUpper(),
+            checkedIn, checkedOut,
+            _registeredBy, _notes)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

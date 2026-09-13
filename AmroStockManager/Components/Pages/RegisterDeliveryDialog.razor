@@ -60,8 +60,20 @@
                                  FullWidth="true" />
             </MudItem>
 
+            <!-- Registered by -->
+            <MudItem xs="12" sm="6">
+                <MudAutocomplete T="string"
+                                 @bind-Value="_registeredBy"
+                                 Label="Registado por"
+                                 SearchFunc="SearchCollaborators"
+                                 Strict="false"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 FullWidth="true" />
+            </MudItem>
+
             <!-- Notes -->
-            <MudItem xs="12">
+            <MudItem xs="12" sm="6">
                 <MudTextField @bind-Value="_notes"
                               Label="Notas (opcional)"
                               Placeholder="ex: frágil, tamanho grande…"
@@ -85,14 +97,30 @@
     [Parameter] public DeliveryType DefaultType { get; set; } = DeliveryType.Encomenda;
 
     private DeliveryType _type;
-    private string _roomInput = string.Empty;
+    private string _roomInput     = string.Empty;
+    private string _registeredBy  = string.Empty;
     private int _quantity = 1;
     private string? _notes;
+    private List<string> _collaborators = [];
 
     protected override void OnParametersSet() => _type = DefaultType;
 
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await ResidentSvc.GetAllAsync();
+        _collaborators = all.Where(r => r.IsCollaborator).Select(r => r.Name).ToList();
+    }
+
     private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
         => ResidentSvc.GetSuggestionsAsync(value);
+
+    private Task<IEnumerable<string>> SearchCollaborators(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrWhiteSpace(value)
+            ? _collaborators
+            : _collaborators.Where(c => c.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
 
     private async Task Confirm()
     {
@@ -105,7 +133,8 @@
 
         try
         {
-            await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes);
+            await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes,
+                string.IsNullOrWhiteSpace(_registeredBy) ? null : _registeredBy.Trim());
 
             var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
             Snackbar.Add($"{label} para o quarto {roomNumber} registada.", Severity.Success);

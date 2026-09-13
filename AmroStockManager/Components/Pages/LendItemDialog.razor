@@ -26,12 +26,16 @@
                                  FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_givenBy"
-                              Label="Entregue Por (funcionário / pessoa)"
-                              Required="true"
-                              RequiredError="Obrigatório"
-                              Immediate="true"
-                              FullWidth="true" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_givenBy"
+                                 Label="Entregue Por (funcionário / pessoa)"
+                                 Required="true"
+                                 RequiredError="Obrigatório"
+                                 SearchFunc="SearchCollaborators"
+                                 Strict="false"
+                                 CoerceText="true"
+                                 Immediate="true"
+                                 FullWidth="true" />
             </MudItem>
             <MudItem xs="12">
                 <MudTextField @bind-Value="_notes" Label="Notas (opcional)" FullWidth="true" />
@@ -73,6 +77,7 @@
     private string _givenBy   = string.Empty;
     private string? _notes;
     private int _linkedQty = 0;
+    private List<string> _collaborators = [];
 
     protected override void OnParametersSet()
     {
@@ -80,8 +85,22 @@
             _linkedQty = Math.Min(1, LinkedItem.AvailableCount);
     }
 
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await ResidentSvc.GetAllAsync();
+        _collaborators = all.Where(r => r.IsCollaborator).Select(r => r.Name).ToList();
+    }
+
     private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
         => ResidentSvc.GetSuggestionsAsync(value);
+
+    private Task<IEnumerable<string>> SearchCollaborators(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrWhiteSpace(value)
+            ? _collaborators
+            : _collaborators.Where(c => c.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
 
     private async Task Confirm()
     {

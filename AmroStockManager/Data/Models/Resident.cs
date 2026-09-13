@@ -12,6 +12,10 @@ public class Resident
     public bool IsCollaborator { get; set; }
     [JsonPropertyName("collaborator_role")]
     public string? CollaboratorRole { get; set; }
+    [JsonPropertyName("is_renewer")]
+    public bool IsRenewer { get; set; }
+    [JsonPropertyName("free_overnights")]
+    public int FreeOvernights { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 }

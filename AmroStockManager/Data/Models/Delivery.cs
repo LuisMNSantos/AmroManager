@@ -15,6 +15,8 @@ public class Delivery
     public DeliveryType Type { get; set; }
     public string RoomNumber { get; set; } = string.Empty;
     public int Quantity { get; set; } = 1;
+    [JsonPropertyName("registered_by")]
+    public string? RegisteredBy { get; set; }
     public DateTime ArrivedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CollectedAt { get; set; }
     public string? Notes { get; set; }
