@@ -137,8 +137,13 @@
       margin-top: 1rem;
     }
     .visit-card.visible { display: block; }
-    .visit-card .visitor-name { font-size: 1rem; font-weight: 700; color: #2e7d32; }
-    .visit-card .visit-meta   { font-size: .82rem; color: #558b2f; margin-top: .25rem; }
+    .visit-card .visitor-name { font-size: 1rem; font-weight: 700; color: #2e7d32; margin-top: .4rem; }
+    .visit-card .visit-meta   { font-size: .82rem; color: #558b2f; }
+    .visitor-cb-row { display: flex; align-items: center; gap: .6rem; padding: .2rem 0; }
+    .visitor-cb-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2e7d32; cursor: pointer; flex-shrink: 0; }
+    .visitor-cb-row label { font-size: .95rem; font-weight: 500; color: #2e7d32; cursor: pointer; }
+    .visitor-cb-row.cb-all { margin-top: .5rem; border-top: 1px solid #c5e1a5; padding-top: .55rem; }
+    .visitor-cb-row.cb-all label { color: #558b2f; font-size: .85rem; }
     button[type=submit], .confirm-btn {
       display: block;
       width: 100%;
@@ -264,8 +269,8 @@
       <span class="field-hint" id="room-out-hint"></span>
 
       <div class="visit-card" id="visit-card">
-        <div class="visitor-name" id="visit-name"></div>
-        <div class="visit-meta"  id="visit-meta"></div>
+        <div class="visit-meta" id="visit-meta"></div>
+        <div id="visitors-list"></div>
         <button class="confirm-btn" id="btn-confirm" onclick="confirmCheckout()">
           <span id="t-confirm-text">Confirmar Saída</span>
         </button>
@@ -331,6 +336,7 @@
         search:'Procurar', searching:'...',
         noVisit:'Nenhuma visita activa encontrada para este quarto.',
         visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
+        selectAll:'Selecionar todos',
         confirmOut:'Confirmar Saída', confirmingOut:'A registar saída...',
         successOut:n=>n>0?`✓ Saída registada. ${n} overnight(s) contabilizado(s).`:'✓ Saída registada com sucesso!',
         successOutMulti:n=>`✓ ${n} saídas registadas com sucesso!`,
@@ -350,6 +356,7 @@
         search:'Buscar', searching:'...',
         noVisit:'No se encontró ninguna visita activa para esta habitación.',
         visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
+        selectAll:'Seleccionar todos',
         confirmOut:'Confirmar Salida', confirmingOut:'Registrando salida...',
         successOut:n=>n>0?`✓ Salida registrada. ${n} noche(s) contabilizada(s).`:'✓ ¡Salida registrada correctamente!',
         successOutMulti:n=>`✓ ${n} salidas registradas con éxito!`,
@@ -369,6 +376,7 @@
         search:'Search', searching:'...',
         noVisit:'No active visit found for this room.',
         visitMeta:(name,dt)=>`${name} · Checked in: ${dt}`,
+        selectAll:'Select all',
         confirmOut:'Confirm Check-out', confirmingOut:'Checking out...',
         successOut:n=>n>0?`✓ Checked out. ${n} overnight(s) recorded.`:'✓ Checked out successfully!',
         successOutMulti:n=>`✓ ${n} check-outs registered successfully!`,
@@ -388,6 +396,7 @@
         search:'Chercher', searching:'...',
         noVisit:'Aucune visite active trouvée pour cette chambre.',
         visitMeta:(name,dt)=>`${name} · Arrivée : ${dt}`,
+        selectAll:'Tout sélectionner',
         confirmOut:'Confirmer le départ', confirmingOut:'Enregistrement du départ...',
         successOut:n=>n>0?`✓ Départ enregistré. ${n} nuit(s) comptabilisée(s).`:'✓ Départ enregistré avec succès !',
         successOutMulti:n=>`✓ ${n} départs enregistrés avec succès !`,
@@ -407,6 +416,7 @@
         search:'Cerca', searching:'...',
         noVisit:'Nessuna visita attiva trovata per questa stanza.',
         visitMeta:(name,dt)=>`${name} · Arrivo: ${dt}`,
+        selectAll:'Seleziona tutti',
         confirmOut:'Conferma Partenza', confirmingOut:'Registrazione partenza...',
         successOut:n=>n>0?`✓ Partenza registrata. ${n} notte/i contabilizzata/e.`:'✓ Partenza registrata con successo!',
         successOutMulti:n=>`✓ ${n} partenze registrate con successo!`,
@@ -591,8 +601,34 @@
           showMsg(t.noVisit, 'info'); return;
         }
         _foundVisits = data.map(v => ({ id: v.sync_id, visitorName: v.visitor_name, checkedInAt: v.checked_in_at }));
-        document.getElementById('visit-name').textContent = _foundVisits.map(v => v.visitorName).join(', ');
         document.getElementById('visit-meta').textContent = t.visitMeta(`#${room}`, fmtDT(data[0].checked_in_at));
+
+        const listEl = document.getElementById('visitors-list');
+        if (_foundVisits.length === 1) {
+          listEl.innerHTML = `<div class="visitor-name">${_foundVisits[0].visitorName}</div>`;
+        } else {
+          listEl.innerHTML =
+            _foundVisits.map((v, i) =>
+              `<div class="visitor-cb-row">
+                <input type="checkbox" id="vcb-${i}" checked />
+                <label for="vcb-${i}">${v.visitorName}</label>
+              </div>`
+            ).join('') +
+            `<div class="visitor-cb-row cb-all">
+              <input type="checkbox" id="vcb-all" checked />
+              <label for="vcb-all">${t.selectAll}</label>
+            </div>`;
+          const allCb = document.getElementById('vcb-all');
+          allCb.addEventListener('change', () => {
+            _foundVisits.forEach((_, i) => document.getElementById(`vcb-${i}`).checked = allCb.checked);
+          });
+          _foundVisits.forEach((_, i) => {
+            document.getElementById(`vcb-${i}`).addEventListener('change', () => {
+              allCb.checked = _foundVisits.every((_, j) => document.getElementById(`vcb-${j}`).checked);
+            });
+          });
+        }
+
         document.getElementById('t-confirm-text').textContent = t.confirmOut;
         document.getElementById('visit-card').classList.add('visible');
       } catch { showMsg(t.errorOut, 'error'); }
@@ -609,8 +645,13 @@
 
       const now = new Date().toISOString();
 
+      const toCheckOut = _foundVisits.length === 1
+        ? _foundVisits
+        : _foundVisits.filter((_, i) => document.getElementById(`vcb-${i}`)?.checked);
+      if (!toCheckOut.length) { btn.disabled = false; document.getElementById('t-confirm-text').textContent = t.confirmOut; return; }
+
       try {
-        await Promise.all(_foundVisits.map(v => {
+        await Promise.all(toCheckOut.map(v => {
           const overnights = computeOvernights(v.checkedInAt);
           return fetch(
             `${SUPABASE_URL}/rest/v1/visits?sync_id=eq.${v.id}`,
@@ -619,8 +660,8 @@
           ).then(r => { if (!r.ok) throw new Error(); });
         }));
 
-        const count = _foundVisits.length;
-        const maxOvernights = Math.max(..._foundVisits.map(v => computeOvernights(v.checkedInAt)));
+        const count = toCheckOut.length;
+        const maxOvernights = Math.max(...toCheckOut.map(v => computeOvernights(v.checkedInAt)));
         _foundVisits = [];
         document.getElementById('visit-card').classList.remove('visible');
         document.getElementById('room-out').value = '';
