@@ -118,6 +118,7 @@
     .msg.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .msg.error   { background: #ffebee; color: #c62828; display: block; }
     .required { color: #c62828; }
+    .hp-trap { position:absolute !important; left:-9999px !important; opacity:0 !important; height:0 !important; width:0 !important; pointer-events:none !important; }
   </style>
 </head>
 <body>
@@ -172,6 +173,7 @@
       <label id="t-notes-label">Notas (opcional)</label>
       <textarea id="notes"></textarea>
 
+      <input class="hp-trap" type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" />
       <button type="submit" id="btn">Enviar pedido de registo</button>
     </form>
 
@@ -212,6 +214,7 @@
         success:     '✓ Pedido enviado! A administração irá adicionar-te em breve.',
         error:       'Erro ao enviar. Tenta novamente ou contacta a administração.',
         invalidRoom: 'Quarto não encontrado. Verifica o número ou contacta a administração.',
+        rateLimited: s => `Demasiados pedidos. Aguarda ${s}s antes de tentar novamente.`,
         dialCode:    '+351',
       },
       es: {
@@ -224,6 +227,7 @@
         success:     '✓ Solicitud enviada. La administración te añadirá en breve.',
         error:       'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
         invalidRoom: 'Habitación no encontrada. Verifica el número o contacta con la administración.',
+        rateLimited: s => `Demasiadas solicitudes. Espera ${s}s antes de intentarlo de nuevo.`,
         dialCode:    '+34',
       },
       en: {
@@ -236,6 +240,7 @@
         success:     '✓ Request submitted! The administration will add you shortly.',
         error:       'Error sending request. Please try again or contact reception.',
         invalidRoom: 'Room not found. Please check the number or contact reception.',
+        rateLimited: s => `Too many attempts. Please wait ${s}s before trying again.`,
         dialCode:    '+44',
       },
       fr: {
@@ -248,6 +253,7 @@
         success:     "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
         error:       "Erreur lors de l'envoi. Réessayez ou contactez la réception.",
         invalidRoom: 'Chambre introuvable. Vérifiez le numéro ou contactez la réception.',
+        rateLimited: s => `Trop de tentatives. Attendez ${s}s avant de réessayer.`,
         dialCode:    '+33',
       },
       it: {
@@ -260,6 +266,7 @@
         success:     "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
         error:       "Errore nell'invio. Riprova o contatta la reception.",
         invalidRoom: 'Stanza non trovata. Controlla il numero o contatta la reception.',
+        rateLimited: s => `Troppe richieste. Attendi ${s}s prima di riprovare.`,
         dialCode:    '+39',
       }
     };
@@ -314,6 +321,19 @@
 
     setLang('pt');
 
+    function rateLimit(key, max, windowMs) {
+      const now = Date.now();
+      let ts = [];
+      try { ts = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+      ts = ts.filter(t => now - t < windowMs);
+      if (ts.length >= max) {
+        return { ok: false, wait: Math.ceil((windowMs - (now - ts[0])) / 1000) };
+      }
+      ts.push(now);
+      try { localStorage.setItem(key, JSON.stringify(ts)); } catch {}
+      return { ok: true };
+    }
+
     document.getElementById('room').addEventListener('input', () => setRoomError(''));
 
     document.getElementById('form').addEventListener('submit', async (e) => {
@@ -327,6 +347,9 @@
       const notes = document.getElementById('notes').value.trim() || null;
 
       if (!name || !room || !local) return;
+      if (document.querySelector('#form .hp-trap')?.value) return;
+      const rl = rateLimit('rl_amro_register', 3, 300000);
+      if (!rl.ok) { showMsg(t.rateLimited(rl.wait), 'error'); return; }
 
       // Room validation — only when DB data is available
       if (_validRooms !== null && !_validRooms.has(room)) {

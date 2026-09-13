@@ -144,6 +144,7 @@
     .visitor-cb-row label { font-size: .95rem; font-weight: 500; color: #2e7d32; cursor: pointer; }
     .visitor-cb-row.cb-all { margin-top: .5rem; border-top: 1px solid #c5e1a5; padding-top: .55rem; }
     .visitor-cb-row.cb-all label { color: #558b2f; font-size: .85rem; }
+    .hp-trap { position:absolute !important; left:-9999px !important; opacity:0 !important; height:0 !important; width:0 !important; pointer-events:none !important; }
     button[type=submit], .confirm-btn {
       display: block;
       width: 100%;
@@ -253,6 +254,7 @@
         </label>
         <textarea id="notes-in"></textarea>
 
+        <input class="hp-trap" type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" />
         <button type="submit" id="btn-in">Registar Entrada</button>
       </form>
     </div>
@@ -341,6 +343,7 @@
         successOut:n=>n>0?`✓ Saída registada. ${n} overnight(s) contabilizado(s).`:'✓ Saída registada com sucesso!',
         successOutMulti:n=>`✓ ${n} saídas registadas com sucesso!`,
         errorOut:'Erro ao registar saída. Tenta novamente.',
+        rateLimited:s=>`Demasiadas tentativas. Tenta novamente em ${s}s.`,
       },
       es: {
         subtitle:'Registro de Visita', modeIn:'Entrada', modeOut:'Salida',
@@ -361,6 +364,7 @@
         successOut:n=>n>0?`✓ Salida registrada. ${n} noche(s) contabilizada(s).`:'✓ ¡Salida registrada correctamente!',
         successOutMulti:n=>`✓ ${n} salidas registradas con éxito!`,
         errorOut:'Error al registrar la salida. Inténtalo de nuevo.',
+        rateLimited:s=>`Demasiados intentos. Inténtalo de nuevo en ${s}s.`,
       },
       en: {
         subtitle:'Visitor Check-in', modeIn:'Check-in', modeOut:'Check-out',
@@ -381,6 +385,7 @@
         successOut:n=>n>0?`✓ Checked out. ${n} overnight(s) recorded.`:'✓ Checked out successfully!',
         successOutMulti:n=>`✓ ${n} check-outs registered successfully!`,
         errorOut:'Error checking out. Please try again.',
+        rateLimited:s=>`Too many attempts. Please wait ${s}s.`,
       },
       fr: {
         subtitle:'Enregistrement de Visite', modeIn:'Arrivée', modeOut:'Départ',
@@ -401,6 +406,7 @@
         successOut:n=>n>0?`✓ Départ enregistré. ${n} nuit(s) comptabilisée(s).`:'✓ Départ enregistré avec succès !',
         successOutMulti:n=>`✓ ${n} départs enregistrés avec succès !`,
         errorOut:'Erreur lors du départ. Réessayez.',
+        rateLimited:s=>`Trop de tentatives. Réessayez dans ${s}s.`,
       },
       it: {
         subtitle:'Registrazione Visita', modeIn:'Arrivo', modeOut:'Partenza',
@@ -421,6 +427,7 @@
         successOut:n=>n>0?`✓ Partenza registrata. ${n} notte/i contabilizzata/e.`:'✓ Partenza registrata con successo!',
         successOutMulti:n=>`✓ ${n} partenze registrate con successo!`,
         errorOut:'Errore nella registrazione della partenza. Riprova.',
+        rateLimited:s=>`Troppe richieste. Riprova tra ${s}s.`,
       }
     };
 
@@ -533,6 +540,20 @@
       if (e.key === 'Enter') { e.preventDefault(); searchVisit(); }
     });
 
+    // ── RATE LIMITING ────────────────────────────────────────────────────────
+    function rateLimit(key, max, windowMs) {
+      const now = Date.now();
+      let ts = [];
+      try { ts = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+      ts = ts.filter(t => now - t < windowMs);
+      if (ts.length >= max) {
+        return { ok: false, wait: Math.ceil((windowMs - (now - ts[0])) / 1000) };
+      }
+      ts.push(now);
+      try { localStorage.setItem(key, JSON.stringify(ts)); } catch {}
+      return { ok: true };
+    }
+
     // ── CHECK-IN ──────────────────────────────────────────────────────────────
     document.getElementById('form-in').addEventListener('submit', async e => {
       e.preventDefault();
@@ -543,6 +564,9 @@
       const room  = document.getElementById('room-in').value.trim().toUpperCase();
       const notes = document.getElementById('notes-in').value.trim() || null;
       if (names.length === 0 || !room) return;
+      if (document.querySelector('#form-in .hp-trap')?.value) return;
+      const rlIn = rateLimit('rl_amro_checkin', 5, 60000);
+      if (!rlIn.ok) { showMsg(t.rateLimited(rlIn.wait), 'error'); return; }
 
       if (_validRooms !== null && !_validRooms.has(room)) {
         setFieldError('room-in-hint','room-in', t.invalidRoom); return;
@@ -639,6 +663,8 @@
     async function confirmCheckout() {
       if (!_foundVisits.length) return;
       const t   = i18n[currentLang];
+      const rlOut = rateLimit('rl_amro_checkout', 10, 60000);
+      if (!rlOut.ok) { showMsg(t.rateLimited(rlOut.wait), 'error'); return; }
       const btn = document.getElementById('btn-confirm');
       btn.disabled = true;
       document.getElementById('t-confirm-text').textContent = t.confirmingOut;
