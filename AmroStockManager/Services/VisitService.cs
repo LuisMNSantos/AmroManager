@@ -82,4 +82,19 @@ public class VisitService(ISupabaseClient db)
             is_deleted = true,
             updated_at = DateTime.UtcNow
         });
+
+    public async Task<(List<Visit> Active, int TodayCheckins, int TodayCheckouts, int MonthlyOvernights)> GetDashboardDataAsync()
+    {
+        var today      = DateTime.UtcNow.Date.ToString("O");
+        var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).ToString("O");
+
+        var tActive    = db.GetAsync<Visit>("visits", "is_deleted=eq.false&checked_out_at=is.null&order=checked_in_at.asc");
+        var tTodayIn   = db.GetCountAsync("visits",  $"is_deleted=eq.false&checked_in_at=gte.{today}");
+        var tTodayOut  = db.GetCountAsync("visits",  $"is_deleted=eq.false&checked_out_at=gte.{today}");
+        var tMonthly   = db.GetAsync<Visit>("visits", $"is_deleted=eq.false&checked_out_at=gte.{monthStart}");
+
+        await Task.WhenAll(tActive, tTodayIn, tTodayOut, tMonthly);
+
+        return (tActive.Result, tTodayIn.Result, tTodayOut.Result, tMonthly.Result.Sum(v => v.Overnights));
+    }
 }

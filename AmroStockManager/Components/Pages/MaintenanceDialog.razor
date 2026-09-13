@@ -11,8 +11,8 @@
     <DialogContent>
 
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-            Elimina registos antigos (empréstimos devolvidos, reservas concluídas, movimentos de stock
-            e encomendas/cartas entregues) para manter a base de dados leve.
+            Elimina registos antigos (empréstimos devolvidos, reservas concluídas, movimentos de stock,
+            encomendas/cartas entregues e visitas concluídas) para manter a base de dados leve.
         </MudText>
 
         <MudSelect T="int" Value="_months"
@@ -33,24 +33,25 @@
         {
             <MudPaper Outlined="true" Class="pa-3 mb-4">
                 <MudText Typo="Typo.subtitle2" Class="mb-2">Registos que serão eliminados:</MudText>
-                <div class="d-flex flex-column gap-1">
-                    @foreach (var (label, count) in new (string, int)[] {
-                        ("Empréstimos devolvidos",         _preview.ReturnedLoans),
-                        ("Reservas concluídas/canceladas", _preview.OldReservations),
-                        ("Movimentos de stock",            _preview.OldMovements),
-                        ("Encomendas/Cartas entregues",    _preview.OldDeliveries)
-                    })
+                <div class="d-flex flex-column">
+                    @foreach (var row in _categoryRows)
                     {
-                        <div class="d-flex justify-space-between">
-                            <MudText Typo="Typo.body2">@label</MudText>
+                        <div class="d-flex align-center justify-space-between"
+                             style="padding: 2px 0; @(row.Count == 0 ? "opacity:0.45;" : "")">
+                            <MudCheckBox @bind-Value="row.Selected"
+                                         Disabled="@(row.Count == 0)"
+                                         Size="Size.Small"
+                                         Dense="true"
+                                         Label="@row.Label" />
                             <MudChip T="string" Size="Size.Small"
-                                     Color="@(count > 0 ? Color.Warning : Color.Default)">
-                                @count
+                                     Color="@(row.Count > 0 ? Color.Warning : Color.Default)">
+                                @row.Count
                             </MudChip>
                         </div>
                     }
                 </div>
-                @if (Total == 0)
+                @if (_preview.ReturnedLoans + _preview.OldReservations + _preview.OldMovements +
+                     _preview.OldDeliveries + _preview.CompletedVisits == 0)
                 {
                     <MudText Typo="Typo.caption" Color="Color.Success" Class="mt-2">
                         Nenhum registo a eliminar para este período.
@@ -125,6 +126,13 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
+    private class CategoryRow
+    {
+        public string Label    { get; init; } = string.Empty;
+        public int    Count    { get; set; }
+        public bool   Selected { get; set; }
+    }
+
     private int _months = 6;
     private bool _loadingPreview;
     private bool _loadingPii;
@@ -133,8 +141,26 @@
     private string? _exportedPath;
     private int _piiCount;
 
-    private int Total => _preview is null ? 0
-        : _preview.ReturnedLoans + _preview.OldReservations + _preview.OldMovements + _preview.OldDeliveries;
+    private readonly CategoryRow[] _categoryRows =
+    [
+        new() { Label = "Empréstimos devolvidos"         },
+        new() { Label = "Reservas concluídas/canceladas" },
+        new() { Label = "Movimentos de stock"            },
+        new() { Label = "Encomendas/Cartas entregues"    },
+        new() { Label = "Visitas concluídas"             },
+    ];
+
+    private int Total => _categoryRows.Where(r => r.Selected).Sum(r => r.Count);
+
+    private void SyncRows(CleanupPreview p)
+    {
+        _categoryRows[0].Count = p.ReturnedLoans;
+        _categoryRows[1].Count = p.OldReservations;
+        _categoryRows[2].Count = p.OldMovements;
+        _categoryRows[3].Count = p.OldDeliveries;
+        _categoryRows[4].Count = p.CompletedVisits;
+        foreach (var r in _categoryRows) r.Selected = r.Count > 0;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -153,6 +179,7 @@
         try
         {
             _preview = await MaintSvc.GetPreviewAsync(_months);
+            if (_preview is not null) SyncRows(_preview);
         }
         catch (Exception ex)
         {
@@ -195,7 +222,12 @@
         _working = true;
         try
         {
-            await MaintSvc.CleanupAsync(_months);
+            await MaintSvc.CleanupAsync(_months,
+                loans:        _categoryRows[0].Selected,
+                reservations: _categoryRows[1].Selected,
+                movements:    _categoryRows[2].Selected,
+                deliveries:   _categoryRows[3].Selected,
+                visits:       _categoryRows[4].Selected);
             Snackbar.Add($"{Total} registos eliminados.", Severity.Success);
             await LoadPreview();
             _exportedPath = null;

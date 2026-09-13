@@ -56,20 +56,21 @@ public class DeliveryService(ISupabaseClient db)
         );
     }
 
-    public async Task<Delivery> RegisterAsync(DeliveryType type, string roomNumber, int quantity, string? notes)
+    public async Task<Delivery> RegisterAsync(DeliveryType type, string roomNumber, int quantity, string? notes, string? registeredBy = null)
     {
         var now = DateTime.UtcNow;
         var created = await db.InsertAsync<Delivery>("deliveries", new
         {
-            sync_id      = Guid.NewGuid().ToString(),
-            type         = (int)type,
-            room_number  = roomNumber.Trim().ToUpper(),
-            quantity     = quantity,
-            notes        = notes,
-            arrived_at   = now,
-            is_delivered = false,
-            is_deleted   = false,
-            updated_at   = now
+            sync_id       = Guid.NewGuid().ToString(),
+            type          = (int)type,
+            room_number   = roomNumber.Trim().ToUpper(),
+            quantity      = quantity,
+            registered_by = registeredBy,
+            notes         = notes,
+            arrived_at    = now,
+            is_delivered  = false,
+            is_deleted    = false,
+            updated_at    = now
         });
         return created!;
     }

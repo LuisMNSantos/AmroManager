@@ -1,4 +1,5 @@
 @inject RoomService RoomSvc
+@inject ResidentService ResidentSvc
 
 <MudDialog>
     <TitleContent>
@@ -26,9 +27,13 @@
                                  CoerceText="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTextField @bind-Value="_registeredBy"
-                              Label="Registado por"
-                              Variant="Variant.Outlined" />
+                <MudAutocomplete T="string"
+                                 @bind-Value="_registeredBy"
+                                 Label="Registado por"
+                                 SearchFunc="SearchCollaborators"
+                                 Strict="false"
+                                 CoerceText="true"
+                                 Variant="Variant.Outlined" />
             </MudItem>
 
             <MudItem xs="12">
@@ -91,6 +96,7 @@
     private DateTime? _outDate;
     private TimeSpan? _outTime;
     private List<string> _allRooms = [];
+    private List<string> _collaborators = [];
 
     private bool CanSubmit =>
         !string.IsNullOrWhiteSpace(_visitorName) &&
@@ -100,6 +106,8 @@
     protected override async Task OnInitializedAsync()
     {
         _allRooms = (await RoomSvc.GetAllNumbersAsync()).ToList();
+        var all = await ResidentSvc.GetAllAsync();
+        _collaborators = all.Where(r => r.IsCollaborator).Select(r => r.Name).ToList();
 
         var localIn = Visit.CheckedInAt.ToLocalTime();
         _visitorName  = Visit.VisitorName;
@@ -116,6 +124,14 @@
             _outDate = localOut.Date;
             _outTime = localOut.TimeOfDay;
         }
+    }
+
+    private Task<IEnumerable<string>> SearchCollaborators(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrWhiteSpace(value)
+            ? _collaborators
+            : _collaborators.Where(c => c.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
     }
 
     private Task<IEnumerable<string>> SearchRoom(string value, CancellationToken ct)

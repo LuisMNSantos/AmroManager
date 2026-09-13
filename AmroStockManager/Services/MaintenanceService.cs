@@ -7,7 +7,8 @@ public record CleanupPreview(
     int ReturnedLoans,
     int OldReservations,
     int OldMovements,
-    int OldDeliveries);
+    int OldDeliveries,
+    int CompletedVisits);
 
 public class MaintenanceService(ISupabaseClient db)
 {
@@ -21,8 +22,9 @@ public class MaintenanceService(ISupabaseClient db)
         var t2 = db.GetCountAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}");
         var t3 = db.GetCountAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}");
         var t4 = db.GetCountAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}");
-        await Task.WhenAll(t1, t2, t3, t4);
-        return new CleanupPreview(t1.Result, t2.Result, t3.Result, t4.Result);
+        var t5 = db.GetCountAsync("visits",             $"is_deleted=eq.false&checked_out_at=not.is.null&checked_out_at=lt.{cutoff}");
+        await Task.WhenAll(t1, t2, t3, t4, t5);
+        return new CleanupPreview(t1.Result, t2.Result, t3.Result, t4.Result, t5.Result);
     }
 
     public async Task<string> ExportToCsvAsync(int monthsOlderThan)
@@ -110,12 +112,13 @@ public class MaintenanceService(ISupabaseClient db)
         if (deliveries.Count > 0)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("Tipo,Quarto,Quantidade,Data Chegada,Data Entrega,Notas");
+            sb.AppendLine("Tipo,Quarto,Quantidade,Registado Por,Data Chegada,Data Entrega,Notas");
             foreach (var d in deliveries)
                 sb.AppendLine(string.Join(",", [
                     d.Type == DeliveryType.Encomenda ? "Encomenda" : "Carta",
                     Csv(d.RoomNumber),
                     d.Quantity.ToString(),
+                    Csv(d.RegisteredBy),
                     Csv(d.ArrivedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
                     Csv(d.CollectedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
                     Csv(d.Notes)
@@ -123,18 +126,41 @@ public class MaintenanceService(ISupabaseClient db)
             await File.WriteAllTextAsync(Path.Combine(dir, "historico_encomendas.csv"), sb.ToString(), Encoding.UTF8);
         }
 
+        var visits = await db.GetAsync<Visit>("visits",
+            $"is_deleted=eq.false&checked_out_at=not.is.null&checked_out_at=lt.{cutoffStr}&order=checked_in_at.desc");
+        if (visits.Count > 0)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Visitante,Quarto,Registado Por,Entrada,Saída,Overnights,Notas");
+            foreach (var v in visits)
+                sb.AppendLine(string.Join(",", [
+                    Csv(v.VisitorName),
+                    Csv(v.RoomNumber),
+                    Csv(v.RegisteredBy),
+                    Csv(v.CheckedInAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
+                    Csv(v.CheckedOutAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")),
+                    v.Overnights.ToString(),
+                    Csv(v.Notes)
+                ]));
+            await File.WriteAllTextAsync(Path.Combine(dir, "historico_visitas.csv"), sb.ToString(), Encoding.UTF8);
+        }
+
         return dir;
     }
 
-    public async Task CleanupAsync(int monthsOlderThan)
+    public async Task CleanupAsync(int monthsOlderThan,
+        bool loans, bool reservations, bool movements, bool deliveries, bool visits)
     {
         var cutoff = Cutoff(monthsOlderThan).ToString("O");
         var patch  = new { is_deleted = true, updated_at = DateTime.UtcNow };
 
-        await db.PatchAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}", patch);
-        await db.PatchAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}",                        patch);
-        await db.PatchAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}",                            patch);
-        await db.PatchAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}", patch);
+        var tasks = new List<Task>();
+        if (loans)        tasks.Add(db.PatchAsync("general_item_loans", $"is_deleted=eq.false&is_returned=eq.true&return_date=lt.{cutoff}", patch));
+        if (reservations) tasks.Add(db.PatchAsync("reservations",       $"is_deleted=eq.false&end_time=lt.{cutoff}", patch));
+        if (movements)    tasks.Add(db.PatchAsync("stock_movements",    $"is_deleted=eq.false&date=lt.{cutoff}", patch));
+        if (deliveries)   tasks.Add(db.PatchAsync("deliveries",         $"is_deleted=eq.false&is_delivered=eq.true&collected_at=lt.{cutoff}", patch));
+        if (visits)       tasks.Add(db.PatchAsync("visits",             $"is_deleted=eq.false&checked_out_at=not.is.null&checked_out_at=lt.{cutoff}", patch));
+        await Task.WhenAll(tasks);
     }
 
     public Task<int> GetPiiPurgePreviewAsync(int monthsOlderThan)
