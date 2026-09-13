@@ -363,20 +363,56 @@ else
 
     private async Task CheckOut(Visit visit)
     {
-        var confirmed = await DialogService.ShowMessageBox(
-            "Registar Saída",
-            $"Confirmar checkout de {visit.VisitorName} (quarto #{visit.RoomNumber})?",
-            yesText: "Confirmar Saída", cancelText: "Cancelar");
-        if (confirmed != true) return;
+        var siblings = _visits
+            .Where(v => v.RoomNumber == visit.RoomNumber && v.Id != visit.Id && v.CheckedOutAt == null)
+            .ToList();
 
-        await VisitSvc.CheckOutAsync(visit.Id);
-        var overnights = Visit.ComputeOvernights(visit.CheckedInAt, DateTime.UtcNow);
-        var detail = overnights > 0 ? $"{visit.VisitorName} — {overnights} overnight(s)" : visit.VisitorName;
-        await LogAsync("Checkout registado", $"{detail} (#{visit.RoomNumber})");
-        if (overnights > 0)
-            Snackbar.Add($"Checkout de {visit.VisitorName} — {overnights} overnight(s) registado(s).", Severity.Info);
+        List<Visit> toCheckOut;
+
+        if (siblings.Any())
+        {
+            var allNames = string.Join(", ", new[] { visit }.Concat(siblings).Select(v => v.VisitorName));
+            var choice = await DialogService.ShowMessageBox(
+                "Registar Saída",
+                $"Há {siblings.Count + 1} visitas activas no quarto #{visit.RoomNumber}: {allNames}. Registar saída de todos?",
+                yesText: "Saída de Todos", noText: "Só Este", cancelText: "Cancelar");
+            if (choice == null) return;
+            toCheckOut = choice == true ? new[] { visit }.Concat(siblings).ToList() : [visit];
+        }
         else
-            Snackbar.Add($"Checkout de {visit.VisitorName} registado.", Severity.Success);
+        {
+            var confirmed = await DialogService.ShowMessageBox(
+                "Registar Saída",
+                $"Confirmar checkout de {visit.VisitorName} (quarto #{visit.RoomNumber})?",
+                yesText: "Confirmar Saída", cancelText: "Cancelar");
+            if (confirmed != true) return;
+            toCheckOut = [visit];
+        }
+
+        await Task.WhenAll(toCheckOut.Select(v => VisitSvc.CheckOutAsync(v.Id)));
+        var now = DateTime.UtcNow;
+        foreach (var v in toCheckOut)
+        {
+            var ov = Visit.ComputeOvernights(v.CheckedInAt, now);
+            await LogAsync("Checkout registado", ov > 0
+                ? $"{v.VisitorName} — {ov} overnight(s) (#{v.RoomNumber})"
+                : $"{v.VisitorName} (#{v.RoomNumber})");
+        }
+
+        if (toCheckOut.Count == 1)
+        {
+            var v = toCheckOut[0];
+            var ov = Visit.ComputeOvernights(v.CheckedInAt, now);
+            Snackbar.Add(ov > 0
+                ? $"Checkout de {v.VisitorName} — {ov} overnight(s) registado(s)."
+                : $"Checkout de {v.VisitorName} registado.",
+                ov > 0 ? Severity.Info : Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add($"{toCheckOut.Count} checkouts registados (quarto #{visit.RoomNumber}).", Severity.Success);
+        }
+
         await LoadData();
     }
 
