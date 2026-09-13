@@ -66,99 +66,105 @@ else
         <!-- ══════════════════════════════ TAB 0: GERAL ══════════════════════════════ -->
         <MudTabPanel Text="Geral" Icon="@Icons.Material.Filled.Dashboard">
 
-            <MudGrid Spacing="3">
+            <MudGrid Spacing="4">
 
                 <!-- Visitas -->
-                <MudItem xs="12" sm="6" md="3">
-                    <MudPaper Elevation="2" Class="pa-3" Style="cursor:pointer;" @onclick="@(() => _activeTab = 1)">
-                        <div class="d-flex align-center gap-2 mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.PersonPin" Color="Color.Primary" Size="Size.Small" />
-                            <MudText Typo="Typo.subtitle2">Visitas</MudText>
+                <MudItem xs="12" sm="6">
+                    <MudPaper Elevation="3" Class="pa-5 d-flex flex-column"
+                              Style="cursor:pointer; border-top:4px solid var(--mud-palette-primary); height:100%;"
+                              @onclick="@(() => _activeTab = 1)">
+                        <div class="d-flex align-center gap-2 mb-4">
+                            <MudIcon Icon="@Icons.Material.Filled.PersonPin" Color="Color.Primary" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Style="font-weight:700;">Visitas</MudText>
                         </div>
-                        <MudGrid Spacing="1">
+                        <MudGrid Spacing="3">
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Em visita</MudText>
-                                <MudText Typo="Typo.h6"><b>@_activeVisits.Count</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Em visita</MudText>
+                                <MudText Typo="Typo.h4" Color="Color.Primary"><b>@_activeVisits.Count</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Entradas hoje</MudText>
-                                <MudText Typo="Typo.h6"><b>@_todayCheckins</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Entradas hoje</MudText>
+                                <MudText Typo="Typo.h4"><b>@_todayCheckins</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Saídas hoje</MudText>
-                                <MudText Typo="Typo.h6"><b>@_todayCheckouts</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Saídas hoje</MudText>
+                                <MudText Typo="Typo.h4"><b>@_todayCheckouts</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Overnights (mês)</MudText>
-                                <MudText Typo="Typo.h6"><b>@_monthlyOvernights</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Overnights mês</MudText>
+                                <MudText Typo="Typo.h4"><b>@_monthlyOvernights</b></MudText>
                             </MudItem>
                         </MudGrid>
                     </MudPaper>
                 </MudItem>
 
                 <!-- Encomendas & Cartas -->
-                <MudItem xs="12" sm="6" md="3">
-                    <MudPaper Elevation="2" Class="pa-3" Style="cursor:pointer;" @onclick="@(() => _activeTab = 2)">
-                        <div class="d-flex align-center gap-2 mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Info" Size="Size.Small" />
-                            <MudText Typo="Typo.subtitle2">Encomendas & Cartas</MudText>
+                <MudItem xs="12" sm="6">
+                    <MudPaper Elevation="3" Class="pa-5 d-flex flex-column"
+                              Style="cursor:pointer; border-top:4px solid var(--mud-palette-info); height:100%;"
+                              @onclick="@(() => _activeTab = 2)">
+                        <div class="d-flex align-center gap-2 mb-4">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Info" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Style="font-weight:700;">Encomendas & Cartas</MudText>
                         </div>
-                        <MudGrid Spacing="1">
+                        <MudGrid Spacing="3">
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Encomendas</MudText>
-                                <MudText Typo="Typo.h6"
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Encomendas</MudText>
+                                <MudText Typo="Typo.h4"
                                          Style="@(_deliveryStats.PendingPackages > 0 ? "color:var(--mud-palette-warning);" : "")">
                                     <b>@_deliveryStats.PendingPackages</b>
                                 </MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Cartas</MudText>
-                                <MudText Typo="Typo.h6"
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Cartas</MudText>
+                                <MudText Typo="Typo.h4"
                                          Style="@(_deliveryStats.PendingLetters > 0 ? "color:var(--mud-palette-info);" : "")">
                                     <b>@_deliveryStats.PendingLetters</b>
                                 </MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Chegaram hoje</MudText>
-                                <MudText Typo="Typo.h6"><b>@_deliveryStats.ArrivedToday</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Chegaram hoje</MudText>
+                                <MudText Typo="Typo.h4"><b>@_deliveryStats.ArrivedToday</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Levantados hoje</MudText>
-                                <MudText Typo="Typo.h6"><b>@_deliveryStats.CollectedToday</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Levantados hoje</MudText>
+                                <MudText Typo="Typo.h4"><b>@_deliveryStats.CollectedToday</b></MudText>
                             </MudItem>
                         </MudGrid>
                     </MudPaper>
                 </MudItem>
 
                 <!-- Artigos & Reservas -->
-                <MudItem xs="12" sm="6" md="3">
+                <MudItem xs="12" sm="6">
                     @{
                         var kitchenCard2 = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cozinha");
                         var cinemaCard2  = _items.FirstOrDefault(i => i.Name == "Cartão de Acesso – Cinema");
                     }
-                    <MudPaper Elevation="2" Class="pa-3" Style="cursor:pointer;" @onclick="@(() => _activeTab = 3)">
-                        <div class="d-flex align-center gap-2 mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.Category" Color="Color.Warning" Size="Size.Small" />
-                            <MudText Typo="Typo.subtitle2">Artigos & Reservas</MudText>
+                    <MudPaper Elevation="3" Class="pa-5 d-flex flex-column"
+                              Style="cursor:pointer; border-top:4px solid var(--mud-palette-warning); height:100%;"
+                              @onclick="@(() => _activeTab = 3)">
+                        <div class="d-flex align-center gap-2 mb-4">
+                            <MudIcon Icon="@Icons.Material.Filled.Category" Color="Color.Warning" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Style="font-weight:700;">Artigos & Reservas</MudText>
                         </div>
-                        <MudGrid Spacing="1">
+                        <MudGrid Spacing="3">
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Em Empréstimo</MudText>
-                                <MudText Typo="Typo.h6"><b>@_items.Sum(i => i.ActiveLoansCount)</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Em Empréstimo</MudText>
+                                <MudText Typo="Typo.h4"><b>@_items.Sum(i => i.ActiveLoansCount)</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Reservas hoje</MudText>
-                                <MudText Typo="Typo.h6"><b>@_todayReservations.Count</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Reservas hoje</MudText>
+                                <MudText Typo="Typo.h4"><b>@_todayReservations.Count</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Cartão Cozinha</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Cartão Cozinha</MudText>
                                 <MudChip T="string" Size="Size.Small"
                                          Color="@(kitchenCard2?.AvailableCount > 0 ? Color.Success : Color.Warning)">
                                     @(kitchenCard2?.AvailableCount > 0 ? "Livre" : "Emprestado")
                                 </MudChip>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Cartão Cinema</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Cartão Cinema</MudText>
                                 <MudChip T="string" Size="Size.Small"
                                          Color="@(cinemaCard2?.AvailableCount > 0 ? Color.Success : Color.Warning)">
                                     @(cinemaCard2?.AvailableCount > 0 ? "Livre" : "Emprestado")
@@ -169,23 +175,25 @@ else
                 </MudItem>
 
                 <!-- Produtos -->
-                <MudItem xs="12" sm="6" md="3">
-                    <MudPaper Elevation="2" Class="pa-3" Style="cursor:pointer;" @onclick="@(() => _activeTab = 4)">
-                        <div class="d-flex align-center gap-2 mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Secondary" Size="Size.Small" />
-                            <MudText Typo="Typo.subtitle2">Produtos</MudText>
+                <MudItem xs="12" sm="6">
+                    <MudPaper Elevation="3" Class="pa-5 d-flex flex-column"
+                              Style="cursor:pointer; border-top:4px solid var(--mud-palette-secondary); height:100%;"
+                              @onclick="@(() => _activeTab = 4)">
+                        <div class="d-flex align-center gap-2 mb-4">
+                            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Color="Color.Secondary" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Style="font-weight:700;">Produtos</MudText>
                         </div>
-                        <MudGrid Spacing="1">
+                        <MudGrid Spacing="3">
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Tipos</MudText>
-                                <MudText Typo="Typo.h6"><b>@_stats.totalProducts</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Tipos</MudText>
+                                <MudText Typo="Typo.h4"><b>@_stats.totalProducts</b></MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Em Stock</MudText>
-                                <MudText Typo="Typo.h6"><b>@_stats.totalUnits</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Em Stock</MudText>
+                                <MudText Typo="Typo.h4"><b>@_stats.totalUnits</b></MudText>
                             </MudItem>
                             <MudItem xs="12">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Alertas de stock</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="text-transform:uppercase; letter-spacing:.05em;">Alertas de stock</MudText>
                                 <MudChip T="string" Size="Size.Small"
                                          Color="@(_stats.lowStockCount > 0 ? Color.Error : Color.Success)">
                                     @(_stats.lowStockCount > 0 ? $"{_stats.lowStockCount} alertas" : "Tudo OK")
