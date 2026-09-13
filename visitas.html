@@ -171,6 +171,23 @@
     .msg.error   { background: #ffebee; color: #c62828; display: block; }
     .msg.info    { background: #fff8e1; color: #e65100; display: block; }
     .required { color: #c62828; }
+    .name-row { display:flex; gap:.5rem; margin-top:.5rem; }
+    .name-row:first-child { margin-top:0; }
+    .name-row input { flex:1; min-width:0; margin-top:0; }
+    .remove-person-btn {
+      flex-shrink:0; width:38px; border:1.5px solid #ddd; border-radius:8px;
+      background:none; color:#c62828; font-size:1.1rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; transition:all .15s;
+    }
+    .remove-person-btn:hover { background:#ffebee; border-color:#c62828; }
+    .add-person-btn {
+      display:flex; align-items:center; justify-content:center; gap:.4rem;
+      margin-top:.65rem; padding:.45rem .8rem;
+      border:1.5px dashed #1565C0; border-radius:8px;
+      background:none; color:#1565C0; font-size:.85rem; font-weight:600;
+      cursor:pointer; width:100%; transition:background .15s;
+    }
+    .add-person-btn:hover { background:#e3f0ff; }
   </style>
 </head>
 <body>
@@ -193,7 +210,7 @@
         </svg>
       </div>
       <h1>AMRO</h1>
-      <p id="t-subtitle">Registo de Visita</p>
+      <p id="t-subtitle">Registo de Visitas</p>
     </div>
 
     <div class="mode-toggle">
@@ -210,8 +227,16 @@
     <!-- CHECK-IN -->
     <div id="checkin-section">
       <form id="form-in" novalidate>
-        <label id="t-name-label">Nome <span class="required">*</span></label>
-        <input type="text" id="name" required autocomplete="name" />
+        <label id="t-name-label">Nome(s) das Visitas<span class="required">*</span></label>
+        <div id="names-container">
+          <div class="name-row">
+            <input type="text" class="name-input" autocomplete="name" />
+            <button type="button" class="remove-person-btn" onclick="removePerson(this)" style="display:none;">✕</button>
+          </div>
+        </div>
+        <button type="button" class="add-person-btn" id="btn-add-person" onclick="addPerson()">
+          + <span id="t-add-person">Adicionar outra pessoa</span>
+        </button>
 
         <label id="t-room-in-label">Quarto <span class="required">*</span></label>
         <input type="text" id="room-in" required autocomplete="off" style="text-transform:uppercase;" />
@@ -294,11 +319,13 @@
     const i18n = {
       pt: {
         subtitle:'Registo de Visita', modeIn:'Entrada', modeOut:'Saída',
-        nameLabel:'Nome', namePh:'Ex: João Silva',
+        nameLabel:'Nome(s) das Visitas', namePh:'Ex: João Silva',
         roomLabel:'Quarto', roomPh:'Ex: 101',
         notesLabel:'Notas', notesPh:'Informação adicional...', optional:'(opcional)',
+        addPerson:'Adicionar outra pessoa',
         submitIn:'Registar Entrada', sendingIn:'A registar...',
         successIn:'✓ Entrada registada com sucesso!',
+        successInMulti:n=>`✓ ${n} entradas registadas com sucesso!`,
         errorIn:'Erro ao registar. Tenta novamente.',
         invalidRoom:'Quarto não encontrado. Verifica o número.',
         search:'Procurar', searching:'...',
@@ -310,11 +337,13 @@
       },
       es: {
         subtitle:'Registro de Visita', modeIn:'Entrada', modeOut:'Salida',
-        nameLabel:'Nombre', namePh:'Ej: Juan García',
+        nameLabel:'Nombre(s) de las Visitas', namePh:'Ej: Juan García',
         roomLabel:'Habitación', roomPh:'Ej: 101',
         notesLabel:'Notas', notesPh:'Información adicional...', optional:'(opcional)',
+        addPerson:'Añadir otra persona',
         submitIn:'Registrar Entrada', sendingIn:'Registrando...',
         successIn:'✓ ¡Entrada registrada correctamente!',
+        successInMulti:n=>`✓ ¡${n} entradas registradas correctamente!`,
         errorIn:'Error al registrar. Inténtalo de nuevo.',
         invalidRoom:'Habitación no encontrada. Verifica el número.',
         search:'Buscar', searching:'...',
@@ -326,11 +355,13 @@
       },
       en: {
         subtitle:'Visitor Check-in', modeIn:'Check-in', modeOut:'Check-out',
-        nameLabel:'Name', namePh:'E.g. John Smith',
+        nameLabel:'Visitor Name(s)', namePh:'E.g. John Smith',
         roomLabel:'Room', roomPh:'E.g. 101',
         notesLabel:'Notes', notesPh:'Additional information...', optional:'(optional)',
+        addPerson:'Add another person',
         submitIn:'Check In', sendingIn:'Checking in...',
         successIn:'✓ Check-in registered successfully!',
+        successInMulti:n=>`✓ ${n} check-ins registered successfully!`,
         errorIn:'Error registering. Please try again.',
         invalidRoom:'Room not found. Please check the number.',
         search:'Search', searching:'...',
@@ -342,11 +373,13 @@
       },
       fr: {
         subtitle:'Enregistrement de Visite', modeIn:'Arrivée', modeOut:'Départ',
-        nameLabel:'Nom', namePh:'Ex : Jean Dupont',
+        nameLabel:'Nom(s) des Visiteurs', namePh:'Ex : Jean Dupont',
         roomLabel:'Chambre', roomPh:'Ex : 101',
         notesLabel:'Notes', notesPh:'Informations supplémentaires...', optional:'(facultatif)',
+        addPerson:'Ajouter une autre personne',
         submitIn:"Enregistrer l'arrivée", sendingIn:'Enregistrement...',
         successIn:'✓ Arrivée enregistrée avec succès !',
+        successInMulti:n=>`✓ ${n} arrivées enregistrées avec succès !`,
         errorIn:"Erreur lors de l'enregistrement. Réessayez.",
         invalidRoom:'Chambre introuvable. Vérifiez le numéro.',
         search:'Chercher', searching:'...',
@@ -358,11 +391,13 @@
       },
       it: {
         subtitle:'Registrazione Visita', modeIn:'Arrivo', modeOut:'Partenza',
-        nameLabel:'Nome', namePh:'Es: Mario Rossi',
+        nameLabel:'Nome/i dei Visitatori', namePh:'Es: Mario Rossi',
         roomLabel:'Stanza', roomPh:'Es: 101',
         notesLabel:'Note', notesPh:'Informazioni aggiuntive...', optional:'(facoltativo)',
+        addPerson:'Aggiungi un\'altra persona',
         submitIn:'Registra Arrivo', sendingIn:'Registrazione...',
         successIn:'✓ Arrivo registrato con successo!',
+        successInMulti:n=>`✓ ${n} arrivi registrati con successo!`,
         errorIn:'Errore nella registrazione. Riprova.',
         invalidRoom:'Stanza non trovata. Controlla il numero.',
         search:'Cerca', searching:'...',
@@ -409,7 +444,8 @@
       document.getElementById('t-room-out-label').innerHTML = t.roomLabel  + ' <span class="required">*</span>';
       document.getElementById('t-notes-text').textContent   = t.notesLabel;
       document.getElementById('t-optional').textContent     = t.optional;
-      document.getElementById('name').placeholder           = t.namePh;
+      document.getElementById('t-add-person').textContent   = t.addPerson;
+      document.querySelectorAll('.name-input').forEach(i => i.placeholder = t.namePh);
       document.getElementById('room-in').placeholder        = t.roomPh;
       document.getElementById('room-out').placeholder       = t.roomPh;
       document.getElementById('notes-in').placeholder       = t.notesPh;
@@ -442,6 +478,29 @@
 
     setLang('pt');
 
+    function updateRemoveButtons() {
+      const rows = document.querySelectorAll('.name-row');
+      rows.forEach(row => {
+        row.querySelector('.remove-person-btn').style.display = rows.length > 1 ? '' : 'none';
+      });
+    }
+
+    function addPerson() {
+      const t = i18n[currentLang];
+      const div = document.createElement('div');
+      div.className = 'name-row';
+      div.innerHTML = `<input type="text" class="name-input" placeholder="${t.namePh}" autocomplete="off" />` +
+                      `<button type="button" class="remove-person-btn" onclick="removePerson(this)">✕</button>`;
+      document.getElementById('names-container').appendChild(div);
+      updateRemoveButtons();
+      div.querySelector('input').focus();
+    }
+
+    function removePerson(btn) {
+      btn.closest('.name-row').remove();
+      updateRemoveButtons();
+    }
+
     ['room-in','room-out'].forEach(id =>
       document.getElementById(id).addEventListener('input', function() {
         this.value = this.value.toUpperCase();
@@ -462,12 +521,13 @@
     // ── CHECK-IN ──────────────────────────────────────────────────────────────
     document.getElementById('form-in').addEventListener('submit', async e => {
       e.preventDefault();
-      const t    = i18n[currentLang];
-      const btn  = document.getElementById('btn-in');
-      const name = document.getElementById('name').value.trim();
-      const room = document.getElementById('room-in').value.trim().toUpperCase();
-      const notes= document.getElementById('notes-in').value.trim() || null;
-      if (!name || !room) return;
+      const t     = i18n[currentLang];
+      const btn   = document.getElementById('btn-in');
+      const names = [...document.querySelectorAll('.name-input')]
+                      .map(i => i.value.trim()).filter(Boolean);
+      const room  = document.getElementById('room-in').value.trim().toUpperCase();
+      const notes = document.getElementById('notes-in').value.trim() || null;
+      if (names.length === 0 || !room) return;
 
       if (_validRooms !== null && !_validRooms.has(room)) {
         setFieldError('room-in-hint','room-in', t.invalidRoom); return;
@@ -477,18 +537,22 @@
 
       const now = new Date().toISOString();
       try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/visits`, {
-          method: 'POST', headers: API_HEADERS,
-          body: JSON.stringify({
-            sync_id: crypto.randomUUID(), visitor_name: name, room_number: room,
-            checked_in_at: now, overnights: 0, notes, is_deleted: false,
-            created_at: now, updated_at: now
-          })
-        });
-        if (!res.ok) throw new Error();
+        await Promise.all(names.map(name =>
+          fetch(`${SUPABASE_URL}/rest/v1/visits`, {
+            method: 'POST', headers: API_HEADERS,
+            body: JSON.stringify({
+              sync_id: crypto.randomUUID(), visitor_name: name, room_number: room,
+              checked_in_at: now, overnights: 0, notes, is_deleted: false,
+              created_at: now, updated_at: now
+            })
+          }).then(r => { if (!r.ok) throw new Error(); })
+        ));
         document.getElementById('form-in').reset();
+        document.getElementById('names-container').innerHTML =
+          `<div class="name-row"><input type="text" class="name-input" placeholder="${t.namePh}" autocomplete="name" />` +
+          `<button type="button" class="remove-person-btn" onclick="removePerson(this)" style="display:none;">✕</button></div>`;
         setLang(currentLang, false);
-        showMsg(t.successIn, 'success');
+        showMsg(names.length > 1 ? t.successInMulti(names.length) : t.successIn, 'success');
       } catch { showMsg(t.errorIn, 'error'); }
       finally { btn.disabled = false; btn.textContent = t.submitIn; }
     });
