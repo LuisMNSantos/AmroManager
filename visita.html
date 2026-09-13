@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AMRO — Registo de Visita</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    }
+    .lang-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: .4rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+    .lang-btn {
+      background: none;
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      padding: .25rem .55rem;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: all .15s;
+      color: #555;
+    }
+    .lang-btn.active, .lang-btn:hover {
+      border-color: #1565C0;
+      color: #1565C0;
+      background: #e3f0ff;
+    }
+    .logo { text-align: center; margin-bottom: 1.5rem; }
+    .logo-icon {
+      width: 52px; height: 52px;
+      background: #1565C0;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto .75rem;
+    }
+    .logo-icon svg { width: 28px; height: 28px; fill: white; }
+    .logo h1 { font-size: 1.5rem; color: #1565C0; font-weight: 700; }
+    .logo p  { color: #666; font-size: .9rem; margin-top: .25rem; }
+    label {
+      display: block;
+      font-size: .85rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: .35rem;
+      margin-top: 1rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: .65rem .85rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color .2s;
+      outline: none;
+      background: white;
+      color: #333;
+    }
+    input:focus, textarea:focus { border-color: #1565C0; }
+    input.invalid { border-color: #c62828; }
+    textarea { resize: vertical; min-height: 70px; }
+    .field-hint {
+      font-size: .78rem;
+      margin-top: .3rem;
+      color: #c62828;
+      display: none;
+    }
+    .field-hint.visible { display: block; }
+    .divider {
+      border: none;
+      border-top: 1px solid #eee;
+      margin: 1.25rem 0 .25rem;
+    }
+    .optional-label {
+      font-size: .78rem;
+      color: #999;
+      font-weight: 400;
+      margin-left: .3rem;
+    }
+    button[type=submit] {
+      display: block;
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: .85rem;
+      background: #1565C0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button[type=submit]:hover:not(:disabled) { background: #0d47a1; }
+    button[type=submit]:disabled { background: #90caf9; cursor: not-allowed; }
+    .msg {
+      margin-top: 1rem;
+      padding: .75rem 1rem;
+      border-radius: 8px;
+      font-size: .9rem;
+      display: none;
+    }
+    .msg.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    .msg.error   { background: #ffebee; color: #c62828; display: block; }
+    .required { color: #c62828; }
+    .checkin-badge {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: #e8f5e9; color: #2e7d32;
+      border-radius: 6px; padding: .3rem .7rem;
+      font-size: .82rem; font-weight: 600;
+      margin-top: .6rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="lang-bar">
+      <button class="lang-btn active" onclick="setLang('pt')">🇵🇹 PT</button>
+      <button class="lang-btn" onclick="setLang('es')">🇪🇸 ES</button>
+      <button class="lang-btn" onclick="setLang('en')">🇬🇧 EN</button>
+      <button class="lang-btn" onclick="setLang('fr')">🇫🇷 FR</button>
+      <button class="lang-btn" onclick="setLang('it')">🇮🇹 IT</button>
+    </div>
+
+    <div class="logo">
+      <div class="logo-icon">
+        <!-- person-pin icon -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 2c2.76 0 5 2.24 5 5 0 3.53-3.5 8.66-5 10.66C10.5 17.66 7 12.53 7 9c0-2.76 2.24-5 5-5zm0 1c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+        </svg>
+      </div>
+      <h1>AMRO</h1>
+      <p id="t-subtitle">Registo de Visita</p>
+    </div>
+
+    <form id="form" novalidate>
+      <label id="t-name-label">Nome <span class="required">*</span></label>
+      <input type="text" id="name" required autocomplete="name" />
+
+      <label id="t-room-label">Quarto <span class="required">*</span></label>
+      <input type="text" id="room" required autocomplete="off"
+             inputmode="text" style="text-transform:uppercase;" />
+      <span class="field-hint" id="room-hint"></span>
+
+      <hr class="divider" />
+
+      <label id="t-staff-label">
+        <span id="t-staff-text">Registado por</span>
+        <span class="optional-label" id="t-optional">(opcional)</span>
+      </label>
+      <input type="text" id="staff" autocomplete="off" />
+
+      <label id="t-notes-label">
+        <span id="t-notes-text">Notas</span>
+        <span class="optional-label" id="t-optional2">(opcional)</span>
+      </label>
+      <textarea id="notes"></textarea>
+
+      <button type="submit" id="btn">Registar Entrada</button>
+    </form>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL      = 'https://cxohpkuuvvilnqdpxaie.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4b2hwa3V1dnZpbG5xZHB4YWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxOTE0MzksImV4cCI6MjEwMTc2NzQzOX0.F71ShyzHpih3WUlrxDDJ_i4QeE67eD40A6ldBHwma2U';
+
+    let _validRooms = null;
+
+    (async function loadRooms() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rooms?select=number`, {
+          headers: {
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0)
+            _validRooms = new Set(data.map(r => String(r.number).toUpperCase()));
+        }
+      } catch { /* fail open */ }
+    })();
+
+    const i18n = {
+      pt: {
+        subtitle:    'Registo de Visita',
+        nameLabel:   'Nome',             namePh:    'Ex: João Silva',
+        roomLabel:   'Quarto',           roomPh:    'Ex: 101',
+        staffLabel:  'Registado por',    staffPh:   'Nome do concierge',
+        notesLabel:  'Notas',            notesPh:   'Informação adicional...',
+        optional:    '(opcional)',
+        submit:      'Registar Entrada',
+        sending:     'A registar...',
+        success:     '✓ Entrada registada com sucesso!',
+        error:       'Erro ao registar. Tenta novamente ou contacta a recepção.',
+        invalidRoom: 'Quarto não encontrado. Verifica o número.',
+      },
+      es: {
+        subtitle:    'Registro de Visita',
+        nameLabel:   'Nombre',           namePh:    'Ej: Juan García',
+        roomLabel:   'Habitación',       roomPh:    'Ej: 101',
+        staffLabel:  'Registrado por',   staffPh:   'Nombre del recepcionista',
+        notesLabel:  'Notas',            notesPh:   'Información adicional...',
+        optional:    '(opcional)',
+        submit:      'Registrar Entrada',
+        sending:     'Registrando...',
+        success:     '✓ ¡Entrada registrada correctamente!',
+        error:       'Error al registrar. Inténtalo de nuevo o contacta con recepción.',
+        invalidRoom: 'Habitación no encontrada. Verifica el número.',
+      },
+      en: {
+        subtitle:    'Visitor Check-in',
+        nameLabel:   'Name',             namePh:    'E.g. John Smith',
+        roomLabel:   'Room',             roomPh:    'E.g. 101',
+        staffLabel:  'Registered by',    staffPh:   'Staff name',
+        notesLabel:  'Notes',            notesPh:   'Additional information...',
+        optional:    '(optional)',
+        submit:      'Check In',
+        sending:     'Checking in...',
+        success:     '✓ Check-in registered successfully!',
+        error:       'Error registering check-in. Please try again or contact reception.',
+        invalidRoom: 'Room not found. Please check the number.',
+      },
+      fr: {
+        subtitle:    "Enregistrement de Visite",
+        nameLabel:   'Nom',              namePh:    'Ex : Jean Dupont',
+        roomLabel:   'Chambre',          roomPh:    'Ex : 101',
+        staffLabel:  'Enregistré par',   staffPh:   'Nom du réceptionniste',
+        notesLabel:  'Notes',            notesPh:   'Informations supplémentaires...',
+        optional:    '(facultatif)',
+        submit:      "Enregistrer l'arrivée",
+        sending:     'Enregistrement...',
+        success:     "✓ Arrivée enregistrée avec succès !",
+        error:       "Erreur lors de l'enregistrement. Réessayez ou contactez la réception.",
+        invalidRoom: 'Chambre introuvable. Vérifiez le numéro.',
+      },
+      it: {
+        subtitle:    'Registrazione Visita',
+        nameLabel:   'Nome',             namePh:    'Es: Mario Rossi',
+        roomLabel:   'Stanza',           roomPh:    'Es: 101',
+        staffLabel:  'Registrato da',    staffPh:   'Nome del receptionist',
+        notesLabel:  'Note',             notesPh:   'Informazioni aggiuntive...',
+        optional:    '(facoltativo)',
+        submit:      "Registra Arrivo",
+        sending:     'Registrazione...',
+        success:     '✓ Arrivo registrato con successo!',
+        error:       "Errore durante la registrazione. Riprova o contatta la reception.",
+        invalidRoom: 'Stanza non trovata. Controlla il numero.',
+      }
+    };
+
+    let currentLang = 'pt';
+
+    function setLang(lang, clearMsg = true) {
+      currentLang = lang;
+      const t = i18n[lang];
+      document.documentElement.lang = lang;
+      document.getElementById('t-subtitle').textContent  = t.subtitle;
+      document.getElementById('t-name-label').innerHTML  = t.nameLabel + ' <span class="required">*</span>';
+      document.getElementById('t-room-label').innerHTML  = t.roomLabel + ' <span class="required">*</span>';
+      document.getElementById('t-staff-text').textContent = t.staffLabel;
+      document.getElementById('t-notes-text').textContent = t.notesLabel;
+      document.getElementById('t-optional').textContent  = t.optional;
+      document.getElementById('t-optional2').textContent = t.optional;
+      document.getElementById('name').placeholder        = t.namePh;
+      document.getElementById('room').placeholder        = t.roomPh;
+      document.getElementById('staff').placeholder       = t.staffPh;
+      document.getElementById('notes').placeholder       = t.notesPh;
+      document.getElementById('btn').textContent         = t.submit;
+      document.querySelectorAll('.lang-btn').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
+      if (clearMsg) {
+        const msg = document.getElementById('msg');
+        msg.className   = 'msg';
+        msg.textContent = '';
+      }
+    }
+
+    function showMsg(text, type) {
+      const msg = document.getElementById('msg');
+      msg.textContent = text;
+      msg.className   = 'msg ' + type;
+      msg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function setRoomError(text) {
+      const hint  = document.getElementById('room-hint');
+      const input = document.getElementById('room');
+      if (text) {
+        hint.textContent = text;
+        hint.classList.add('visible');
+        input.classList.add('invalid');
+      } else {
+        hint.textContent = '';
+        hint.classList.remove('visible');
+        input.classList.remove('invalid');
+      }
+    }
+
+    setLang('pt');
+
+    document.getElementById('room').addEventListener('input', function() {
+      this.value = this.value.toUpperCase();
+      setRoomError('');
+    });
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const t     = i18n[currentLang];
+      const btn   = document.getElementById('btn');
+      const name  = document.getElementById('name').value.trim();
+      const room  = document.getElementById('room').value.trim().toUpperCase();
+      const staff = document.getElementById('staff').value.trim() || null;
+      const notes = document.getElementById('notes').value.trim() || null;
+
+      if (!name || !room) return;
+
+      if (_validRooms !== null && !_validRooms.has(room)) {
+        setRoomError(t.invalidRoom);
+        return;
+      }
+
+      setRoomError('');
+      btn.disabled    = true;
+      btn.textContent = t.sending;
+
+      const now = new Date().toISOString();
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/visits`, {
+          method: 'POST',
+          headers: {
+            'apikey':        SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type':  'application/json',
+            'Prefer':        'return=minimal'
+          },
+          body: JSON.stringify({
+            sync_id:       crypto.randomUUID(),
+            visitor_name:  name,
+            room_number:   room,
+            registered_by: staff,
+            checked_in_at: now,
+            overnights:    0,
+            notes:         notes,
+            is_deleted:    false,
+            created_at:    now,
+            updated_at:    now
+          })
+        });
+
+        if (!res.ok) throw new Error(`${res.status}`);
+
+        document.getElementById('form').reset();
+        setLang(currentLang, false);
+        showMsg(t.success, 'success');
+      } catch {
+        showMsg(t.error, 'error');
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = t.submit;
+      }
+    });
+  </script>
+</body>
+</html>
