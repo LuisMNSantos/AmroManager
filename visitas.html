@@ -287,7 +287,7 @@
     const GET_HEADERS = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
 
     let _validRooms = null;
-    let _foundVisit = null;
+    let _foundVisits = [];
     let currentMode = 'checkin';
     let currentLang = 'pt';
 
@@ -333,6 +333,7 @@
         visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
         confirmOut:'Confirmar Saída', confirmingOut:'A registar saída...',
         successOut:n=>n>0?`✓ Saída registada. ${n} overnight(s) contabilizado(s).`:'✓ Saída registada com sucesso!',
+        successOutMulti:n=>`✓ ${n} saídas registadas com sucesso!`,
         errorOut:'Erro ao registar saída. Tenta novamente.',
       },
       es: {
@@ -351,6 +352,7 @@
         visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
         confirmOut:'Confirmar Salida', confirmingOut:'Registrando salida...',
         successOut:n=>n>0?`✓ Salida registrada. ${n} noche(s) contabilizada(s).`:'✓ ¡Salida registrada correctamente!',
+        successOutMulti:n=>`✓ ${n} salidas registradas con éxito!`,
         errorOut:'Error al registrar la salida. Inténtalo de nuevo.',
       },
       en: {
@@ -369,6 +371,7 @@
         visitMeta:(name,dt)=>`${name} · Checked in: ${dt}`,
         confirmOut:'Confirm Check-out', confirmingOut:'Checking out...',
         successOut:n=>n>0?`✓ Checked out. ${n} overnight(s) recorded.`:'✓ Checked out successfully!',
+        successOutMulti:n=>`✓ ${n} check-outs registered successfully!`,
         errorOut:'Error checking out. Please try again.',
       },
       fr: {
@@ -387,6 +390,7 @@
         visitMeta:(name,dt)=>`${name} · Arrivée : ${dt}`,
         confirmOut:'Confirmer le départ', confirmingOut:'Enregistrement du départ...',
         successOut:n=>n>0?`✓ Départ enregistré. ${n} nuit(s) comptabilisée(s).`:'✓ Départ enregistré avec succès !',
+        successOutMulti:n=>`✓ ${n} départs enregistrés avec succès !`,
         errorOut:'Erreur lors du départ. Réessayez.',
       },
       it: {
@@ -405,6 +409,7 @@
         visitMeta:(name,dt)=>`${name} · Arrivo: ${dt}`,
         confirmOut:'Conferma Partenza', confirmingOut:'Registrazione partenza...',
         successOut:n=>n>0?`✓ Partenza registrata. ${n} notte/i contabilizzata/e.`:'✓ Partenza registrata con successo!',
+        successOutMulti:n=>`✓ ${n} partenze registrate con successo!`,
         errorOut:'Errore nella registrazione della partenza. Riprova.',
       }
     };
@@ -468,7 +473,7 @@
       document.getElementById('icon-in').style.display  = isIn ? '' : 'none';
       document.getElementById('icon-out').style.display = isIn ? 'none' : '';
       if (!isIn) {
-        _foundVisit = null;
+        _foundVisits = [];
         document.getElementById('visit-card').classList.remove('visible');
         document.getElementById('room-out').value = '';
         setFieldError('room-out-hint', 'room-out', '');
@@ -510,7 +515,7 @@
       setFieldError('room-in-hint','room-in',''));
     document.getElementById('room-out').addEventListener('input', () => {
       setFieldError('room-out-hint','room-out','');
-      _foundVisit = null;
+      _foundVisits = [];
       document.getElementById('visit-card').classList.remove('visible');
       clearMsg_();
     });
@@ -572,12 +577,12 @@
       const span = document.getElementById('t-search-text');
       btn.disabled = true; span.textContent = t.searching;
       document.getElementById('visit-card').classList.remove('visible');
-      _foundVisit = null; clearMsg_();
+      _foundVisits = []; clearMsg_();
 
       try {
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/visits?room_number=eq.${encodeURIComponent(room)}` +
-          `&checked_out_at=is.null&is_deleted=eq.false&order=checked_in_at.desc&limit=1` +
+          `&checked_out_at=is.null&is_deleted=eq.false&order=checked_in_at.asc` +
           `&select=sync_id,visitor_name,checked_in_at`,
           { headers: GET_HEADERS }
         );
@@ -585,10 +590,9 @@
         if (!Array.isArray(data) || data.length === 0) {
           showMsg(t.noVisit, 'info'); return;
         }
-        const v = data[0];
-        _foundVisit = { id: v.sync_id, visitorName: v.visitor_name, checkedInAt: v.checked_in_at };
-        document.getElementById('visit-name').textContent = v.visitor_name;
-        document.getElementById('visit-meta').textContent = t.visitMeta(`#${room}`, fmtDT(v.checked_in_at));
+        _foundVisits = data.map(v => ({ id: v.sync_id, visitorName: v.visitor_name, checkedInAt: v.checked_in_at }));
+        document.getElementById('visit-name').textContent = _foundVisits.map(v => v.visitorName).join(', ');
+        document.getElementById('visit-meta').textContent = t.visitMeta(`#${room}`, fmtDT(data[0].checked_in_at));
         document.getElementById('t-confirm-text').textContent = t.confirmOut;
         document.getElementById('visit-card').classList.add('visible');
       } catch { showMsg(t.errorOut, 'error'); }
@@ -597,26 +601,30 @@
 
     // ── CHECK-OUT CONFIRM ─────────────────────────────────────────────────────
     async function confirmCheckout() {
-      if (!_foundVisit) return;
+      if (!_foundVisits.length) return;
       const t   = i18n[currentLang];
       const btn = document.getElementById('btn-confirm');
       btn.disabled = true;
       document.getElementById('t-confirm-text').textContent = t.confirmingOut;
 
-      const now        = new Date().toISOString();
-      const overnights = computeOvernights(_foundVisit.checkedInAt);
+      const now = new Date().toISOString();
 
       try {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/visits?sync_id=eq.${_foundVisit.id}`,
-          { method:'PATCH', headers: API_HEADERS,
-            body: JSON.stringify({ checked_out_at: now, overnights, updated_at: now }) }
-        );
-        if (!res.ok) throw new Error();
-        _foundVisit = null;
+        await Promise.all(_foundVisits.map(v => {
+          const overnights = computeOvernights(v.checkedInAt);
+          return fetch(
+            `${SUPABASE_URL}/rest/v1/visits?sync_id=eq.${v.id}`,
+            { method:'PATCH', headers: API_HEADERS,
+              body: JSON.stringify({ checked_out_at: now, overnights, updated_at: now }) }
+          ).then(r => { if (!r.ok) throw new Error(); });
+        }));
+
+        const count = _foundVisits.length;
+        const maxOvernights = Math.max(..._foundVisits.map(v => computeOvernights(v.checkedInAt)));
+        _foundVisits = [];
         document.getElementById('visit-card').classList.remove('visible');
         document.getElementById('room-out').value = '';
-        showMsg(t.successOut(overnights), 'success');
+        showMsg(count > 1 ? t.successOutMulti(count) : t.successOut(maxOvernights), 'success');
       } catch {
         showMsg(t.errorOut, 'error');
         btn.disabled = false;
