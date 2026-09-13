@@ -1,0 +1,99 @@
+@inject RoomService RoomSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.PersonPin" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Nova Visita — Check-in</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="3">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_visitorName"
+                              Label="Nome da visita"
+                              Required="true"
+                              Immediate="true"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudAutocomplete T="string" @bind-Value="_roomNumber"
+                                 Label="Quarto"
+                                 Required="true"
+                                 SearchFunc="SearchRoom"
+                                 Variant="Variant.Outlined"
+                                 ResetValueOnEmptyText="true"
+                                 CoerceText="true"
+                                 Error="@_roomError"
+                                 ErrorText="Quarto inválido" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_registeredBy"
+                              Label="Registado por"
+                              Placeholder="Nome do concierge"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes"
+                              Label="Notas (opcional)"
+                              Lines="2"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
+            A data e hora de entrada são registadas automaticamente no momento da submissão.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!CanSubmit)">
+            Registar Entrada
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private string _visitorName  = string.Empty;
+    private string _roomNumber   = string.Empty;
+    private string _registeredBy = string.Empty;
+    private string _notes        = string.Empty;
+    private bool   _roomError;
+    private List<string> _allRooms = [];
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_visitorName) &&
+        !string.IsNullOrWhiteSpace(_roomNumber);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allRooms = (await RoomSvc.GetAllNumbersAsync()).ToList();
+    }
+
+    private Task<IEnumerable<string>> SearchRoom(string value, CancellationToken ct)
+    {
+        IEnumerable<string> result = string.IsNullOrEmpty(value)
+            ? _allRooms.Take(20)
+            : _allRooms.Where(r => r.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    private void Submit()
+    {
+        if (!CanSubmit) return;
+        var room = _roomNumber.Trim().ToUpper();
+        if (!_allRooms.Any(r => r.Equals(room, StringComparison.OrdinalIgnoreCase)))
+        {
+            _roomError = true;
+            StateHasChanged();
+            return;
+        }
+        _roomError = false;
+        MudDialog.Close(DialogResult.Ok((_visitorName, room, _registeredBy, _notes)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,462 @@
+@page "/visitas"
+@inject VisitService VisitSvc
+@inject ResidentService ResidentSvc
+@inject RoomService RoomSvc
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuditLogService AuditSvc
+
+<!-- Admin PIN overlay -->
+@if (_showPin)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Elevation="8" Class="pa-6" Style="width:320px; text-align:center;">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Primary"
+                     Style="font-size:2.5rem;" Class="mb-2" />
+            <MudText Typo="Typo.h6" Class="mb-1">Código de Administrador</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                Introduza o código de 4 dígitos
+            </MudText>
+            <MudTextField @bind-Value="_pinInput"
+                          InputType="InputType.Password"
+                          Placeholder="● ● ● ●"
+                          MaxLength="4"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Class="mb-3"
+                          Style="letter-spacing:0.5em; font-size:1.4rem; text-align:center;"
+                          @onkeydown="OnPinKey" />
+            @if (_pinError)
+            {
+                <MudText Color="Color.Error" Typo="Typo.caption" Class="mb-2">
+                    Código incorreto.
+                </MudText>
+            }
+            <div class="d-flex gap-2 justify-center">
+                <MudButton OnClick="CancelPin">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmPin">
+                    Confirmar
+                </MudButton>
+            </div>
+        </MudPaper>
+    </MudOverlay>
+}
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">Visitas</MudText>
+    <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
+               Variant="Variant.Filled" Color="Color.Primary"
+               OnClick="OpenNewVisit">
+        Nova Visita
+    </MudButton>
+</div>
+
+<!-- Stats -->
+<MudGrid Spacing="2" Class="mb-4">
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.PersonPin" Color="Color.Warning" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Em visita</MudText>
+                <MudText Typo="Typo.h5"><b>@_visits.Count(v => v.IsActive)</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Login" Color="Color.Primary" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Entradas hoje</MudText>
+                <MudText Typo="Typo.h5"><b>@_visits.Count(v => v.CheckedInAt.ToLocalTime().Date == DateTime.Today)</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Success" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Saídas hoje</MudText>
+                <MudText Typo="Typo.h5"><b>@_visits.Count(v => v.CheckedOutAt?.ToLocalTime().Date == DateTime.Today)</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-3 d-flex align-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.Nightlight" Color="Color.Secondary" />
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Overnights (mês)</MudText>
+                <MudText Typo="Typo.h5"><b>@MonthOvernights</b></MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <!-- Search + filters -->
+    <div class="d-flex align-center gap-3 mb-2 flex-wrap">
+        <MudTextField @bind-Value="_search" Placeholder="Pesquisar visita ou quarto…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" FullWidth="true" Style="flex:1; min-width:160px;" />
+        @foreach (var (label, key) in new[] { ("Todas", "all"), ("Ativas", "active"), ("Hoje", "today") })
+        {
+            var k = key;
+            <MudChip T="string"
+                     Color="@(_filter == k ? Color.Primary : Color.Default)"
+                     Variant="@(_filter == k ? Variant.Filled : Variant.Outlined)"
+                     Size="Size.Small" OnClick="@(() => _filter = k)"
+                     Style="cursor:pointer; white-space:nowrap;">
+                @label
+            </MudChip>
+        }
+    </div>
+
+    @if (!Filtered.Any())
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+            Nenhuma visita encontrada.
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="overflow-hidden mb-4">
+            <!-- Table header -->
+            <div style="display:grid; grid-template-columns:1fr 80px 160px 120px 120px 70px 120px 140px;
+                        padding:8px 16px; background:#f5f5f5; border-bottom:1px solid rgba(0,0,0,0.12);">
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Residente</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Entrada</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Saída</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Noites</MudText>
+                <MudText Typo="Typo.caption" Style="font-weight:700;">Por</MudText>
+                <span></span>
+            </div>
+
+            @foreach (var visit in Filtered)
+            {
+                var v = visit;
+                _residents.TryGetValue(v.RoomNumber, out var resident);
+                <div style="display:grid; grid-template-columns:1fr 80px 160px 120px 120px 70px 120px 140px;
+                            padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
+                            align-items:center; @(v.IsActive ? "background:rgba(255,152,0,0.04);" : "")">
+                    <MudText Typo="Typo.body2"><b>@v.VisitorName</b></MudText>
+                    <MudText Typo="Typo.body2" Style="font-weight:600;">@($"#{v.RoomNumber}")</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"
+                             Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        @(resident?.Name ?? "—")
+                    </MudText>
+                    <MudText Typo="Typo.caption">
+                        @v.CheckedInAt.ToLocalTime().ToString("dd/MM HH:mm")
+                    </MudText>
+                    @if (v.IsActive)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">Em visita</MudChip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption">
+                            @v.CheckedOutAt!.Value.ToLocalTime().ToString("dd/MM HH:mm")
+                        </MudText>
+                    }
+                    <div class="d-flex align-center">
+                        @if (v.LiveOvernights > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary"
+                                     Icon="@Icons.Material.Filled.Nightlight">
+                                @v.LiveOvernights
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                        }
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"
+                             Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        @(v.RegisteredBy ?? "—")
+                    </MudText>
+                    <div class="d-flex gap-1 align-center justify-end">
+                        @if (v.IsActive)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Logout"
+                                       OnClick="@(() => CheckOut(v))">
+                                Checkout
+                            </MudButton>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Color="Color.Primary" Size="Size.Small"
+                                       Title="Editar"
+                                       OnClick="@(() => RequireAdmin(() => EditVisit(v)))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error" Size="Size.Small"
+                                       Title="Eliminar"
+                                       OnClick="@(() => RequireAdmin(() => DeleteVisit(v)))" />
+                    </div>
+                </div>
+            }
+        </MudPaper>
+    }
+
+    <!-- Overnights per room -->
+    @if (OvernightStats.Any())
+    {
+        <MudExpansionPanels Elevation="2">
+            <MudExpansionPanel>
+                <TitleContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Nightlight" Color="Color.Secondary" Size="Size.Small" />
+                        <MudText Typo="Typo.subtitle2">Overnights por Quarto</MudText>
+                    </div>
+                </TitleContent>
+                <ChildContent>
+                    <MudSimpleTable Dense="true" Hover="true" Style="overflow-x:auto;">
+                        <thead>
+                            <tr>
+                                <th>Quarto</th>
+                                <th>Residente</th>
+                                <th>Total noites</th>
+                                <th>Grátis (perk)</th>
+                                <th>Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var stat in OvernightStats)
+                            {
+                                var remaining = stat.FreeAllowance - stat.UsedOvernights;
+                                <tr>
+                                    <td><b>#@stat.RoomNumber</b></td>
+                                    <td>
+                                        @(stat.ResidentName ?? "—")
+                                        @if (stat.IsRenewer)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success"
+                                                     Class="ml-1">Renovador</MudChip>
+                                        }
+                                    </td>
+                                    <td>@stat.UsedOvernights</td>
+                                    <td>
+                                        @if (stat.IsRenewer)
+                                        { <span>@stat.FreeAllowance</span> }
+                                        else
+                                        { <span style="color:var(--mud-palette-text-secondary);">—</span> }
+                                    </td>
+                                    <td>
+                                        @if (stat.IsRenewer)
+                                        {
+                                            <MudText Color="@(remaining > 0 ? Color.Success : Color.Error)"
+                                                     Typo="Typo.body2">
+                                                <b>@(remaining > 0 ? $"+{remaining}" : remaining.ToString())</b>
+                                            </MudText>
+                                        }
+                                        else
+                                        {
+                                            <span style="color:var(--mud-palette-text-secondary);">—</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </ChildContent>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+}
+
+@code {
+    private bool   _loading = true;
+    private string _search  = string.Empty;
+    private string _filter  = "all";
+
+    private List<Visit> _visits = [];
+    private Dictionary<string, Resident> _residents = [];
+
+    // Admin PIN
+    private bool   _adminUnlocked;
+    private bool   _showPin;
+    private string _pinInput = string.Empty;
+    private bool   _pinError;
+    private Func<Task>? _pendingAction;
+
+    private record OvernightStat(
+        string RoomNumber, string? ResidentName, bool IsRenewer,
+        int FreeAllowance, int UsedOvernights);
+
+    private int MonthOvernights => _visits
+        .Where(v => v.CheckedInAt.ToLocalTime().Year == DateTime.Now.Year
+                 && v.CheckedInAt.ToLocalTime().Month == DateTime.Now.Month)
+        .Sum(v => v.LiveOvernights);
+
+    private IEnumerable<Visit> Filtered => _visits
+        .Where(v => _filter switch
+        {
+            "active" => v.IsActive,
+            "today"  => v.CheckedInAt.ToLocalTime().Date == DateTime.Today,
+            _        => true
+        })
+        .Where(v => string.IsNullOrWhiteSpace(_search) ||
+                    v.VisitorName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                    v.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<OvernightStat> OvernightStats => _visits
+        .GroupBy(v => v.RoomNumber)
+        .Select(g =>
+        {
+            _residents.TryGetValue(g.Key, out var resident);
+            return new OvernightStat(
+                g.Key,
+                resident?.Name,
+                resident?.IsRenewer ?? false,
+                resident?.FreeOvernights ?? 0,
+                g.Sum(v => v.LiveOvernights));
+        })
+        .Where(s => s.UsedOvernights > 0)
+        .OrderByDescending(s => s.UsedOvernights);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        _loading = false;
+    }
+
+    private async Task LoadData()
+    {
+        var visitsTask    = VisitSvc.GetAllAsync();
+        var residentsTask = ResidentSvc.GetAllAsync();
+        await Task.WhenAll(visitsTask, residentsTask);
+        _visits    = visitsTask.Result;
+        _residents = residentsTask.Result
+            .Where(r => r.RoomNumber is not null)
+            .GroupBy(r => r.RoomNumber.ToUpper())
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
+    private async Task OpenNewVisit()
+    {
+        var dialog = await DialogService.ShowAsync<VisitFormDialog>(
+            string.Empty,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: true }) return;
+
+        var (visitorName, roomNumber, registeredBy, notes) =
+            ((string, string, string, string))result!.Data!;
+
+        try
+        {
+            await VisitSvc.CreateAsync(visitorName, roomNumber, registeredBy, notes);
+            await LogAsync("Visita registada", $"{visitorName} → #{roomNumber}");
+            Snackbar.Add($"Entrada de {visitorName} registada.", Severity.Success);
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CheckOut(Visit visit)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Registar Saída",
+            $"Confirmar checkout de {visit.VisitorName} (quarto #{visit.RoomNumber})?",
+            yesText: "Confirmar Saída", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await VisitSvc.CheckOutAsync(visit.Id);
+        var overnights = Visit.ComputeOvernights(visit.CheckedInAt, DateTime.UtcNow);
+        var detail = overnights > 0 ? $"{visit.VisitorName} — {overnights} overnight(s)" : visit.VisitorName;
+        await LogAsync("Checkout registado", $"{detail} (#{visit.RoomNumber})");
+        if (overnights > 0)
+            Snackbar.Add($"Checkout de {visit.VisitorName} — {overnights} overnight(s) registado(s).", Severity.Info);
+        else
+            Snackbar.Add($"Checkout de {visit.VisitorName} registado.", Severity.Success);
+        await LoadData();
+    }
+
+    private async Task EditVisit(Visit visit)
+    {
+        var parameters = new DialogParameters<VisitEditDialog> { { x => x.Visit, visit } };
+        var dialog = await DialogService.ShowAsync<VisitEditDialog>(
+            string.Empty, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: true }) return;
+
+        var (visitorName, roomNumber, checkedIn, checkedOut, registeredBy, notes) =
+            ((string, string, DateTime, DateTime?, string, string))result!.Data!;
+
+        await VisitSvc.UpdateAsync(visit.Id, visitorName, roomNumber, checkedIn, checkedOut, registeredBy, notes);
+        await LogAsync("Visita editada", $"{visitorName} (#{roomNumber})");
+        Snackbar.Add("Visita actualizada.", Severity.Success);
+        await LoadData();
+    }
+
+    private async Task DeleteVisit(Visit visit)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Eliminar Visita",
+            $"Eliminar o registo de {visit.VisitorName} (#{visit.RoomNumber})?",
+            yesText: "Eliminar", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        await VisitSvc.DeleteAsync(visit.Id);
+        await LogAsync("Visita eliminada", $"{visit.VisitorName} (#{visit.RoomNumber})");
+        Snackbar.Add("Registo eliminado.", Severity.Success);
+        await LoadData();
+    }
+
+    // Admin PIN helpers
+    private void RequireAdmin(Func<Task> action)
+    {
+        if (_adminUnlocked) { _ = action(); return; }
+        _pendingAction = action;
+        _showPin       = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmPin()
+    {
+        if (ResidentSvc.VerifyPin(_pinInput))
+        {
+            _adminUnlocked = true;
+            _pinError      = false;
+            _showPin       = false;
+            var action     = _pendingAction;
+            _pendingAction = null;
+            _pinInput      = string.Empty;
+            if (action is not null) await action();
+        }
+        else
+        {
+            _pinError = true;
+            _pinInput = string.Empty;
+        }
+        StateHasChanged();
+    }
+
+    private void CancelPin()
+    {
+        _showPin       = false;
+        _pendingAction = null;
+        _pinInput      = string.Empty;
+        _pinError      = false;
+    }
+
+    private async Task OnPinKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmPin();
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); }
+        catch { }
+    }
+}

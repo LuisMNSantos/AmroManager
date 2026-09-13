@@ -177,6 +177,8 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
                 phone_number      = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
                 is_collaborator   = r.IsCollaborator,
                 collaborator_role = r.IsCollaborator ? r.CollaboratorRole : null,
+                is_renewer        = r.IsRenewer,
+                free_overnights   = r.FreeOvernights,
                 is_deleted        = false,
                 updated_at        = DateTime.UtcNow
             });
@@ -190,6 +192,8 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
                 phone_number      = string.IsNullOrWhiteSpace(r.PhoneNumber) ? (string?)null : r.PhoneNumber.Trim(),
                 is_collaborator   = r.IsCollaborator,
                 collaborator_role = r.IsCollaborator ? r.CollaboratorRole : null,
+                is_renewer        = r.IsRenewer,
+                free_overnights   = r.FreeOvernights,
                 updated_at        = DateTime.UtcNow
             });
         }
