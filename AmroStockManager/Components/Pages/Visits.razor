@@ -1,4 +1,5 @@
 @page "/visitas"
+@using ClosedXML.Excel
 @inject VisitService VisitSvc
 @inject ResidentService ResidentSvc
 @inject RoomService RoomSvc
@@ -42,13 +43,37 @@
     </MudOverlay>
 }
 
-<div class="d-flex align-center justify-space-between mb-4">
+<div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
     <MudText Typo="Typo.h4">Visitas</MudText>
-    <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
-               Variant="Variant.Filled" Color="Color.Primary"
-               OnClick="OpenNewVisit">
-        Nova Visita
-    </MudButton>
+    <div class="d-flex align-center gap-2 flex-wrap">
+        <MudSelect T="int" @bind-Value="_exportMonth" Dense="true" Margin="Margin.Dense"
+                   Style="width:130px;" Label="Mês">
+            @for (int m = 1; m <= 12; m++)
+            {
+                var month = m;
+                var monthName = new DateTime(2000, month, 1).ToString("MMMM");
+                <MudSelectItem Value="month">@monthName</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="int" @bind-Value="_exportYear" Dense="true" Margin="Margin.Dense"
+                   Style="width:90px;" Label="Ano">
+            @for (int y = DateTime.Now.Year; y >= DateTime.Now.Year - 4; y--)
+            {
+                var year = y;
+                <MudSelectItem Value="year">@year</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
+                   Variant="Variant.Outlined" Color="Color.Success"
+                   OnClick="ExportExcel">
+            Exportar Excel
+        </MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
+                   Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="OpenNewVisit">
+            Nova Visita
+        </MudButton>
+    </div>
 </div>
 
 <!-- Stats -->
@@ -273,6 +298,8 @@ else
     private bool   _loading = true;
     private string _search  = string.Empty;
     private string _filter  = "all";
+    private int    _exportMonth = DateTime.Now.Month;
+    private int    _exportYear  = DateTime.Now.Year;
 
     private List<Visit> _visits = [];
     private Dictionary<string, Resident> _residents = [];
@@ -335,6 +362,110 @@ else
             .Where(r => r.RoomNumber is not null)
             .GroupBy(r => r.RoomNumber.ToUpper())
             .ToDictionary(g => g.Key, g => g.First());
+    }
+
+    private async Task ExportExcel()
+    {
+        try
+        {
+            var monthVisits = _visits
+                .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
+                         && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
+                .OrderBy(v => v.CheckedInAt)
+                .ToList();
+
+            if (monthVisits.Count == 0)
+            {
+                Snackbar.Add("Nenhuma visita encontrada para o período selecionado.", Severity.Warning);
+                return;
+            }
+
+            using var wb = new XLWorkbook();
+
+            // ── Sheet 1: Visitas ─────────────────────────────────────────────
+            var ws1 = wb.Worksheets.Add("Visitas");
+            string[] h1 = ["Visitante", "Quarto", "Residente", "Entrada", "Saída", "Noites", "Registado por", "Notas"];
+            for (int i = 0; i < h1.Length; i++) ws1.Cell(1, i + 1).Value = h1[i];
+            var hr1 = ws1.Range(1, 1, 1, h1.Length);
+            hr1.Style.Font.Bold = true;
+            hr1.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr1.Style.Font.FontColor = XLColor.White;
+
+            int row = 2;
+            foreach (var v in monthVisits)
+            {
+                _residents.TryGetValue(v.RoomNumber, out var res);
+                ws1.Cell(row, 1).Value = v.VisitorName;
+                ws1.Cell(row, 2).Value = v.RoomNumber;
+                ws1.Cell(row, 3).Value = res?.Name ?? "";
+                ws1.Cell(row, 4).Value = v.CheckedInAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                ws1.Cell(row, 5).Value = v.CheckedOutAt.HasValue
+                    ? v.CheckedOutAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                    : "Em visita";
+                ws1.Cell(row, 6).Value = v.LiveOvernights;
+                ws1.Cell(row, 7).Value = v.RegisteredBy ?? "";
+                ws1.Cell(row, 8).Value = v.Notes ?? "";
+                if (row % 2 == 0)
+                    ws1.Range(row, 1, row, h1.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws1.Columns().AdjustToContents();
+            ws1.SheetView.FreezeRows(1);
+
+            // ── Sheet 2: Overnights por Quarto ───────────────────────────────
+            var ws2 = wb.Worksheets.Add("Overnights por Quarto");
+            string[] h2 = ["Quarto", "Residente", "Renovador", "Total Noites", "Grátis (perk)", "Saldo", "Nº Visitas"];
+            for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
+            var hr2 = ws2.Range(1, 1, 1, h2.Length);
+            hr2.Style.Font.Bold = true;
+            hr2.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr2.Style.Font.FontColor = XLColor.White;
+
+            var ovStats = monthVisits
+                .GroupBy(v => v.RoomNumber)
+                .Select(g =>
+                {
+                    _residents.TryGetValue(g.Key, out var r);
+                    int total = g.Sum(v => v.LiveOvernights);
+                    bool renewer = r?.IsRenewer ?? false;
+                    int free = renewer ? (r?.FreeOvernights ?? 0) : 0;
+                    return (Room: g.Key, Resident: r?.Name ?? "", Renewer: renewer,
+                            Total: total, Free: free, Balance: free - total, Count: g.Count());
+                })
+                .OrderByDescending(s => s.Total);
+
+            row = 2;
+            foreach (var s in ovStats)
+            {
+                ws2.Cell(row, 1).Value = s.Room;
+                ws2.Cell(row, 2).Value = s.Resident;
+                ws2.Cell(row, 3).Value = s.Renewer ? "Sim" : "Não";
+                ws2.Cell(row, 4).Value = s.Total;
+                ws2.Cell(row, 5).Value = s.Renewer ? s.Free : 0;
+                ws2.Cell(row, 6).Value = s.Renewer ? s.Balance : 0;
+                ws2.Cell(row, 7).Value = s.Count;
+                if (row % 2 == 0)
+                    ws2.Range(row, 1, row, h2.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws2.Columns().AdjustToContents();
+            ws2.SheetView.FreezeRows(1);
+
+            var label = new DateTime(_exportYear, _exportMonth, 1).ToString("yyyy-MM");
+            var path  = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                $"AMRO_Visitas_{label}.xlsx");
+
+            wb.SaveAs(path);
+
+            await LogAsync("Export Excel Visitas", $"{monthVisits.Count} visitas exportadas ({label})");
+            Snackbar.Add("Ficheiro guardado no Ambiente de Trabalho.", Severity.Success);
+            await Launcher.Default.OpenAsync(new Uri($"file:///{path.Replace('\\', '/')}"));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao exportar: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task OpenNewVisit()
