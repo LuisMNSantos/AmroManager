@@ -53,9 +53,20 @@ Three-tab overview with proactive alerts and relevant statistics for each area:
 
 ### 👥 Resident Management
 - Add and edit individual residents inline — no need to reimport the full CSV for updates
-- CSV bulk import replaces the entire list (with confirmation)
+- Mark residents as **Renovadores** (annual renewers) and track their renewer kit deliveries
+- CSV bulk import replaces the entire list (with confirmation); supports 5-column format: Name, Room, Phone, Collaborator, Renewer
+- Filter list by: Renewers only, Vacant rooms, BIS cards in use; hide collaborators toggle (on by default)
+- Visual indicator (green ✓) next to renewer names who have already received their kit
 - Per-resident cascade check before deletion: warns staff if the room has pending deliveries, active loans, or upcoming reservations
 - Delete individual residents or clear the entire list
+
+### 🎁 Kit de Renovador
+- Define the renewer kit template on the Products page: add/remove products that make up the kit
+- Delivery counter shows how many kits have been given out in total
+- Full paginated delivery history with year filter and one-click **Excel export** (detail sheet + per-resident summary sheet)
+- Deliver a kit directly from the resident edit dialog: select size per product, record who delivered it, optional notes
+- Each kit delivery automatically decrements stock for each selected size variant (movement reason: Distribution)
+- Per-resident delivery history visible in the resident dialog
 
 ### 🛠️ Maintenance & GDPR
 - Preview and soft-delete old records (returned loans, completed reservations, stock movements, collected deliveries) by configurable time period
@@ -85,7 +96,7 @@ Three-tab overview with proactive alerts and relevant statistics for each area:
 - **SupabaseRealtimeService** — connects to Supabase Realtime via the Phoenix WebSocket protocol, subscribes to `postgres_changes` events on all watched tables, invalidates the in-memory cache, and fires `TableChanged` events that pages subscribe to for live UI refresh.
 - **CacheService** — lightweight in-memory TTL cache used for frequently read, rarely changed data (residents: 60 s, general items: 30 s). All write paths explicitly invalidate the relevant cache key.
 - **ConnectivityService** — wraps MAUI's `IConnectivity` to surface a real-time connectivity banner when the device loses internet access.
-- **Service layer** — each domain area (products, stock, general items, reservations, deliveries, residents, maintenance) has its own injectable singleton service that calls `SupabaseClient` directly.
+- **Service layer** — each domain area has its own injectable singleton service that calls `SupabaseClient` directly: products, stock, general items, reservations, deliveries, residents, renewer kit, and maintenance.
 - **Soft-delete** — all record deletions set `is_deleted = true`. Hard deletes are only performed during the GDPR resident purge.
 - **Security** — the admin PIN is stored as a PBKDF2-SHA256 hash (100 000 iterations, random 16-byte salt) in `%LocalAppData%\AmroStockManager\admin.pin`. Verification uses constant-time comparison to prevent timing attacks. Existing plaintext PINs are transparently rehashed on the next successful login.
 
@@ -152,7 +163,10 @@ AmroStockManager/
 │       ├── GeneralItem.cs / GeneralItemLoan.cs
 │       ├── Resident.cs
 │       ├── Delivery.cs
-│       └── Reservation.cs
+│       ├── Reservation.cs
+│       ├── RenewerKitItem.cs             # Kit template entry (product → kit)
+│       ├── RenewerKitDelivery.cs         # One delivery event per resident
+│       └── RenewerKitDeliveryItem.cs     # One row per product in a delivery
 ├── Services/
 │   ├── SupabaseClient.cs             # PostgREST HTTP wrapper with retry logic
 │   ├── SupabaseRealtimeService.cs    # Phoenix WebSocket Realtime client
@@ -164,6 +178,7 @@ AmroStockManager/
 │   ├── ReservationService.cs
 │   ├── DeliveryService.cs
 │   ├── ResidentService.cs            # Includes PIN hashing (PBKDF2)
+│   ├── RenewerKitService.cs          # Kit template + delivery + Excel export
 │   └── MaintenanceService.cs         # Cleanup + GDPR purge
 └── MauiProgram.cs                    # App bootstrap and DI registration
 ```
