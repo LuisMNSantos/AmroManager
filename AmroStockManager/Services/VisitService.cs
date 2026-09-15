@@ -4,8 +4,16 @@ namespace AmroStockManager.Services;
 
 public class VisitService(ISupabaseClient db)
 {
-    public Task<List<Visit>> GetAllAsync() =>
-        db.GetAsync<Visit>("visits", "is_deleted=eq.false&order=checked_in_at.desc&limit=300");
+    public Task<List<Visit>> GetActiveAsync() =>
+        db.GetAsync<Visit>("visits", "is_deleted=eq.false&checked_out_at=is.null&order=checked_in_at.desc");
+
+    public Task<List<Visit>> GetByMonthAsync(int year, int month)
+    {
+        var start = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
+        var end   = start.AddMonths(1);
+        return db.GetAsync<Visit>("visits",
+            $"is_deleted=eq.false&checked_in_at=gte.{start:O}&checked_in_at=lt.{end:O}&order=checked_in_at.desc");
+    }
 
     public Task<List<Visit>> GetByRoomAsync(string roomNumber) =>
         db.GetAsync<Visit>("visits",

@@ -46,7 +46,7 @@
 <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
     <MudText Typo="Typo.h4">Visitas</MudText>
     <div class="d-flex align-center gap-2 flex-wrap">
-        <MudSelect T="int" @bind-Value="_exportMonth" Dense="true" Margin="Margin.Dense"
+        <MudSelect T="int" Value="_exportMonth" ValueChanged="OnMonthChanged" Dense="true" Margin="Margin.Dense"
                    Style="width:130px;" Label="Mês">
             @for (int m = 1; m <= 12; m++)
             {
@@ -55,7 +55,7 @@
                 <MudSelectItem Value="month">@monthName</MudSelectItem>
             }
         </MudSelect>
-        <MudSelect T="int" @bind-Value="_exportYear" Dense="true" Margin="Margin.Dense"
+        <MudSelect T="int" Value="_exportYear" ValueChanged="OnYearChanged" Dense="true" Margin="Margin.Dense"
                    Style="width:90px;" Label="Ano">
             @for (int y = DateTime.Now.Year; y >= DateTime.Now.Year - 4; y--)
             {
@@ -316,8 +316,8 @@ else
         int FreeAllowance, int UsedOvernights);
 
     private int MonthOvernights => _visits
-        .Where(v => v.CheckedInAt.ToLocalTime().Year == DateTime.Now.Year
-                 && v.CheckedInAt.ToLocalTime().Month == DateTime.Now.Month)
+        .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
+                 && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
         .Sum(v => v.LiveOvernights);
 
     private IEnumerable<Visit> Filtered => _visits
@@ -332,6 +332,8 @@ else
                     v.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
     private IEnumerable<OvernightStat> OvernightStats => _visits
+        .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
+                 && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
         .GroupBy(v => v.RoomNumber)
         .Select(g =>
         {
@@ -354,23 +356,48 @@ else
 
     private async Task LoadData()
     {
-        var visitsTask    = VisitSvc.GetAllAsync();
+        var activeTask    = VisitSvc.GetActiveAsync();
+        var monthTask     = VisitSvc.GetByMonthAsync(_exportYear, _exportMonth);
         var residentsTask = ResidentSvc.GetAllAsync();
-        await Task.WhenAll(visitsTask, residentsTask);
-        _visits    = visitsTask.Result;
+        await Task.WhenAll(activeTask, monthTask, residentsTask);
+
+        // Merge: month visits + any active visits that started in a different month
+        var monthVisits  = monthTask.Result;
+        var monthIds     = monthVisits.Select(v => v.Id).ToHashSet();
+        _visits = monthVisits
+            .Concat(activeTask.Result.Where(v => !monthIds.Contains(v.Id)))
+            .OrderByDescending(v => v.CheckedInAt)
+            .ToList();
+
         _residents = residentsTask.Result
             .Where(r => r.RoomNumber is not null)
             .GroupBy(r => r.RoomNumber.ToUpper())
             .ToDictionary(g => g.Key, g => g.First());
     }
 
+    private async Task OnMonthChanged(int month)
+    {
+        _exportMonth = month;
+        _loading = true;
+        StateHasChanged();
+        await LoadData();
+        _loading = false;
+    }
+
+    private async Task OnYearChanged(int year)
+    {
+        _exportYear = year;
+        _loading = true;
+        StateHasChanged();
+        await LoadData();
+        _loading = false;
+    }
+
     private async Task ExportExcel()
     {
         try
         {
-            var monthVisits = _visits
-                .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
-                         && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
+            var monthVisits = (await VisitSvc.GetByMonthAsync(_exportYear, _exportMonth))
                 .OrderBy(v => v.CheckedInAt)
                 .ToList();
 
