@@ -124,7 +124,8 @@ else
 {
     <!-- Search + filters -->
     <div class="d-flex align-center gap-3 mb-2 flex-wrap">
-        <MudTextField @bind-Value="_search" Placeholder="Pesquisar visita ou quarto…"
+        <MudTextField Value="_search" ValueChanged="@((string s) => OnSearchChanged(s))"
+                      Placeholder="Pesquisar visita ou quarto…"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                       Immediate="true" FullWidth="true" Style="flex:1; min-width:160px;" />
         @foreach (var (label, key) in new[] { ("Todas", "all"), ("Ativas", "active"), ("Hoje", "today") })
@@ -133,7 +134,7 @@ else
             <MudChip T="string"
                      Color="@(_filter == k ? Color.Primary : Color.Default)"
                      Variant="@(_filter == k ? Variant.Filled : Variant.Outlined)"
-                     Size="Size.Small" OnClick="@(() => _filter = k)"
+                     Size="Size.Small" OnClick="@(() => SetFilter(k))"
                      Style="cursor:pointer; white-space:nowrap;">
                 @label
             </MudChip>
@@ -162,7 +163,7 @@ else
                 <span></span>
             </div>
 
-            @foreach (var visit in Filtered)
+            @foreach (var visit in PagedFiltered)
             {
                 var v = visit;
                 _residents.TryGetValue(v.RoomNumber, out var resident);
@@ -226,6 +227,17 @@ else
                 </div>
             }
         </MudPaper>
+
+        @if (PageCount > 1)
+        {
+            <div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @((_page - 1) * PageSize + 1)–@(Math.Min(_page * PageSize, Filtered.Count())) de @Filtered.Count() visitas
+                </MudText>
+                <MudPagination Count="PageCount" @bind-Selected="_page"
+                               Color="Color.Primary" Size="Size.Small" />
+            </div>
+        }
     }
 
     <!-- Overnights per room -->
@@ -295,6 +307,8 @@ else
 }
 
 @code {
+    private const int PageSize = 10;
+    private int    _page    = 1;
     private bool   _loading = true;
     private string _search  = string.Empty;
     private string _filter  = "all";
@@ -330,6 +344,12 @@ else
         .Where(v => string.IsNullOrWhiteSpace(_search) ||
                     v.VisitorName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                     v.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private int PageCount => (int)Math.Ceiling((double)Filtered.Count() / PageSize);
+    private IEnumerable<Visit> PagedFiltered => Filtered.Skip((_page - 1) * PageSize).Take(PageSize);
+
+    private void SetFilter(string f) { _filter = f; _page = 1; }
+    private void OnSearchChanged(string s) { _search = s; _page = 1; }
 
     private IEnumerable<OvernightStat> OvernightStats => _visits
         .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
@@ -378,6 +398,7 @@ else
     private async Task OnMonthChanged(int month)
     {
         _exportMonth = month;
+        _page = 1;
         _loading = true;
         StateHasChanged();
         await LoadData();
@@ -387,6 +408,7 @@ else
     private async Task OnYearChanged(int year)
     {
         _exportYear = year;
+        _page = 1;
         _loading = true;
         StateHasChanged();
         await LoadData();
