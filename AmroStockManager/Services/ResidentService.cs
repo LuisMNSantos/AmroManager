@@ -116,11 +116,13 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
             var parts = ParseCsvLine(lines[i]);
             if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0])) { skipped++; continue; }
 
-            var name   = parts[0].Trim();
-            var room   = parts.Length > 1 ? parts[1].Trim().ToUpper() : string.Empty;
-            var phone  = parts.Length > 2 ? parts[2].Trim() : null;
-            var collab = parts.Length > 3 &&
-                         parts[3].Trim().ToLower() is "true" or "1" or "sim" or "yes" or "verdadeiro";
+            var name    = parts[0].Trim();
+            var room    = parts.Length > 1 ? parts[1].Trim().ToUpper() : string.Empty;
+            var phone   = parts.Length > 2 ? parts[2].Trim() : null;
+            var collab  = parts.Length > 3 &&
+                          parts[3].Trim().ToLower() is "true" or "1" or "sim" or "yes" or "verdadeiro";
+            var renewer = parts.Length > 4 &&
+                          parts[4].Trim().ToLower() is "true" or "1" or "sim" or "yes" or "verdadeiro";
 
             if (string.IsNullOrWhiteSpace(name)) { skipped++; continue; }
 
@@ -131,6 +133,7 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
                 room_number     = room,
                 phone_number    = string.IsNullOrWhiteSpace(phone) ? (string?)null : phone,
                 is_collaborator = collab,
+                is_renewer      = !collab && renewer,
                 is_deleted      = false,
                 updated_at      = DateTime.UtcNow
             });

@@ -7,6 +7,7 @@
 @inject BisLoanService BisSvc
 @inject PendingRegistrationService PendingRegSvc
 @inject AuditLogService AuditSvc
+@inject RenewerKitService KitSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -220,9 +221,9 @@
 
 <!-- CSV hint -->
 <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
-    Formato CSV: <b>Nome, Quarto, Telemóvel, Colaborador</b> &nbsp;·&nbsp;
+    Formato CSV: <b>Nome, Quarto, Telemóvel, Colaborador, Renovador</b> &nbsp;·&nbsp;
     Telemóvel em formato internacional (ex: +351912345678) &nbsp;·&nbsp;
-    Colaborador: true/false &nbsp;·&nbsp;
+    Colaborador / Renovador: true/false &nbsp;·&nbsp;
     Importar substitui a lista inteira.
 </MudAlert>
 
@@ -255,9 +256,25 @@ else
                  Color="@(_showVacantOnly ? Color.Success : Color.Default)"
                  Variant="@(_showVacantOnly ? Variant.Filled : Variant.Outlined)"
                  Icon="@Icons.Material.Filled.MeetingRoom"
-                 OnClick="@(() => { _showVacantOnly = !_showVacantOnly; if (_showVacantOnly) _showBisOnly = false; })"
+                 OnClick="@(() => { _showVacantOnly = !_showVacantOnly; if (_showVacantOnly) { _showBisOnly = false; _showRenewersOnly = false; } })"
                  Style="cursor:pointer; white-space:nowrap;">
             Livres (@VacantCount)
+        </MudChip>
+        <MudChip T="string"
+                 Color="@(_showRenewersOnly ? Color.Tertiary : Color.Default)"
+                 Variant="@(_showRenewersOnly ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Filled.Autorenew"
+                 OnClick="@(() => { _showRenewersOnly = !_showRenewersOnly; if (_showRenewersOnly) { _showBisOnly = false; _showVacantOnly = false; } })"
+                 Style="cursor:pointer; white-space:nowrap;">
+            Renovadores (@RenewerCount)
+        </MudChip>
+        <MudChip T="string"
+                 Color="@(_hideCollaborators ? Color.Secondary : Color.Default)"
+                 Variant="@(_hideCollaborators ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Outlined.Badge"
+                 OnClick="@(() => _hideCollaborators = !_hideCollaborators)"
+                 Style="cursor:pointer; white-space:nowrap;">
+            Ocultar colaboradores
         </MudChip>
     </div>
 
@@ -316,7 +333,17 @@ else
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2">@resident!.Name</MudText>
+                    <div class="d-flex align-center gap-1">
+                        <MudText Typo="Typo.body2">@resident!.Name</MudText>
+                        @if (resident.IsRenewer && _residentsWithKit.Contains(resident.Id))
+                        {
+                            <MudTooltip Text="Kit de renovador entregue" Delay="300">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                         Color="Color.Success"
+                                         Style="font-size:1rem;" />
+                            </MudTooltip>
+                        }
+                    </div>
                 }
                 <MudTooltip Text="@(roomInfo?.Designation ?? "")" Delay="400">
                     <MudText Typo="Typo.caption" Color="Color.Secondary"
@@ -430,13 +457,18 @@ else
     private string _search = string.Empty;
     private bool _showBisOnly;
     private bool _showVacantOnly;
+    private bool _showRenewersOnly;
+    private bool _hideCollaborators = true;
     private int? _floorFilter;
     private List<Resident> _residents = [];
     private List<PendingRegistration> _pendingRegs = [];
     private Dictionary<string, Room> _rooms = [];
     private Dictionary<string, BisLoan> _activeBis = [];
+    private HashSet<string> _residentsWithKit = [];
 
     private record DisplayRow(Resident? Resident, Room? Room);
+
+    private int RenewerCount => _residents.Count(r => r.IsRenewer && !r.IsCollaborator);
 
     private static int? GetFloor(string? room)
     {
@@ -485,6 +517,8 @@ else
 
     private IEnumerable<DisplayRow> Filtered => AllRows
         .Where(row => !_showVacantOnly || row.Resident is null)
+        .Where(row => !_hideCollaborators || !(row.Resident?.IsCollaborator ?? false))
+        .Where(row => !_showRenewersOnly || (row.Resident?.IsRenewer ?? false))
         .Where(row => string.IsNullOrWhiteSpace(_search) ||
                       (row.Resident?.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
                       (row.Room?.Number ?? row.Resident?.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
@@ -529,10 +563,12 @@ else
             var residentsTask = ResidentSvc.GetAllAsync();
             var roomsTask     = RoomSvc.GetAllAsync();
             var bisTask       = BisSvc.GetAllActiveByRoomAsync();
-            await Task.WhenAll(residentsTask, roomsTask, bisTask);
-            _residents = residentsTask.Result;
-            _rooms     = roomsTask.Result;
-            _activeBis = bisTask.Result;
+            var kitIdsTask    = KitSvc.GetDeliveredResidentIdsAsync();
+            await Task.WhenAll(residentsTask, roomsTask, bisTask, kitIdsTask);
+            _residents       = residentsTask.Result;
+            _rooms           = roomsTask.Result;
+            _activeBis       = bisTask.Result;
+            _residentsWithKit = kitIdsTask.Result;
         }
         catch (Exception ex)
         {

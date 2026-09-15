@@ -1,6 +1,8 @@
 @page "/products"
+@using ClosedXML.Excel
 @inject ProductService ProductSvc
 @inject StockService StockSvc
+@inject RenewerKitService KitSvc
 @inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -23,6 +25,135 @@
         </MudButton>
     </div>
 </div>
+
+<!-- Kit de Renovador -->
+<MudExpansionPanels Elevation="2" Class="mb-4">
+    <MudExpansionPanel>
+        <TitleContent>
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Backpack" Color="Color.Success" />
+                <MudText Typo="Typo.h6">Kit de Renovador</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                    @_kitDeliveryCount @(_kitDeliveryCount == 1 ? "kit entregue" : "kits entregues")
+                </MudChip>
+            </div>
+        </TitleContent>
+        <ChildContent>
+            @if (_kitLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" />
+            }
+            else
+            {
+                <!-- Configured kit items -->
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Produtos no kit</MudText>
+                @if (_kitItems.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                        Nenhum produto configurado. Adiciona abaixo os produtos que compõem o kit.
+                    </MudAlert>
+                }
+                else
+                {
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        @foreach (var ki in _kitItems)
+                        {
+                            var kitItem = ki;
+                            <MudChip T="string" Color="Color.Primary" OnClose="@(() => RemoveKitItem(kitItem))">
+                                @ki.Product?.Name
+                                <MudText Typo="Typo.caption" Color="Color.Surface" Class="ml-1">(@ki.Product?.Type)</MudText>
+                            </MudChip>
+                        }
+                    </div>
+                }
+
+                <!-- Add product to kit -->
+                <div class="d-flex gap-2 align-end flex-wrap mb-4">
+                    <MudSelect T="string" @bind-Value="_kitAddProductId"
+                               Label="Adicionar produto ao kit"
+                               Variant="Variant.Outlined"
+                               Dense="true"
+                               Style="min-width:220px;"
+                               Disabled="@(_products.Count == 0)">
+                        @foreach (var p in _products.Where(p => !_kitItems.Any(ki => ki.ProductId == p.Id)))
+                        {
+                            <MudSelectItem T="string" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               Disabled="@string.IsNullOrEmpty(_kitAddProductId)"
+                               OnClick="AddKitItem">
+                        Adicionar
+                    </MudButton>
+                </div>
+
+                <!-- Delivery history -->
+                @if (_kitDeliveries.Count > 0)
+                {
+                    <MudDivider Class="mb-3" />
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2 mb-2">
+                        <MudText Typo="Typo.subtitle2">Histórico de entregas</MudText>
+                        <div class="d-flex align-center gap-2">
+                            <MudSelect T="int" @bind-Value="_kitExportYear" Dense="true"
+                                       Variant="Variant.Outlined" Style="min-width:90px;">
+                                @foreach (var y in Enumerable.Range(2024, DateTime.Now.Year - 2024 + 1).Reverse())
+                                {
+                                    <MudSelectItem T="int" Value="@y">@y</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
+                                       Variant="Variant.Outlined" Color="Color.Success"
+                                       Size="Size.Small" OnClick="ExportKitExcel">
+                                Exportar Excel
+                            </MudButton>
+                        </div>
+                    </div>
+                    <MudTable Items="@KitDeliveriesPaged" Dense="true" Hover="true" Elevation="0"
+                              Outlined="true" Class="rounded">
+                        <HeaderContent>
+                            <MudTh>Residente</MudTh>
+                            <MudTh>Quarto</MudTh>
+                            <MudTh>Items entregues</MudTh>
+                            <MudTh>Entregue por</MudTh>
+                            <MudTh>Data</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Residente">@context.ResidentName</MudTd>
+                            <MudTd DataLabel="Quarto">@context.RoomNumber</MudTd>
+                            <MudTd DataLabel="Items">
+                                <div class="d-flex gap-1 flex-wrap">
+                                    @foreach (var item in context.Items)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default">
+                                            @item.ProductName — @item.Size
+                                        </MudChip>
+                                    }
+                                </div>
+                            </MudTd>
+                            <MudTd DataLabel="Entregue por">@context.DeliveredBy</MudTd>
+                            <MudTd DataLabel="Data">@context.DeliveredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                    @if (KitPageCount > 1)
+                    {
+                        <div class="d-flex align-center justify-space-between mt-2 flex-wrap gap-2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @((_kitPage - 1) * KitPageSize + 1)–@(Math.Min(_kitPage * KitPageSize, _kitDeliveries.Count)) de @_kitDeliveries.Count entregas
+                            </MudText>
+                            <MudPagination Count="KitPageCount" @bind-Selected="_kitPage"
+                                           Color="Color.Primary" Size="Size.Small" />
+                        </div>
+                    }
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Ainda não foram entregues kits.</MudText>
+                }
+            }
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
 @if (_error is not null)
 {
@@ -188,10 +319,25 @@ else
     private string? _error;
     private List<Product> _products = [];
 
+    // Kit de Renovador
+    private bool _kitLoading = true;
+    private List<RenewerKitItem> _kitItems = [];
+    private List<RenewerKitDelivery> _kitDeliveries = [];
+    private int _kitDeliveryCount;
+    private string? _kitAddProductId;
+
+    private int _kitExportYear = DateTime.Now.Year;
+
+    private const int KitPageSize = 5;
+    private int _kitPage = 1;
+    private int KitPageCount => (int)Math.Ceiling((double)_kitDeliveries.Count / KitPageSize);
+    private IEnumerable<RenewerKitDelivery> KitDeliveriesPaged =>
+        _kitDeliveries.Skip((_kitPage - 1) * KitPageSize).Take(KitPageSize);
+
     protected override async Task OnInitializedAsync()
     {
         Realtime.TableChanged += OnTableChanged;
-        await LoadProducts();
+        await Task.WhenAll(LoadProducts(), LoadKitDataAsync());
     }
 
     private void OnTableChanged(string table)
@@ -201,6 +347,126 @@ else
     }
 
     public void Dispose() => Realtime.TableChanged -= OnTableChanged;
+
+    private async Task LoadKitDataAsync()
+    {
+        _kitLoading = true;
+        try
+        {
+            var kitTask       = KitSvc.GetKitItemsAsync();
+            var deliveriesTask = KitSvc.GetAllDeliveriesAsync();
+            var countTask      = KitSvc.GetDeliveryCountAsync();
+            await Task.WhenAll(kitTask, deliveriesTask, countTask);
+            _kitItems         = kitTask.Result;
+            _kitDeliveries    = deliveriesTask.Result;
+            _kitDeliveryCount = countTask.Result;
+            _kitPage          = 1;
+        }
+        catch { /* non-critical, fail silently */ }
+        finally { _kitLoading = false; }
+    }
+
+    private async Task AddKitItem()
+    {
+        if (string.IsNullOrEmpty(_kitAddProductId)) return;
+        await KitSvc.AddKitItemAsync(_kitAddProductId);
+        _kitAddProductId = null;
+        await LoadKitDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task RemoveKitItem(RenewerKitItem item)
+    {
+        await KitSvc.RemoveKitItemAsync(item.Id);
+        await LoadKitDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task ExportKitExcel()
+    {
+        try
+        {
+            var deliveries = await KitSvc.GetDeliveriesByYearAsync(_kitExportYear);
+
+            if (deliveries.Count == 0)
+            {
+                Snackbar.Add($"Nenhuma entrega encontrada em {_kitExportYear}.", Severity.Warning);
+                return;
+            }
+
+            using var wb = new XLWorkbook();
+
+            // ── Sheet 1: Entregas ─────────────────────────────────────────────
+            var ws1 = wb.Worksheets.Add("Entregas");
+            string[] h1 = ["Residente", "Quarto", "Items entregues", "Entregue por", "Data", "Notas"];
+            for (int i = 0; i < h1.Length; i++) ws1.Cell(1, i + 1).Value = h1[i];
+            var hr1 = ws1.Range(1, 1, 1, h1.Length);
+            hr1.Style.Font.Bold = true;
+            hr1.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr1.Style.Font.FontColor = XLColor.White;
+
+            int row = 2;
+            foreach (var d in deliveries)
+            {
+                var itemsText = string.Join(", ", d.Items.Select(i => $"{i.ProductName} ({i.Size})"));
+                ws1.Cell(row, 1).Value = d.ResidentName;
+                ws1.Cell(row, 2).Value = d.RoomNumber;
+                ws1.Cell(row, 3).Value = itemsText;
+                ws1.Cell(row, 4).Value = d.DeliveredBy;
+                ws1.Cell(row, 5).Value = d.DeliveredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                ws1.Cell(row, 6).Value = d.Notes ?? "";
+                if (row % 2 == 0)
+                    ws1.Range(row, 1, row, h1.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws1.Columns().AdjustToContents();
+            ws1.SheetView.FreezeRows(1);
+
+            // ── Sheet 2: Resumo por residente ─────────────────────────────────
+            var ws2 = wb.Worksheets.Add("Resumo");
+            string[] h2 = ["Residente", "Quarto", "Nº entregas", "Última entrega"];
+            for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
+            var hr2 = ws2.Range(1, 1, 1, h2.Length);
+            hr2.Style.Font.Bold = true;
+            hr2.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr2.Style.Font.FontColor = XLColor.White;
+
+            var summary = deliveries
+                .GroupBy(d => d.ResidentId)
+                .Select(g => (
+                    Name:  g.First().ResidentName,
+                    Room:  g.First().RoomNumber,
+                    Count: g.Count(),
+                    Last:  g.Max(d => d.DeliveredAt).ToLocalTime().ToString("dd/MM/yyyy HH:mm")))
+                .OrderBy(s => s.Room);
+
+            row = 2;
+            foreach (var s in summary)
+            {
+                ws2.Cell(row, 1).Value = s.Name;
+                ws2.Cell(row, 2).Value = s.Room;
+                ws2.Cell(row, 3).Value = s.Count;
+                ws2.Cell(row, 4).Value = s.Last;
+                if (row % 2 == 0)
+                    ws2.Range(row, 1, row, h2.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws2.Columns().AdjustToContents();
+            ws2.SheetView.FreezeRows(1);
+
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                $"AMRO_Kits_{_kitExportYear}.xlsx");
+
+            wb.SaveAs(path);
+            Snackbar.Add("Ficheiro guardado no Ambiente de Trabalho.", Severity.Success);
+            await Launcher.Default.OpenAsync(new Uri($"file:///{path.Replace('\\', '/')}"));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao exportar: {ex.Message}", Severity.Error);
+        }
+    }
 
     private async Task LoadProducts()
     {
