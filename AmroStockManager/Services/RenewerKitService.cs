@@ -56,6 +56,26 @@ public class RenewerKitService(ISupabaseClient db, StockService stock)
 
     // ── Deliveries ───────────────────────────────────────────────────────────
 
+    public async Task<List<RenewerKitDelivery>> GetDeliveriesByYearAsync(int year)
+    {
+        var start = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Local).ToUniversalTime();
+        var end   = start.AddYears(1);
+        var deliveries = await db.GetAsync<RenewerKitDelivery>("renewer_kit_deliveries",
+            $"is_deleted=eq.false&delivered_at=gte.{start:O}&delivered_at=lt.{end:O}&order=delivered_at.desc");
+        if (deliveries.Count == 0) return deliveries;
+
+        var ids   = string.Join(",", deliveries.Select(d => d.Id));
+        var items = await db.GetAsync<RenewerKitDeliveryItem>("renewer_kit_delivery_items",
+            $"delivery_sync_id=in.({ids})&is_deleted=eq.false");
+
+        var byDelivery = items.GroupBy(i => i.DeliveryId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var d in deliveries)
+            d.Items = byDelivery.TryGetValue(d.Id, out var dis) ? dis : [];
+
+        return deliveries;
+    }
+
     public async Task<List<RenewerKitDelivery>> GetAllDeliveriesAsync()
     {
         var deliveriesTask = db.GetAsync<RenewerKitDelivery>("renewer_kit_deliveries",

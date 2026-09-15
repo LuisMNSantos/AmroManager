@@ -1,4 +1,5 @@
 @page "/products"
+@using ClosedXML.Excel
 @inject ProductService ProductSvc
 @inject StockService StockSvc
 @inject RenewerKitService KitSvc
@@ -91,7 +92,23 @@
                 @if (_kitDeliveries.Count > 0)
                 {
                     <MudDivider Class="mb-3" />
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">Histórico de entregas</MudText>
+                    <div class="d-flex align-center justify-space-between flex-wrap gap-2 mb-2">
+                        <MudText Typo="Typo.subtitle2">Histórico de entregas</MudText>
+                        <div class="d-flex align-center gap-2">
+                            <MudSelect T="int" @bind-Value="_kitExportYear" Dense="true"
+                                       Variant="Variant.Outlined" Style="min-width:90px;">
+                                @foreach (var y in Enumerable.Range(2024, DateTime.Now.Year - 2024 + 1).Reverse())
+                                {
+                                    <MudSelectItem T="int" Value="@y">@y</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudButton StartIcon="@Icons.Material.Filled.FileDownload"
+                                       Variant="Variant.Outlined" Color="Color.Success"
+                                       Size="Size.Small" OnClick="ExportKitExcel">
+                                Exportar Excel
+                            </MudButton>
+                        </div>
+                    </div>
                     <MudTable Items="@KitDeliveriesPaged" Dense="true" Hover="true" Elevation="0"
                               Outlined="true" Class="rounded">
                         <HeaderContent>
@@ -309,6 +326,8 @@ else
     private int _kitDeliveryCount;
     private string? _kitAddProductId;
 
+    private int _kitExportYear = DateTime.Now.Year;
+
     private const int KitPageSize = 5;
     private int _kitPage = 1;
     private int KitPageCount => (int)Math.Ceiling((double)_kitDeliveries.Count / KitPageSize);
@@ -361,6 +380,92 @@ else
         await KitSvc.RemoveKitItemAsync(item.Id);
         await LoadKitDataAsync();
         StateHasChanged();
+    }
+
+    private async Task ExportKitExcel()
+    {
+        try
+        {
+            var deliveries = await KitSvc.GetDeliveriesByYearAsync(_kitExportYear);
+
+            if (deliveries.Count == 0)
+            {
+                Snackbar.Add($"Nenhuma entrega encontrada em {_kitExportYear}.", Severity.Warning);
+                return;
+            }
+
+            using var wb = new XLWorkbook();
+
+            // ── Sheet 1: Entregas ─────────────────────────────────────────────
+            var ws1 = wb.Worksheets.Add("Entregas");
+            string[] h1 = ["Residente", "Quarto", "Items entregues", "Entregue por", "Data", "Notas"];
+            for (int i = 0; i < h1.Length; i++) ws1.Cell(1, i + 1).Value = h1[i];
+            var hr1 = ws1.Range(1, 1, 1, h1.Length);
+            hr1.Style.Font.Bold = true;
+            hr1.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr1.Style.Font.FontColor = XLColor.White;
+
+            int row = 2;
+            foreach (var d in deliveries)
+            {
+                var itemsText = string.Join(", ", d.Items.Select(i => $"{i.ProductName} ({i.Size})"));
+                ws1.Cell(row, 1).Value = d.ResidentName;
+                ws1.Cell(row, 2).Value = d.RoomNumber;
+                ws1.Cell(row, 3).Value = itemsText;
+                ws1.Cell(row, 4).Value = d.DeliveredBy;
+                ws1.Cell(row, 5).Value = d.DeliveredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                ws1.Cell(row, 6).Value = d.Notes ?? "";
+                if (row % 2 == 0)
+                    ws1.Range(row, 1, row, h1.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws1.Columns().AdjustToContents();
+            ws1.SheetView.FreezeRows(1);
+
+            // ── Sheet 2: Resumo por residente ─────────────────────────────────
+            var ws2 = wb.Worksheets.Add("Resumo");
+            string[] h2 = ["Residente", "Quarto", "Nº entregas", "Última entrega"];
+            for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
+            var hr2 = ws2.Range(1, 1, 1, h2.Length);
+            hr2.Style.Font.Bold = true;
+            hr2.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
+            hr2.Style.Font.FontColor = XLColor.White;
+
+            var summary = deliveries
+                .GroupBy(d => d.ResidentId)
+                .Select(g => (
+                    Name:  g.First().ResidentName,
+                    Room:  g.First().RoomNumber,
+                    Count: g.Count(),
+                    Last:  g.Max(d => d.DeliveredAt).ToLocalTime().ToString("dd/MM/yyyy HH:mm")))
+                .OrderBy(s => s.Room);
+
+            row = 2;
+            foreach (var s in summary)
+            {
+                ws2.Cell(row, 1).Value = s.Name;
+                ws2.Cell(row, 2).Value = s.Room;
+                ws2.Cell(row, 3).Value = s.Count;
+                ws2.Cell(row, 4).Value = s.Last;
+                if (row % 2 == 0)
+                    ws2.Range(row, 1, row, h2.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                row++;
+            }
+            ws2.Columns().AdjustToContents();
+            ws2.SheetView.FreezeRows(1);
+
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                $"AMRO_Kits_{_kitExportYear}.xlsx");
+
+            wb.SaveAs(path);
+            Snackbar.Add("Ficheiro guardado no Ambiente de Trabalho.", Severity.Success);
+            await Launcher.Default.OpenAsync(new Uri($"file:///{path.Replace('\\', '/')}"));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao exportar: {ex.Message}", Severity.Error);
+        }
     }
 
     private async Task LoadProducts()
