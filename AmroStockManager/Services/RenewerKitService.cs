@@ -115,6 +115,13 @@ public class RenewerKitService(ISupabaseClient db, StockService stock)
     public Task<int> GetDeliveryCountAsync() =>
         db.GetCountAsync("renewer_kit_deliveries", "is_deleted=eq.false");
 
+    public async Task<HashSet<string>> GetDeliveredResidentIdsAsync()
+    {
+        var deliveries = await db.GetAsync<RenewerKitDelivery>("renewer_kit_deliveries",
+            "is_deleted=eq.false&select=resident_sync_id");
+        return deliveries.Select(d => d.ResidentId).ToHashSet();
+    }
+
     public async Task DeliverKitAsync(
         string residentId, string residentName, string roomNumber,
         string deliveredBy, string? notes,

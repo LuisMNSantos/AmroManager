@@ -7,6 +7,7 @@
 @inject BisLoanService BisSvc
 @inject PendingRegistrationService PendingRegSvc
 @inject AuditLogService AuditSvc
+@inject RenewerKitService KitSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -332,7 +333,17 @@ else
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2">@resident!.Name</MudText>
+                    <div class="d-flex align-center gap-1">
+                        <MudText Typo="Typo.body2">@resident!.Name</MudText>
+                        @if (resident.IsRenewer && _residentsWithKit.Contains(resident.Id))
+                        {
+                            <MudTooltip Text="Kit de renovador entregue" Delay="300">
+                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                         Color="Color.Success"
+                                         Style="font-size:1rem;" />
+                            </MudTooltip>
+                        }
+                    </div>
                 }
                 <MudTooltip Text="@(roomInfo?.Designation ?? "")" Delay="400">
                     <MudText Typo="Typo.caption" Color="Color.Secondary"
@@ -453,6 +464,7 @@ else
     private List<PendingRegistration> _pendingRegs = [];
     private Dictionary<string, Room> _rooms = [];
     private Dictionary<string, BisLoan> _activeBis = [];
+    private HashSet<string> _residentsWithKit = [];
 
     private record DisplayRow(Resident? Resident, Room? Room);
 
@@ -551,10 +563,12 @@ else
             var residentsTask = ResidentSvc.GetAllAsync();
             var roomsTask     = RoomSvc.GetAllAsync();
             var bisTask       = BisSvc.GetAllActiveByRoomAsync();
-            await Task.WhenAll(residentsTask, roomsTask, bisTask);
-            _residents = residentsTask.Result;
-            _rooms     = roomsTask.Result;
-            _activeBis = bisTask.Result;
+            var kitIdsTask    = KitSvc.GetDeliveredResidentIdsAsync();
+            await Task.WhenAll(residentsTask, roomsTask, bisTask, kitIdsTask);
+            _residents       = residentsTask.Result;
+            _rooms           = roomsTask.Result;
+            _activeBis       = bisTask.Result;
+            _residentsWithKit = kitIdsTask.Result;
         }
         catch (Exception ex)
         {
