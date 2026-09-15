@@ -267,6 +267,14 @@ else
                  Style="cursor:pointer; white-space:nowrap;">
             Renovadores (@RenewerCount)
         </MudChip>
+        <MudChip T="string"
+                 Color="@(_hideCollaborators ? Color.Secondary : Color.Default)"
+                 Variant="@(_hideCollaborators ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Outlined.Badge"
+                 OnClick="@(() => _hideCollaborators = !_hideCollaborators)"
+                 Style="cursor:pointer; white-space:nowrap;">
+            Ocultar colaboradores
+        </MudChip>
     </div>
 
     <!-- Floor filter -->
@@ -439,6 +447,7 @@ else
     private bool _showBisOnly;
     private bool _showVacantOnly;
     private bool _showRenewersOnly;
+    private bool _hideCollaborators;
     private int? _floorFilter;
     private List<Resident> _residents = [];
     private List<PendingRegistration> _pendingRegs = [];
@@ -496,6 +505,7 @@ else
 
     private IEnumerable<DisplayRow> Filtered => AllRows
         .Where(row => !_showVacantOnly || row.Resident is null)
+        .Where(row => !_hideCollaborators || !(row.Resident?.IsCollaborator ?? false))
         .Where(row => !_showRenewersOnly || (row.Resident?.IsRenewer ?? false))
         .Where(row => string.IsNullOrWhiteSpace(_search) ||
                       (row.Resident?.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
