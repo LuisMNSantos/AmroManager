@@ -529,17 +529,25 @@ else
             var residentsTask = ResidentSvc.GetAllAsync();
             var roomsTask     = RoomSvc.GetAllAsync();
             var bisTask       = BisSvc.GetAllActiveByRoomAsync();
-            var pendingTask   = PendingRegSvc.GetAllAsync();
-            await Task.WhenAll(residentsTask, roomsTask, bisTask, pendingTask);
-            _residents   = residentsTask.Result;
-            _rooms       = roomsTask.Result;
-            _activeBis   = bisTask.Result;
-            _pendingRegs = pendingTask.Result;
+            await Task.WhenAll(residentsTask, roomsTask, bisTask);
+            _residents = residentsTask.Result;
+            _rooms     = roomsTask.Result;
+            _activeBis = bisTask.Result;
         }
         catch (Exception ex)
         {
             _error = ex.Message;
         }
+
+        try
+        {
+            _pendingRegs = await PendingRegSvc.GetAllAsync();
+        }
+        catch
+        {
+            _pendingRegs = [];
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 

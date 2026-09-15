@@ -6,7 +6,7 @@ public class PendingRegistrationService(ISupabaseClient db)
 {
     public Task<List<PendingRegistration>> GetAllAsync() =>
         db.GetAsync<PendingRegistration>("pending_registrations",
-            "order=requested_at.asc");
+            "order=id.asc");
 
     public async Task ApproveAsNewAsync(PendingRegistration reg, string name, string roomNumber, string? phone)
     {

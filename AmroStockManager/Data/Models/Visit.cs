@@ -25,8 +25,10 @@ public class Visit
 
     public static int ComputeOvernights(DateTime checkIn, DateTime checkOut)
     {
-        var localIn  = (checkIn.Kind  == DateTimeKind.Utc ? checkIn.ToLocalTime()  : checkIn).Date;
-        var localOut = (checkOut.Kind == DateTimeKind.Utc ? checkOut.ToLocalTime() : checkOut).Date;
-        return Math.Max(0, (localOut - localIn).Days);
+        var localIn  = checkIn.Kind  == DateTimeKind.Utc ? checkIn.ToLocalTime()  : checkIn;
+        var localOut = checkOut.Kind == DateTimeKind.Utc ? checkOut.ToLocalTime() : checkOut;
+        // Check-in between 00:00–07:59 counts from the previous night
+        var effectiveIn  = localIn.Hour < 8 ? localIn.Date.AddDays(-1) : localIn.Date;
+        return Math.Max(0, (localOut.Date - effectiveIn).Days);
     }
 }
