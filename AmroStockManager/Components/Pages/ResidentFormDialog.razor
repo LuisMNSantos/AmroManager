@@ -1,4 +1,6 @@
 @inject ResidentService ResidentSvc
+@inject RenewerKitService KitSvc
+@inject ProductService ProductSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -14,83 +16,191 @@
         </div>
     </TitleContent>
     <DialogContent>
-        <MudGrid Spacing="3">
+        @if (!_isNew && _isRenewer && !_isCollaborator)
+        {
+            <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true" PanelClass="pt-4">
+                <MudTabPanel Text="Dados">
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_name" Label="Nome completo" FullWidth="true"
+                                          Required="true" Immediate="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_room" Label="Quarto" Placeholder="ex: 101, 201A"
+                                          FullWidth="true" Required="true" Immediate="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_phone" Label="Telemóvel (opcional)"
+                                          Placeholder="+351912345678" FullWidth="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4" Class="d-flex align-center">
+                            <MudCheckBox @bind-Value="_isCollaborator" Label="Colaborador" Color="Color.Primary" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" Class="d-flex align-center">
+                            <MudSwitch @bind-Value="_isRenewer" Color="Color.Success" Label="Renovador" />
+                        </MudItem>
+                        @if (_isRenewer)
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudNumericField T="int" @bind-Value="_freeOvernights" Label="Overnights grátis"
+                                                 Min="0" Max="365" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudTabPanel>
+                <MudTabPanel Text="Kit de Renovador" Icon="@Icons.Material.Filled.Backpack">
+                    @if (_kitLoading)
+                    {
+                        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" />
+                    }
+                    else if (_kitItems.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            Nenhum produto configurado no kit.
+                            Configure em <b>Produtos → Kit de Renovador</b>.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-3">Selecionar tamanhos a entregar</MudText>
+                        @foreach (var ki in _kitItems)
+                        {
+                            var kitItemId = ki.Id;
+                            <div class="d-flex align-center gap-3 mb-3 flex-wrap">
+                                <div style="flex:1; min-width:160px;">
+                                    <MudText Typo="Typo.body1"><b>@ki.Product?.Name</b></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@ki.Product?.Type</MudText>
+                                </div>
+                                <MudSelect T="string?"
+                                           Value="_selectedSizeVariants.GetValueOrDefault(kitItemId)"
+                                           ValueChanged="@((string? v) => _selectedSizeVariants[kitItemId] = v)"
+                                           Placeholder="Não incluir"
+                                           Variant="Variant.Outlined"
+                                           Dense="true"
+                                           Style="min-width:175px;">
+                                    <MudSelectItem T="string?" Value="@((string?)null)">— Não incluir —</MudSelectItem>
+                                    @foreach (var sv in (ki.Product?.SizeVariants ?? []).OrderBy(sv => ProductService.SizeOrder(sv.Size)))
+                                    {
+                                        var svId = sv.Id;
+                                        <MudSelectItem T="string?" Value="@svId">
+                                            @sv.Size (@sv.Quantity un.)
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </div>
+                        }
+                        <MudDivider Class="my-3" />
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_kitDeliveredBy" Label="Entregue por"
+                                              Required="true" Variant="Variant.Outlined" FullWidth="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_kitNotes" Label="Notas (opcional)"
+                                              Variant="Variant.Outlined" FullWidth="true" />
+                            </MudItem>
+                        </MudGrid>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   Disabled="@(_kitDelivering || string.IsNullOrWhiteSpace(_kitDeliveredBy))"
+                                   OnClick="DeliverKit"
+                                   Class="mt-3">
+                            @(_kitDelivering ? "A entregar…" : "Entregar Kit")
+                        </MudButton>
+                    }
 
-            <!-- Row 1: Name + Room (residents) -->
-            <MudItem xs="12" sm="@(_isCollaborator ? 12 : 8)">
-                <MudTextField @bind-Value="_name"
-                              Label="Nome completo"
-                              FullWidth="true"
-                              Required="true"
-                              Immediate="true"
-                              Variant="Variant.Outlined" />
-            </MudItem>
-
-            @if (!_isCollaborator)
-            {
-                <MudItem xs="12" sm="4">
-                    <MudTextField @bind-Value="_room"
-                                  Label="Quarto"
-                                  Placeholder="ex: 101, 201A"
-                                  FullWidth="true"
-                                  Required="true"
-                                  Immediate="true"
-                                  Variant="Variant.Outlined" />
+                    @if (_kitDeliveries.Count > 0)
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">
+                            Histórico de entregas (@_kitDeliveries.Count)
+                        </MudText>
+                        @foreach (var delivery in _kitDeliveries)
+                        {
+                            <MudPaper Outlined="true" Class="pa-3 mb-2">
+                                <div class="d-flex align-center justify-space-between flex-wrap gap-1">
+                                    <MudText Typo="Typo.body2">
+                                        <b>@delivery.DeliveredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                                        &nbsp;·&nbsp; Entregue por <i>@delivery.DeliveredBy</i>
+                                    </MudText>
+                                </div>
+                                @if (delivery.Items.Count > 0)
+                                {
+                                    <div class="d-flex gap-1 mt-1 flex-wrap">
+                                        @foreach (var item in delivery.Items)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Default">
+                                                @item.ProductName — @item.Size
+                                            </MudChip>
+                                        }
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(delivery.Notes))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">
+                                        @delivery.Notes
+                                    </MudText>
+                                }
+                            </MudPaper>
+                        }
+                    }
+                </MudTabPanel>
+            </MudTabs>
+        }
+        else
+        {
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="@(_isCollaborator ? 12 : 8)">
+                    <MudTextField @bind-Value="_name" Label="Nome completo" FullWidth="true"
+                                  Required="true" Immediate="true" Variant="Variant.Outlined" />
                 </MudItem>
-            }
 
-            <!-- Row 2: Phone + Collaborator toggle -->
-            <MudItem xs="12" sm="8">
-                <MudTextField @bind-Value="_phone"
-                              Label="Telemóvel (opcional)"
-                              Placeholder="+351912345678"
-                              FullWidth="true"
-                              Variant="Variant.Outlined" />
-            </MudItem>
-            <MudItem xs="12" sm="4" Class="d-flex align-center">
-                <MudCheckBox @bind-Value="_isCollaborator"
-                             Label="Colaborador"
-                             Color="Color.Primary" />
-            </MudItem>
-
-            <!-- Row 3: Role + optional Room (collaborators only) -->
-            @if (_isCollaborator)
-            {
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Função</MudText>
-                    <MudRadioGroup T="string" @bind-Value="_collaboratorRole" Class="d-flex gap-4">
-                        <MudRadio T="string" Value="@("concierge")" Color="Color.Primary">Concierge</MudRadio>
-                        <MudRadio T="string" Value="@("admin")" Color="Color.Secondary">Administrador</MudRadio>
-                    </MudRadioGroup>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_room"
-                                  Label="Quarto (opcional)"
-                                  Placeholder="ex: 101, 201A"
-                                  FullWidth="true"
-                                  Immediate="true"
-                                  Variant="Variant.Outlined" />
-                </MudItem>
-            }
-
-            <!-- Row 4: Renewer perk (residents only) -->
-            @if (!_isCollaborator)
-            {
-                <MudItem xs="12" sm="6" Class="d-flex align-center">
-                    <MudSwitch @bind-Value="_isRenewer" Color="Color.Success" Label="Renovador" />
-                </MudItem>
-                @if (_isRenewer)
+                @if (!_isCollaborator)
                 {
-                    <MudItem xs="12" sm="6">
-                        <MudNumericField T="int" @bind-Value="_freeOvernights"
-                                         Label="Overnights grátis"
-                                         Min="0" Max="365"
-                                         Variant="Variant.Outlined" />
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_room" Label="Quarto" Placeholder="ex: 101, 201A"
+                                      FullWidth="true" Required="true" Immediate="true" Variant="Variant.Outlined" />
                     </MudItem>
                 }
-            }
 
-        </MudGrid>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_phone" Label="Telemóvel (opcional)"
+                                  Placeholder="+351912345678" FullWidth="true" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudCheckBox @bind-Value="_isCollaborator" Label="Colaborador" Color="Color.Primary" />
+                </MudItem>
+
+                @if (_isCollaborator)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Função</MudText>
+                        <MudRadioGroup T="string" @bind-Value="_collaboratorRole" Class="d-flex gap-4">
+                            <MudRadio T="string" Value="@("concierge")" Color="Color.Primary">Concierge</MudRadio>
+                            <MudRadio T="string" Value="@("admin")" Color="Color.Secondary">Administrador</MudRadio>
+                        </MudRadioGroup>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_room" Label="Quarto (opcional)" Placeholder="ex: 101, 201A"
+                                      FullWidth="true" Immediate="true" Variant="Variant.Outlined" />
+                    </MudItem>
+                }
+
+                @if (!_isCollaborator)
+                {
+                    <MudItem xs="12" sm="6" Class="d-flex align-center">
+                        <MudSwitch @bind-Value="_isRenewer" Color="Color.Success" Label="Renovador" />
+                    </MudItem>
+                    @if (_isRenewer)
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int" @bind-Value="_freeOvernights" Label="Overnights grátis"
+                                             Min="0" Max="365" Variant="Variant.Outlined" />
+                        </MudItem>
+                    }
+                }
+            </MudGrid>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@(() => MudDialog.Cancel())">Cancelar</MudButton>
@@ -105,6 +215,7 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public Resident? Resident { get; set; }
 
+    // ── Resident form fields ─────────────────────────────────────────────────
     private string _name             = string.Empty;
     private string _room             = string.Empty;
     private string? _phone;
@@ -114,9 +225,18 @@
     private int  _freeOvernights;
     private bool _saving;
 
+    // ── Kit tab state ────────────────────────────────────────────────────────
+    private bool _kitLoading;
+    private bool _kitDelivering;
+    private List<RenewerKitItem>        _kitItems      = [];
+    private List<RenewerKitDelivery>    _kitDeliveries = [];
+    private Dictionary<string, string?> _selectedSizeVariants = new();
+    private string  _kitDeliveredBy = string.Empty;
+    private string? _kitNotes;
+
     private bool _isNew => Resident is null || string.IsNullOrEmpty(Resident.Id);
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (Resident is not null)
         {
@@ -128,6 +248,64 @@
             _isRenewer        = Resident.IsRenewer;
             _freeOvernights   = Resident.FreeOvernights;
         }
+
+        if (!_isNew && _isRenewer && !_isCollaborator)
+            await LoadKitDataAsync();
+    }
+
+    private async Task LoadKitDataAsync()
+    {
+        _kitLoading = true;
+        try
+        {
+            var kitTask        = KitSvc.GetKitItemsAsync();
+            var deliveriesTask = KitSvc.GetDeliveriesByResidentAsync(Resident!.Id);
+            await Task.WhenAll(kitTask, deliveriesTask);
+            _kitItems      = kitTask.Result;
+            _kitDeliveries = deliveriesTask.Result;
+            _selectedSizeVariants = _kitItems.ToDictionary(k => k.Id, _ => (string?)null);
+        }
+        finally { _kitLoading = false; }
+    }
+
+    private async Task DeliverKit()
+    {
+        if (string.IsNullOrWhiteSpace(_kitDeliveredBy)) return;
+
+        var items = _kitItems
+            .Where(ki => _selectedSizeVariants.TryGetValue(ki.Id, out var svId) && svId is not null)
+            .Select(ki =>
+            {
+                var svId = _selectedSizeVariants[ki.Id]!;
+                var sv   = ki.Product!.SizeVariants.FirstOrDefault(s => s.Id == svId);
+                return (ki.ProductId, ki.Product!.Name, svId, sv?.Size ?? "?");
+            })
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            Snackbar.Add("Seleciona pelo menos um tamanho.", Severity.Warning);
+            return;
+        }
+
+        _kitDelivering = true;
+        try
+        {
+            await KitSvc.DeliverKitAsync(
+                Resident!.Id, Resident.Name, Resident.RoomNumber,
+                _kitDeliveredBy.Trim(), _kitNotes, items);
+
+            Snackbar.Add("Kit entregue com sucesso!", Severity.Success);
+            _kitDeliveredBy = string.Empty;
+            _kitNotes       = null;
+            _selectedSizeVariants = _kitItems.ToDictionary(k => k.Id, _ => (string?)null);
+            _kitDeliveries  = await KitSvc.GetDeliveriesByResidentAsync(Resident!.Id);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
+        }
+        finally { _kitDelivering = false; }
     }
 
     private async Task Save()

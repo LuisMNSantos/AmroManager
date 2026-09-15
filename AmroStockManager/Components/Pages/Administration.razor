@@ -255,9 +255,17 @@ else
                  Color="@(_showVacantOnly ? Color.Success : Color.Default)"
                  Variant="@(_showVacantOnly ? Variant.Filled : Variant.Outlined)"
                  Icon="@Icons.Material.Filled.MeetingRoom"
-                 OnClick="@(() => { _showVacantOnly = !_showVacantOnly; if (_showVacantOnly) _showBisOnly = false; })"
+                 OnClick="@(() => { _showVacantOnly = !_showVacantOnly; if (_showVacantOnly) { _showBisOnly = false; _showRenewersOnly = false; } })"
                  Style="cursor:pointer; white-space:nowrap;">
             Livres (@VacantCount)
+        </MudChip>
+        <MudChip T="string"
+                 Color="@(_showRenewersOnly ? Color.Tertiary : Color.Default)"
+                 Variant="@(_showRenewersOnly ? Variant.Filled : Variant.Outlined)"
+                 Icon="@Icons.Material.Filled.Autorenew"
+                 OnClick="@(() => { _showRenewersOnly = !_showRenewersOnly; if (_showRenewersOnly) { _showBisOnly = false; _showVacantOnly = false; } })"
+                 Style="cursor:pointer; white-space:nowrap;">
+            Renovadores (@RenewerCount)
         </MudChip>
     </div>
 
@@ -430,6 +438,7 @@ else
     private string _search = string.Empty;
     private bool _showBisOnly;
     private bool _showVacantOnly;
+    private bool _showRenewersOnly;
     private int? _floorFilter;
     private List<Resident> _residents = [];
     private List<PendingRegistration> _pendingRegs = [];
@@ -437,6 +446,8 @@ else
     private Dictionary<string, BisLoan> _activeBis = [];
 
     private record DisplayRow(Resident? Resident, Room? Room);
+
+    private int RenewerCount => _residents.Count(r => r.IsRenewer && !r.IsCollaborator);
 
     private static int? GetFloor(string? room)
     {
@@ -485,6 +496,7 @@ else
 
     private IEnumerable<DisplayRow> Filtered => AllRows
         .Where(row => !_showVacantOnly || row.Resident is null)
+        .Where(row => !_showRenewersOnly || (row.Resident?.IsRenewer ?? false))
         .Where(row => string.IsNullOrWhiteSpace(_search) ||
                       (row.Resident?.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
                       (row.Room?.Number ?? row.Resident?.RoomNumber ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))

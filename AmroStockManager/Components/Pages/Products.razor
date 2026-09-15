@@ -1,6 +1,7 @@
 @page "/products"
 @inject ProductService ProductSvc
 @inject StockService StockSvc
+@inject RenewerKitService KitSvc
 @inject SupabaseRealtimeService Realtime
 @inject NavigationManager Nav
 @inject IDialogService DialogService
@@ -23,6 +24,109 @@
         </MudButton>
     </div>
 </div>
+
+<!-- Kit de Renovador -->
+<MudExpansionPanels Elevation="2" Class="mb-4">
+    <MudExpansionPanel>
+        <TitleContent>
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Backpack" Color="Color.Success" />
+                <MudText Typo="Typo.h6">Kit de Renovador</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                    @_kitDeliveryCount @(_kitDeliveryCount == 1 ? "kit entregue" : "kits entregues")
+                </MudChip>
+            </div>
+        </TitleContent>
+        <ChildContent>
+            @if (_kitLoading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" />
+            }
+            else
+            {
+                <!-- Configured kit items -->
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Produtos no kit</MudText>
+                @if (_kitItems.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                        Nenhum produto configurado. Adiciona abaixo os produtos que compõem o kit.
+                    </MudAlert>
+                }
+                else
+                {
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        @foreach (var ki in _kitItems)
+                        {
+                            var kitItem = ki;
+                            <MudChip T="string" Color="Color.Primary" OnClose="@(() => RemoveKitItem(kitItem))">
+                                @ki.Product?.Name
+                                <MudText Typo="Typo.caption" Color="Color.Surface" Class="ml-1">(@ki.Product?.Type)</MudText>
+                            </MudChip>
+                        }
+                    </div>
+                }
+
+                <!-- Add product to kit -->
+                <div class="d-flex gap-2 align-end flex-wrap mb-4">
+                    <MudSelect T="string" @bind-Value="_kitAddProductId"
+                               Label="Adicionar produto ao kit"
+                               Variant="Variant.Outlined"
+                               Dense="true"
+                               Style="min-width:220px;"
+                               Disabled="@(_products.Count == 0)">
+                        @foreach (var p in _products.Where(p => !_kitItems.Any(ki => ki.ProductId == p.Id)))
+                        {
+                            <MudSelectItem T="string" Value="@p.Id">@p.Name (@p.Type)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               Disabled="@string.IsNullOrEmpty(_kitAddProductId)"
+                               OnClick="AddKitItem">
+                        Adicionar
+                    </MudButton>
+                </div>
+
+                <!-- Delivery history -->
+                @if (_kitDeliveries.Count > 0)
+                {
+                    <MudDivider Class="mb-3" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Histórico de entregas</MudText>
+                    <MudTable Items="@_kitDeliveries" Dense="true" Hover="true" Elevation="0"
+                              Outlined="true" Class="rounded">
+                        <HeaderContent>
+                            <MudTh>Residente</MudTh>
+                            <MudTh>Quarto</MudTh>
+                            <MudTh>Items entregues</MudTh>
+                            <MudTh>Entregue por</MudTh>
+                            <MudTh>Data</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Residente">@context.ResidentName</MudTd>
+                            <MudTd DataLabel="Quarto">@context.RoomNumber</MudTd>
+                            <MudTd DataLabel="Items">
+                                <div class="d-flex gap-1 flex-wrap">
+                                    @foreach (var item in context.Items)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default">
+                                            @item.ProductName — @item.Size
+                                        </MudChip>
+                                    }
+                                </div>
+                            </MudTd>
+                            <MudTd DataLabel="Entregue por">@context.DeliveredBy</MudTd>
+                            <MudTd DataLabel="Data">@context.DeliveredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Ainda não foram entregues kits.</MudText>
+                }
+            }
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
 @if (_error is not null)
 {
@@ -188,10 +292,17 @@ else
     private string? _error;
     private List<Product> _products = [];
 
+    // Kit de Renovador
+    private bool _kitLoading = true;
+    private List<RenewerKitItem> _kitItems = [];
+    private List<RenewerKitDelivery> _kitDeliveries = [];
+    private int _kitDeliveryCount;
+    private string? _kitAddProductId;
+
     protected override async Task OnInitializedAsync()
     {
         Realtime.TableChanged += OnTableChanged;
-        await LoadProducts();
+        await Task.WhenAll(LoadProducts(), LoadKitDataAsync());
     }
 
     private void OnTableChanged(string table)
@@ -201,6 +312,39 @@ else
     }
 
     public void Dispose() => Realtime.TableChanged -= OnTableChanged;
+
+    private async Task LoadKitDataAsync()
+    {
+        _kitLoading = true;
+        try
+        {
+            var kitTask       = KitSvc.GetKitItemsAsync();
+            var deliveriesTask = KitSvc.GetAllDeliveriesAsync();
+            var countTask      = KitSvc.GetDeliveryCountAsync();
+            await Task.WhenAll(kitTask, deliveriesTask, countTask);
+            _kitItems         = kitTask.Result;
+            _kitDeliveries    = deliveriesTask.Result;
+            _kitDeliveryCount = countTask.Result;
+        }
+        catch { /* non-critical, fail silently */ }
+        finally { _kitLoading = false; }
+    }
+
+    private async Task AddKitItem()
+    {
+        if (string.IsNullOrEmpty(_kitAddProductId)) return;
+        await KitSvc.AddKitItemAsync(_kitAddProductId);
+        _kitAddProductId = null;
+        await LoadKitDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task RemoveKitItem(RenewerKitItem item)
+    {
+        await KitSvc.RemoveKitItemAsync(item.Id);
+        await LoadKitDataAsync();
+        StateHasChanged();
+    }
 
     private async Task LoadProducts()
     {
