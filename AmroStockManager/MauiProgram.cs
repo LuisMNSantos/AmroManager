@@ -39,6 +39,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<AuditLogService>();
         builder.Services.AddSingleton<VisitService>();
         builder.Services.AddSingleton<RenewerKitService>();
+        builder.Services.AddSingleton<ReimbursementService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

@@ -1,0 +1,216 @@
+@inject ReimbursementService ReimbursementSvc
+@inject ResidentService ResidentSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Reembolsos</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudTabs @bind-ActivePanelIndex="_tab" Elevation="0" Rounded="false"
+                 ApplyEffectsToContainer="true" PanelClass="pt-4">
+
+            <!-- ── Tab 1: Registar ─────────────────────────────────────────── -->
+            <MudTabPanel Text="Registar" Icon="@Icons.Material.Filled.Add">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12">
+                        <MudAutocomplete T="string"
+                                         Label="Residente"
+                                         Value="_residentSuggestion"
+                                         ValueChanged="OnResidentSelected"
+                                         SearchFunc="SearchResidents"
+                                         Immediate="true" DebounceInterval="250"
+                                         Placeholder="Pesquisar por quarto ou nome…"
+                                         Variant="Variant.Outlined"
+                                         FullWidth="true"
+                                         ResetValueOnEmptyText="true"
+                                         CoerceText="false" />
+                    </MudItem>
+                    <MudItem xs="12" sm="5">
+                        <MudNumericField T="decimal"
+                                         @bind-Value="_amount"
+                                         Label="Montante (€)"
+                                         Min="0.01m"
+                                         Format="F2"
+                                         Variant="Variant.Outlined"
+                                         FullWidth="true"
+                                         Immediate="true"
+                                         Adornment="Adornment.Start"
+                                         AdornmentText="€" />
+                    </MudItem>
+                    <MudItem xs="12" sm="7">
+                        <MudTextField @bind-Value="_reason"
+                                      Label="Motivo (opcional)"
+                                      Placeholder="ex: Falha na máquina de café"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                                   StartIcon="@Icons.Material.Filled.AddCircle"
+                                   Disabled="@(_saving || string.IsNullOrWhiteSpace(_residentName) || _amount <= 0)"
+                                   OnClick="Register"
+                                   FullWidth="true" Size="Size.Large">
+                            @(_saving ? "A registar…" : "Registar Reembolso")
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+
+            <!-- ── Tab 2: Pendentes ───────────────────────────────────────── -->
+            <MudTabPanel Text="Pendentes" Icon="@Icons.Material.Filled.Pending">
+                @if (_loading)
+                {
+                    <MudProgressLinear Color="Color.Warning" Indeterminate="true" Class="mb-3" />
+                }
+                else if (_pending.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Success" Class="mt-2">
+                        Sem reembolsos pendentes.
+                    </MudAlert>
+                }
+                else
+                {
+                    @foreach (var r in _pending)
+                    {
+                        <MudPaper Outlined="true" Class="pa-3 mb-2">
+                            <div class="d-flex align-center justify-space-between gap-2 flex-wrap">
+                                <div style="flex:1; min-width:0;">
+                                    <MudText Typo="Typo.body1">
+                                        <b>#@r.RoomNumber</b> — @r.ResidentName
+                                    </MudText>
+                                    @if (!string.IsNullOrEmpty(r.Reason))
+                                    {
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                            @r.Reason
+                                        </MudText>
+                                    }
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @r.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </MudText>
+                                </div>
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.h6" Color="Color.Warning" Style="white-space:nowrap;">
+                                        <b>@r.Amount.ToString("F2") €</b>
+                                    </MudText>
+                                    <MudTooltip Text="Marcar como pago">
+                                        <MudIconButton Icon="@Icons.Material.Filled.CheckCircle"
+                                                       Color="Color.Success"
+                                                       Size="Size.Small"
+                                                       Title="Pago"
+                                                       OnClick="@(() => MarkPaid(r))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Eliminar">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => Delete(r))" />
+                                    </MudTooltip>
+                                </div>
+                            </div>
+                        </MudPaper>
+                    }
+
+                    <MudDivider Class="my-3" />
+                    <div class="d-flex justify-end align-center gap-3">
+                        <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+                            Total a reembolsar (@_pending.Count):
+                        </MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Warning">
+                            <b>@_pending.Sum(r => r.Amount).ToString("F2") €</b>
+                        </MudText>
+                    </div>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Close())">Fechar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private int     _tab;
+    private bool    _loading;
+    private bool    _saving;
+
+    private string? _residentSuggestion;
+    private string  _residentName = string.Empty;
+    private string  _residentRoom = string.Empty;
+    private decimal _amount;
+    private string? _reason;
+
+    private List<Reimbursement> _pending = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try   { _pending = await ReimbursementSvc.GetPendingAsync(); }
+        finally { _loading = false; }
+    }
+
+    private async Task<IEnumerable<string>> SearchResidents(string value, CancellationToken _)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return [];
+        return await ResidentSvc.GetSuggestionsAsync(value);
+    }
+
+    private void OnResidentSelected(string? value)
+    {
+        _residentSuggestion = value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            _residentName = string.Empty;
+            _residentRoom = string.Empty;
+            return;
+        }
+        _residentRoom = ResidentService.ParseRoomNumber(value);
+        var dash = value.IndexOf(" - ");
+        _residentName = dash >= 0 ? value[(dash + 3)..].Trim() : value.TrimStart('#').Trim();
+    }
+
+    private async Task Register()
+    {
+        if (string.IsNullOrWhiteSpace(_residentName) || _amount <= 0) return;
+
+        _saving = true;
+        try
+        {
+            await ReimbursementSvc.AddAsync(_residentName, _residentRoom, _amount, _reason);
+            Snackbar.Add($"Reembolso de {_amount:F2} € registado para #{_residentRoom} — {_residentName}.",
+                Severity.Success);
+
+            _residentSuggestion = null;
+            _residentName       = string.Empty;
+            _residentRoom       = string.Empty;
+            _amount             = 0;
+            _reason             = null;
+
+            await LoadAsync();
+            _tab = 1;
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task MarkPaid(Reimbursement r)
+    {
+        await ReimbursementSvc.MarkAsPaidAsync(r.Id);
+        _pending.Remove(r);
+        Snackbar.Add($"Reembolso de {r.ResidentName} ({r.Amount:F2} €) marcado como pago.", Severity.Info);
+    }
+
+    private async Task Delete(Reimbursement r)
+    {
+        await ReimbursementSvc.DeleteAsync(r.Id);
+        _pending.Remove(r);
+        Snackbar.Add("Reembolso eliminado.", Severity.Warning);
+    }
+}

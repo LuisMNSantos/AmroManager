@@ -70,6 +70,11 @@
                              OnClick="@(() => _showChangePinForm = !_showChangePinForm)">
                     Alterar PIN
                 </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Payments"
+                             IconColor="Color.Warning"
+                             OnClick="OpenReimbursements">
+                    Reembolsos
+                </MudMenuItem>
                 <MudDivider />
                 <MudMenuItem Icon="@Icons.Material.Filled.CleaningServices"
                              OnClick="@(async () => await OpenMaintenance())">
@@ -765,6 +770,10 @@ else
         await LoadResidents();
         Snackbar.Add("Lista limpa.", Severity.Success);
     }
+
+    private Task OpenReimbursements() =>
+        DialogService.ShowAsync<ReimbursementsDialog>(string.Empty,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true });
 
     private Task OpenMaintenance() =>
         DialogService.ShowAsync<MaintenanceDialog>("Manutenção e Limpeza");
