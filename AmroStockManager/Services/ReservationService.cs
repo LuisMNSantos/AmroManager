@@ -171,15 +171,16 @@ public class ReservationService(ISupabaseClient db)
 
         var loanId = reservation.AccessCardLoanId;
         var loans = await db.GetAsync<GeneralItemLoan>("general_item_loans", $"sync_id=eq.{loanId}&select=sync_id,is_returned");
-        if (loans is not [var loan] || loan.IsReturned) return false;
 
         var now = DateTime.UtcNow;
-        // If card returned before scheduled end, shrink end_time to now so the
-        // remaining slot becomes immediately available for new reservations.
         var effectiveEnd = now < reservation.EndTime ? now : reservation.EndTime;
 
-        await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}",
-            new { return_date = now, is_returned = true, updated_at = now });
+        // Only mark loan as returned if it hasn't been returned yet —
+        // it may have already been returned independently via the General Items page.
+        if (loans is [var loan] && !loan.IsReturned)
+            await db.PatchAsync("general_item_loans", $"sync_id=eq.{loanId}",
+                new { return_date = now, is_returned = true, updated_at = now });
+
         await db.PatchAsync("reservations", $"sync_id=eq.{reservationId}",
             new { is_completed = true, end_time = effectiveEnd, updated_at = now });
         return true;
