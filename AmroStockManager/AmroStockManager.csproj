@@ -25,8 +25,8 @@
         <ApplicationId>com.amro.stockmanager</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>3.2.0</ApplicationDisplayVersion>
-        <ApplicationVersion>11</ApplicationVersion>
+        <ApplicationDisplayVersion>3.3.0</ApplicationDisplayVersion>
+        <ApplicationVersion>12</ApplicationVersion>
 
         <!-- MSIX packaging — Release only; Debug stays unpackaged for local development -->
         <WindowsPackageType Condition="'$(Configuration)' == 'Release'">MSIX</WindowsPackageType>
