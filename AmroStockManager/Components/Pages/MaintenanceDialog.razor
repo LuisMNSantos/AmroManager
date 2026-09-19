@@ -1,4 +1,5 @@
 @inject MaintenanceService MaintSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 
 <MudDialog Style="min-width:520px;">
@@ -222,13 +223,16 @@
         _working = true;
         try
         {
+            var total = Total;
+            var cats  = string.Join(", ", _categoryRows.Where(r => r.Selected).Select(r => r.Label));
             await MaintSvc.CleanupAsync(_months,
                 loans:        _categoryRows[0].Selected,
                 reservations: _categoryRows[1].Selected,
                 movements:    _categoryRows[2].Selected,
                 deliveries:   _categoryRows[3].Selected,
                 visits:       _categoryRows[4].Selected);
-            Snackbar.Add($"{Total} registos eliminados.", Severity.Success);
+            await LogAsync("Manutenção executada", $"{total} registos eliminados (>{_months} meses) · {cats}");
+            Snackbar.Add($"{total} registos eliminados.", Severity.Success);
             await LoadPreview();
             _exportedPath = null;
         }
@@ -244,8 +248,10 @@
         _working = true;
         try
         {
+            var count = _piiCount;
             await MaintSvc.PurgePiiAsync(_months);
-            Snackbar.Add($"{_piiCount} residente(s) eliminados permanentemente.", Severity.Success);
+            await LogAsync("PII eliminado", $"{count} residente(s) apagados permanentemente (>{_months} meses)");
+            Snackbar.Add($"{count} residente(s) eliminados permanentemente.", Severity.Success);
             await LoadPiiPreview();
         }
         catch (Exception ex)
@@ -253,5 +259,10 @@
             Snackbar.Add($"Erro ao Apagar: {ex.Message}", Severity.Error);
         }
         _working = false;
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 }

@@ -1,6 +1,7 @@
 @using Microsoft.Maui.ApplicationModel
 @inject DeliveryService DeliverySvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -133,14 +134,20 @@
 
         try
         {
-            await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes,
-                string.IsNullOrWhiteSpace(_registeredBy) ? null : _registeredBy.Trim());
+            var registeredBy = string.IsNullOrWhiteSpace(_registeredBy) ? null : _registeredBy.Trim();
+            await DeliverySvc.RegisterAsync(_type, roomNumber, _quantity, _notes, registeredBy);
 
             var label = _type == DeliveryType.Encomenda ? "Encomenda" : "Carta";
             Snackbar.Add($"{label} para o quarto {roomNumber} registada.", Severity.Success);
 
-            // WhatsApp notification
+            // Get resident for WhatsApp notification and audit log
             var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
+            var resName  = resident is not null ? $" · {resident.Name}" : "";
+            var qtyPart  = _quantity > 1 ? $" · {_quantity} unid." : "";
+            var byPart   = registeredBy is not null ? $" · por {registeredBy}" : "";
+            var notesPart = !string.IsNullOrWhiteSpace(_notes) ? $" — {_notes!.Trim()}" : "";
+            await LogAsync($"{label} registada", $"#{roomNumber}{resName}{qtyPart}{byPart}{notesPart}");
+
             if (resident?.PhoneNumber is not null)
             {
                 var send = await DialogService.ShowMessageBox(
@@ -169,6 +176,11 @@
 
         var url = $"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}";
         await Launcher.Default.OpenAsync(new Uri(url));
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

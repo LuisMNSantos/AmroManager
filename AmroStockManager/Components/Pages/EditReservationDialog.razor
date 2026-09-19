@@ -1,5 +1,6 @@
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 @using System.Globalization
 
@@ -111,6 +112,11 @@
             var (ok, error) = await ReservaSvc.UpdateAsync(Reservation.Id, roomNumber, startDt, endDt, _notes);
             if (!ok) { Snackbar.Add(error ?? "Erro ao guardar.", Severity.Error); return; }
 
+            var spaceLabel = Reservation.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+            var byPart     = !string.IsNullOrWhiteSpace(Reservation.ReservedBy) ? $" · {Reservation.ReservedBy}" : "";
+            await LogAsync("Reserva editada",
+                $"#{roomNumber}{byPart} · {spaceLabel} · {startDt.ToLocalTime():dd/MM HH:mm}–{endDt.ToLocalTime():HH:mm}");
+
             Snackbar.Add("Reserva actualizada.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
@@ -119,6 +125,11 @@
             Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
         finally { _saving = false; }
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

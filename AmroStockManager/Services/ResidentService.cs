@@ -226,6 +226,43 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
         cache.Invalidate(_residentsKey);
     }
 
+    public async Task SwapRoomsAsync(string roomA, string roomB)
+    {
+        roomA = roomA.Trim().ToUpper();
+        roomB = roomB.Trim().ToUpper();
+        if (roomA == roomB) throw new InvalidOperationException("Os quartos de origem e destino são iguais.");
+
+        // Use a temporary room key that won't collide with real room numbers
+        var temp = "SWAP" + Guid.NewGuid().ToString("N")[..8].ToUpper();
+
+        string[] relatedTables =
+        [
+            "deliveries", "visits", "bis_loans", "general_item_loans",
+            "reservations", "renewer_kit_deliveries", "reimbursements"
+        ];
+
+        var fA = $"room_number=eq.{Uri.EscapeDataString(roomA)}";
+        var fB = $"room_number=eq.{Uri.EscapeDataString(roomB)}";
+        var fT = $"room_number=eq.{Uri.EscapeDataString(temp)}";
+
+        // Step 1: roomA → temp
+        await db.PatchAsync("residents", fA, new { room_number = temp, updated_at = DateTime.UtcNow });
+        foreach (var t in relatedTables)
+            await db.PatchAsync(t, fA, new { room_number = temp });
+
+        // Step 2: roomB → roomA
+        await db.PatchAsync("residents", fB, new { room_number = roomA, updated_at = DateTime.UtcNow });
+        foreach (var t in relatedTables)
+            await db.PatchAsync(t, fB, new { room_number = roomA });
+
+        // Step 3: temp → roomB
+        await db.PatchAsync("residents", fT, new { room_number = roomB, updated_at = DateTime.UtcNow });
+        foreach (var t in relatedTables)
+            await db.PatchAsync(t, fT, new { room_number = roomB });
+
+        cache.Invalidate(_residentsKey);
+    }
+
     private static string[] ParseCsvLine(string line)
     {
         var result = new List<string>();

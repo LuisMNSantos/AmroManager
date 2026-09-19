@@ -8,5 +8,5 @@ public class AuditLogService(ISupabaseClient db)
         db.InsertAsync<AuditLog>("audit_logs", new { action, details });
 
     public Task<List<AuditLog>> GetAllAsync() =>
-        db.GetAsync<AuditLog>("audit_logs", "order=performed_at.desc&limit=500");
+        db.GetAsync<AuditLog>("audit_logs", "order=performed_at.desc&limit=2000");
 }

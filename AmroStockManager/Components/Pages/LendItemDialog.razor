@@ -1,5 +1,6 @@
 @inject GeneralItemService ItemSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -126,8 +127,16 @@
                     $"Com {ItemType.Name} — {_notes}".Trim(' ', '—'), _linkedQty);
             }
 
-            var msg = LinkedItem is not null && _linkedQty > 0
-                ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem.Name} emprestados ao quarto {roomNumber}."
+            var hasLinked = LinkedItem is not null && _linkedQty > 0;
+            var itemDesc  = hasLinked
+                ? $"{ItemType.Name} + {_linkedQty}× {LinkedItem!.Name}"
+                : ItemType.Name;
+            var resident  = await ResidentSvc.GetByRoomAsync(roomNumber);
+            var resName   = resident is not null ? $" · {resident.Name}" : "";
+            await LogAsync("Artigo emprestado", $"{itemDesc} → #{roomNumber}{resName} · por {_givenBy}");
+
+            var msg = hasLinked
+                ? $"{ItemType.Name} e {_linkedQty}× {LinkedItem!.Name} emprestados ao quarto {roomNumber}."
                 : $"{ItemType.Name} emprestado ao quarto {roomNumber}.";
 
             Snackbar.Add(msg, Severity.Success);
@@ -137,6 +146,11 @@
         {
             Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

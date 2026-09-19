@@ -1,5 +1,6 @@
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @using Microsoft.Maui.ApplicationModel
@@ -168,6 +169,11 @@
             return;
         }
 
+        var spaceLabel = _space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+        var byPart     = !string.IsNullOrWhiteSpace(_reservedBy) ? $" · {_reservedBy.Trim()}" : "";
+        await LogAsync("Reserva criada",
+            $"#{roomNumber}{byPart} · {spaceLabel} · {startDt.ToLocalTime():dd/MM HH:mm}–{endDt.ToLocalTime():HH:mm}");
+
         var resident = await ResidentSvc.GetByRoomAsync(roomNumber);
         if (resident?.PhoneNumber is not null)
         {
@@ -190,6 +196,11 @@
 
         Snackbar.Add("Reserva criada. Active-a na altura certa para emitir o cartão.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

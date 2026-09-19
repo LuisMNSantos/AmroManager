@@ -1,4 +1,5 @@
 @inject GeneralItemService ItemSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -48,7 +49,10 @@
         }
         try
         {
+            var isNew = string.IsNullOrEmpty(Item.Id);
             await ItemSvc.AddOrUpdateItemAsync(Item);
+            await LogAsync(isNew ? "Artigo adicionado" : "Artigo editado",
+                $"'{Item.Name}' · {Item.TotalQuantity} unid.");
             Snackbar.Add("Guardado.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
@@ -56,6 +60,11 @@
         {
             Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

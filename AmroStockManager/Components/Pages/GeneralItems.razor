@@ -2,6 +2,7 @@
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -216,7 +217,10 @@ else
 
             if (confirmed == true)
             {
+                var itemForLoan = _items.FirstOrDefault(i => i.Loans.Any(l => l.Id == loan.Id));
                 await ItemSvc.ReturnItemAsync(loan.Id);
+                await LogAsync("Artigo devolvido",
+                    $"{itemForLoan?.Name ?? "Artigo"} — #{loan.RoomNumber}");
                 await LoadItems();
             }
         }
@@ -238,7 +242,11 @@ else
 
         if (confirmed == true)
         {
+            var activeCount = item.Loans.Count(l => !l.IsReturned);
             await ItemSvc.DeleteItemAsync(item.Id);
+            var activePart = activeCount > 0
+                ? $" · {activeCount} empréstimo(s) ativo(s) eliminado(s)" : "";
+            await LogAsync("Artigo eliminado", $"'{item.Name}' · {item.TotalQuantity} unid.{activePart}");
             Snackbar.Add($"'{item.Name}' eliminado.", Severity.Success);
             await LoadItems();
         }
@@ -267,6 +275,11 @@ else
         var dialog = await DialogService.ShowAsync<ItemTypeFormDialog>(
             string.IsNullOrEmpty(item.Id) ? "Adicionar Artigo" : "Editar Artigo", parameters);
         if ((await dialog.Result) is { Canceled: false }) await LoadItems();
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private static string SpaceLabel(ReservationSpace space) =>

@@ -1,5 +1,6 @@
 @inject ReimbursementService ReimbursementSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -184,6 +185,9 @@
         try
         {
             await ReimbursementSvc.AddAsync(_residentName, _residentRoom, _amount, _reason);
+            var reasonPart = !string.IsNullOrWhiteSpace(_reason) ? $" — {_reason}" : "";
+            await LogAsync("Reembolso registado",
+                $"#{_residentRoom} · {_residentName} · {_amount:F2}€{reasonPart}");
             Snackbar.Add($"Reembolso de {_amount:F2} € registado para #{_residentRoom} — {_residentName}.",
                 Severity.Success);
 
@@ -203,6 +207,7 @@
     private async Task MarkPaid(Reimbursement r)
     {
         await ReimbursementSvc.MarkAsPaidAsync(r.Id);
+        await LogAsync("Reembolso pago", $"#{r.RoomNumber} · {r.ResidentName} · {r.Amount:F2}€");
         _pending.Remove(r);
         Snackbar.Add($"Reembolso de {r.ResidentName} ({r.Amount:F2} €) marcado como pago.", Severity.Info);
     }
@@ -210,7 +215,13 @@
     private async Task Delete(Reimbursement r)
     {
         await ReimbursementSvc.DeleteAsync(r.Id);
+        await LogAsync("Reembolso eliminado", $"#{r.RoomNumber} · {r.ResidentName} · {r.Amount:F2}€");
         _pending.Remove(r);
         Snackbar.Add("Reembolso eliminado.", Severity.Warning);
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 }
