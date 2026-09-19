@@ -43,23 +43,17 @@
             </MudItem>
 
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" />
+                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" Editable="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" />
+                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" Editable="true" />
             </MudItem>
 
             @if (_space == ReservationSpace.Cinema)
             {
                 <MudItem xs="12">
-                    <MudSelect T="int" @bind-Value="_endDayOffset" Label="Fim — dia" FullWidth="true">
-                        <MudSelectItem Value="0">Mesmo dia (@Date.ToString("dd/MM"))</MudSelectItem>
-                        <MudSelectItem Value="1">Dia seguinte (@Date.AddDays(1).ToString("dd/MM"))</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12">
                     <MudAlert Severity="Severity.Info" Dense="true">
-                        O Cinema permite reservas que atravessam a meia-noite.
+                        Hora de fim anterior ao início é tratada como dia seguinte (atravessa a meia-noite).
                     </MudAlert>
                 </MudItem>
             }
@@ -101,7 +95,6 @@
     private string _reservedBy = string.Empty;
     private TimeSpan? _startTime;
     private TimeSpan? _endTime;
-    private int _endDayOffset  = 0;
     private string? _notes;
     private List<string> _collaborators = [];
 
@@ -150,15 +143,15 @@
                 Snackbar.Add("A Cozinha MasterChef fecha às 22:00.", Severity.Warning);
                 return;
             }
+            if (_endTime <= _startTime)
+            {
+                Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
+                return;
+            }
         }
 
-        if (_endDayOffset == 0 && _endTime <= _startTime)
-        {
-            Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
-            return;
-        }
-
-        var endDate = Date.AddDays(_endDayOffset);
+        var endDayOffset = (_space == ReservationSpace.Cinema && _endTime < _startTime) ? 1 : 0;
+        var endDate = Date.AddDays(endDayOffset);
         var startDt = DateTime.SpecifyKind(Date.Date    + _startTime.Value, DateTimeKind.Local);
         var endDt   = DateTime.SpecifyKind(endDate.Date + _endTime.Value,   DateTimeKind.Local);
 
