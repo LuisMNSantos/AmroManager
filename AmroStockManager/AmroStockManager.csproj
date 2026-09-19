@@ -19,7 +19,7 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>AmroStockManager</ApplicationTitle>
+        <ApplicationTitle>AmroManager</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>com.amro.stockmanager</ApplicationId>
