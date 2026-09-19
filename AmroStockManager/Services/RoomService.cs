@@ -28,5 +28,12 @@ public class RoomService(ISupabaseClient db, CacheService cache)
         return [.. all.Keys];
     }
 
+    public async Task SetVisitPinAsync(string roomNumber, string pin)
+    {
+        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
+        await db.PatchAsync("rooms", $"number=eq.{room}", new { visit_pin = pin });
+        InvalidateCache();
+    }
+
     public void InvalidateCache() => cache.Invalidate(CacheKey);
 }

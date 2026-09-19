@@ -1,8 +1,10 @@
 @inject GeneralItemService ItemSvc
 @inject ReservationService ReservaSvc
 @inject DeliveryService DeliverySvc
+@inject RoomService RoomSvc
 @inject ISnackbar Snackbar
 @using Microsoft.Maui.ApplicationModel
+@using Microsoft.Maui.ApplicationModel.DataTransfer
 
 <MudDialog Style="min-width:480px; max-width:600px;">
     <TitleContent>
@@ -50,6 +52,55 @@
                     <MudText Typo="Typo.caption" Color="Color.Secondary">Sem telemóvel registado</MudText>
                 }
             </div>
+
+            <!-- Visit PIN -->
+            @if (!string.IsNullOrEmpty(Resident.RoomNumber) && !Resident.IsCollaborator)
+            {
+                <MudPaper Outlined="true" Class="pa-3 mb-4 d-flex align-center justify-space-between gap-2">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Filled.Key" Color="Color.Primary" Size="Size.Small" />
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">PIN de Visitas</MudText>
+                            @if (_room?.VisitPin is not null)
+                            {
+                                <MudText Typo="Typo.body1"
+                                         Style="font-family:monospace; letter-spacing:0.2em; font-size:1.1rem;">
+                                    @(_pinVisible ? _room.VisitPin : "• • • • • •")
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Sem PIN gerado</MudText>
+                            }
+                        </div>
+                    </div>
+                    <div class="d-flex gap-1 align-center">
+                        @if (_room?.VisitPin is not null)
+                        {
+                            <MudTooltip Text="@(_pinVisible ? "Esconder" : "Revelar")">
+                                <MudIconButton Icon="@(_pinVisible ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                               Size="Size.Small"
+                                               OnClick="@(() => _pinVisible = !_pinVisible)" />
+                            </MudTooltip>
+                            <MudTooltip Text="Copiar PIN">
+                                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                                               Size="Size.Small"
+                                               OnClick="CopyPin" />
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       Disabled="_generatingPin"
+                                       OnClick="GeneratePin">
+                                @(_generatingPin ? "A gerar…" : "Gerar PIN")
+                            </MudButton>
+                        }
+                    </div>
+                </MudPaper>
+            }
 
             <!-- Active item loans -->
             <MudText Typo="Typo.subtitle2" Class="mb-1">Artigos Emprestados</MudText>
@@ -174,6 +225,9 @@
     private List<(GeneralItemLoan Loan, string ItemName)> _loans = [];
     private List<Reservation> _reservations = [];
     private List<Delivery> _deliveries = [];
+    private Room?  _room;
+    private bool   _pinVisible;
+    private bool   _generatingPin;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,16 +236,44 @@
             var loansTask      = ItemSvc.GetActiveLoansByRoomAsync(Resident.RoomNumber);
             var reservTask     = ReservaSvc.GetUpcomingByRoomAsync(Resident.RoomNumber);
             var deliveriesTask = DeliverySvc.GetPendingByRoomAsync(Resident.RoomNumber);
-            await Task.WhenAll(loansTask, reservTask, deliveriesTask);
+            var roomTask       = RoomSvc.GetAsync(Resident.RoomNumber);
+            await Task.WhenAll(loansTask, reservTask, deliveriesTask, roomTask);
             _loans        = loansTask.Result;
             _reservations = reservTask.Result;
             _deliveries   = deliveriesTask.Result;
+            _room         = roomTask.Result;
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
         finally { _loading = false; }
+    }
+
+    private async Task GeneratePin()
+    {
+        _generatingPin = true;
+        try
+        {
+            var pin = Random.Shared.Next(100_000, 999_999).ToString();
+            await RoomSvc.SetVisitPinAsync(Resident.RoomNumber, pin);
+            _room = await RoomSvc.GetAsync(Resident.RoomNumber);
+            _pinVisible = true;
+            Snackbar.Add("PIN gerado com sucesso.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
+        finally { _generatingPin = false; }
+    }
+
+    private async Task CopyPin()
+    {
+        if (_room?.VisitPin is null) return;
+        try
+        {
+            await Clipboard.Default.SetTextAsync(_room.VisitPin);
+            Snackbar.Add("PIN copiado.", Severity.Info);
+        }
+        catch { Snackbar.Add("Não foi possível copiar.", Severity.Warning); }
     }
 
     private async Task OpenWhatsApp()
