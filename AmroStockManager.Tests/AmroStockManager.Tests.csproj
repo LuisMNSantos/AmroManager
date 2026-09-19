@@ -20,11 +20,15 @@
     <Compile Include="..\AmroStockManager\Data\Models\AuditLog.cs" />
     <Compile Include="..\AmroStockManager\Data\Models\BisLoan.cs" />
     <Compile Include="..\AmroStockManager\Data\Models\PendingRegistration.cs" />
+    <Compile Include="..\AmroStockManager\Data\Models\Reimbursement.cs" />
     <Compile Include="..\AmroStockManager\Data\Models\Resident.cs" />
     <Compile Include="..\AmroStockManager\Services\ISupabaseClient.cs" />
     <Compile Include="..\AmroStockManager\Services\AuditLogService.cs" />
     <Compile Include="..\AmroStockManager\Services\BisLoanService.cs" />
+    <Compile Include="..\AmroStockManager\Services\CacheService.cs" />
     <Compile Include="..\AmroStockManager\Services\PendingRegistrationService.cs" />
+    <Compile Include="..\AmroStockManager\Services\ReimbursementService.cs" />
+    <Compile Include="..\AmroStockManager\Services\ResidentService.cs" />
   </ItemGroup>
 
   <ItemGroup>

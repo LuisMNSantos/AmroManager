@@ -108,7 +108,7 @@ public class AuditLogServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_LimitsResultsTo500()
+    public async Task GetAllAsync_LimitsResultsTo2000()
     {
         var db  = Substitute.For<ISupabaseClient>();
         var svc = new AuditLogService(db);
@@ -118,7 +118,7 @@ public class AuditLogServiceTests
         await svc.GetAllAsync();
 
         await db.Received(1).GetAsync<AuditLog>("audit_logs",
-            Arg.Is<string?>(q => q != null && q.Contains("limit=500")));
+            Arg.Is<string?>(q => q != null && q.Contains("limit=2000")));
     }
 
     [Fact]
