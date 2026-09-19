@@ -65,7 +65,7 @@
                             {
                                 <MudText Typo="Typo.body1"
                                          Style="font-family:monospace; letter-spacing:0.2em; font-size:1.1rem;">
-                                    @(_pinVisible ? _room.VisitPin : "• • • • • •")
+                                    @(_pinVisible ? _room.VisitPin : "• • • •")
                                 </MudText>
                             }
                             else
@@ -86,6 +86,12 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
                                                Size="Size.Small"
                                                OnClick="CopyPin" />
+                            </MudTooltip>
+                            <MudTooltip Text="Gerar novo PIN">
+                                <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                               Size="Size.Small"
+                                               Disabled="_generatingPin"
+                                               OnClick="GeneratePin" />
                             </MudTooltip>
                         }
                         else
@@ -255,11 +261,12 @@
         _generatingPin = true;
         try
         {
-            var pin = Random.Shared.Next(100_000, 999_999).ToString();
+            var pin = Random.Shared.Next(1000, 9999).ToString();
             await RoomSvc.SetVisitPinAsync(Resident.RoomNumber, pin);
             _room = await RoomSvc.GetAsync(Resident.RoomNumber);
             _pinVisible = true;
             Snackbar.Add("PIN gerado com sucesso.", Severity.Success);
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex) { Snackbar.Add($"Erro: {ex.Message}", Severity.Error); }
         finally { _generatingPin = false; }

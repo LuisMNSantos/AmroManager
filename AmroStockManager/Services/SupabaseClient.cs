@@ -83,18 +83,32 @@ public class SupabaseClient : ISupabaseClient
         await EnsureSuccessAsync(resp, $"DELETE {table}?{filter}");
     }
 
-    public async Task PatchAsync(string table, string filter, object patch)
+    public async Task PatchAsync(string table, string filter, object patch, bool verifyAffected = false)
     {
+        var prefer = verifyAffected ? "return=minimal,count=exact" : "return=minimal";
         var resp = await SendWithRetryAsync(() =>
         {
             var req = new HttpRequestMessage(HttpMethod.Patch, $"rest/v1/{table}?{filter}")
             {
                 Content = JsonContent.Create(patch, options: _opts)
             };
-            req.Headers.Add("Prefer", "return=minimal");
+            req.Headers.Add("Prefer", prefer);
             return req;
         }, retryOn5xx: false); // writes are not safe to retry automatically
         await EnsureSuccessAsync(resp, $"PATCH {table}?{filter}");
+
+        if (verifyAffected)
+        {
+            IEnumerable<string>? headerVals = null;
+            resp.Content.Headers.TryGetValues("Content-Range", out headerVals);
+            if (headerVals is null) resp.Headers.TryGetValues("Content-Range", out headerVals);
+            var raw   = headerVals?.FirstOrDefault();
+            var slash = raw?.IndexOf('/') ?? -1;
+            var count = slash >= 0 && int.TryParse(raw![(slash + 1)..], out var c) ? c : -1;
+            if (count == 0)
+                throw new InvalidOperationException(
+                    $"0 linhas afetadas em PATCH {table}. Verifique se a coluna existe e se as permissões RLS permitem UPDATE.");
+        }
     }
 
     private async Task<HttpResponseMessage> SendWithRetryAsync(

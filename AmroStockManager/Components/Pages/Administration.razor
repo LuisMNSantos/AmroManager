@@ -75,6 +75,11 @@
                              OnClick="OpenReimbursements">
                     Reembolsos
                 </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Pin"
+                             IconColor="Color.Info"
+                             OnClick="SeedVisitPins">
+                    Gerar PINs de Visitas
+                </MudMenuItem>
                 <MudDivider />
                 <MudMenuItem Icon="@Icons.Material.Filled.CleaningServices"
                              OnClick="@(async () => await OpenMaintenance())">
@@ -769,6 +774,22 @@ else
         await LogAsync("Lista limpa", $"{_residents.Count} residentes eliminados");
         await LoadResidents();
         Snackbar.Add("Lista limpa.", Severity.Success);
+    }
+
+    private async Task SeedVisitPins()
+    {
+        try
+        {
+            var count = await RoomSvc.SeedAllPinsAsync();
+            if (count == 0)
+                Snackbar.Add("Todos os quartos já têm PIN de visitas.", Severity.Info);
+            else
+                Snackbar.Add($"PINs de visitas gerados para {count} quarto(s).", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao gerar PINs: {ex.Message}", Severity.Error);
+        }
     }
 
     private Task OpenReimbursements() =>

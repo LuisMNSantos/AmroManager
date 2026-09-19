@@ -30,9 +30,25 @@ public class RoomService(ISupabaseClient db, CacheService cache)
 
     public async Task SetVisitPinAsync(string roomNumber, string pin)
     {
-        var room = Uri.EscapeDataString(roomNumber.Trim().ToUpper());
-        await db.PatchAsync("rooms", $"number=eq.{room}", new { visit_pin = pin });
+        var room = Uri.EscapeDataString(roomNumber.Trim());
+        await db.PatchAsync("rooms", $"number=eq.{room}", new { visit_pin = pin }, verifyAffected: true);
         InvalidateCache();
+    }
+
+    public async Task<int> SeedAllPinsAsync()
+    {
+        var rooms = await db.GetAsync<Room>("rooms", "order=number.asc");
+        int count = 0;
+        foreach (var room in rooms)
+        {
+            if (!string.IsNullOrEmpty(room.VisitPin)) continue;
+            var pin     = Random.Shared.Next(1000, 9999).ToString();
+            var encoded = Uri.EscapeDataString(room.Number.Trim());
+            await db.PatchAsync("rooms", $"number=eq.{encoded}", new { visit_pin = pin }, verifyAffected: true);
+            count++;
+        }
+        InvalidateCache();
+        return count;
     }
 
     public void InvalidateCache() => cache.Invalidate(CacheKey);
