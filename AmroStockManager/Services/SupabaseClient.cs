@@ -72,7 +72,11 @@ public class SupabaseClient : ISupabaseClient
         }, retryOn5xx: false); // writes are not safe to retry automatically
         await EnsureSuccessAsync(resp, $"POST {table}");
         var list = await resp.Content.ReadFromJsonAsync<List<T>>(_opts);
-        return list is { Count: > 0 } ? list[0] : default;
+        if (list is null || list.Count == 0)
+            throw new InvalidOperationException(
+                $"INSERT em '{table}' não devolveu nenhuma linha. " +
+                $"Verifique se existe uma política RLS de INSERT na tabela.");
+        return list[0];
     }
 
     public async Task DeleteAsync(string table, string filter)

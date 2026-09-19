@@ -29,19 +29,26 @@ public class BisLoanService(ISupabaseClient db)
         if (existing is not null)
             return (false, "Este quarto já tem um BIS em uso.");
 
-        var now = DateTime.UtcNow;
-        await db.InsertAsync<BisLoan>("bis_loans", new
+        try
         {
-            sync_id     = Guid.NewGuid().ToString(),
-            room_number = roomNumber.Trim().ToUpper(),
-            given_by    = givenBy.Trim(),
-            loan_date   = now,
-            is_returned = false,
-            is_deleted  = false,
-            notes,
-            updated_at  = now
-        });
-        return (true, null);
+            var now = DateTime.UtcNow;
+            await db.InsertAsync<BisLoan>("bis_loans", new
+            {
+                sync_id     = Guid.NewGuid().ToString(),
+                room_number = roomNumber.Trim().ToUpper(),
+                given_by    = givenBy.Trim(),
+                loan_date   = now,
+                is_returned = false,
+                is_deleted  = false,
+                notes,
+                updated_at  = now
+            });
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
     }
 
     public async Task ReturnAsync(string syncId)
