@@ -1,0 +1,152 @@
+@using AmroStockManager.Data.Models
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Troca de Quartos</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Transfere o residente e todos os registos associados (encomendas, reservas, visitas,
+            empréstimos, reembolsos) para outro quarto. Se o quarto de destino estiver ocupado,
+            os dois residentes trocam de lugar.
+        </MudText>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="5">
+                <MudAutocomplete T="string"
+                                 Label="Quarto de origem"
+                                 @bind-Value="_sourceRoom"
+                                 SearchFunc="SearchRooms"
+                                 ToStringFunc="@(r => string.IsNullOrEmpty(r) ? string.Empty : $"#{r}")"
+                                 Variant="Variant.Outlined"
+                                 FullWidth="true"
+                                 ResetValueOnEmptyText="true"
+                                 CoerceText="false"
+                                 CoerceValue="true"
+                                 Immediate="true"
+                                 Clearable="true" />
+                <div class="mt-1" style="min-height:20px;">
+                    @if (_sourceResident is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Primary">@_sourceResident.Name</MudText>
+                    }
+                    else if (!string.IsNullOrEmpty(_sourceRoom))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success">Quarto livre</MudText>
+                    }
+                </div>
+            </MudItem>
+
+            <MudItem xs="2" Class="d-flex align-center justify-center" Style="padding-top:12px;">
+                <MudIcon Icon="@Icons.Material.Filled.SwapHoriz"
+                         Color="Color.Secondary"
+                         Style="font-size:2rem;" />
+            </MudItem>
+
+            <MudItem xs="5">
+                <MudAutocomplete T="string"
+                                 Label="Quarto de destino"
+                                 @bind-Value="_destRoom"
+                                 SearchFunc="SearchRooms"
+                                 ToStringFunc="@(r => string.IsNullOrEmpty(r) ? string.Empty : $"#{r}")"
+                                 Variant="Variant.Outlined"
+                                 FullWidth="true"
+                                 ResetValueOnEmptyText="true"
+                                 CoerceText="false"
+                                 CoerceValue="true"
+                                 Immediate="true"
+                                 Clearable="true" />
+                <div class="mt-1" style="min-height:20px;">
+                    @if (_destResident is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Primary">@_destResident.Name</MudText>
+                    }
+                    else if (!string.IsNullOrEmpty(_destRoom))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success">Quarto livre</MudText>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+
+        <div class="mt-3">
+            @if (!string.IsNullOrEmpty(_sourceRoom) && !string.IsNullOrEmpty(_destRoom))
+            {
+                if (_sourceRoom.ToUpper() == _destRoom.ToUpper())
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true">
+                        Os quartos de origem e destino são iguais.
+                    </MudAlert>
+                }
+                else if (_sourceResident is null)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true">
+                        O quarto #@_sourceRoom está livre — não há residente a transferir.
+                    </MudAlert>
+                }
+                else if (_destResident is not null)
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        <b>@_sourceResident.Name</b> (#@_sourceRoom) e <b>@_destResident.Name</b>
+                        (#@_destRoom) trocarão de quarto. Todos os registos serão transferidos.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        <b>@_sourceResident.Name</b> irá do quarto #@_sourceRoom para o quarto #@_destRoom.
+                        Todos os registos serão transferidos.
+                    </MudAlert>
+                }
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.SwapHoriz"
+                   Disabled="@(!CanConfirm)"
+                   OnClick="Confirm">
+            @(_destResident is not null ? "Trocar Quartos" : "Mover Residente")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<Resident> Residents { get; set; } = [];
+    [Parameter] public Dictionary<string, Room> Rooms { get; set; } = [];
+
+    private string? _sourceRoom;
+    private string? _destRoom;
+
+    private Resident? _sourceResident => string.IsNullOrEmpty(_sourceRoom)
+        ? null
+        : Residents.FirstOrDefault(r => r.RoomNumber?.ToUpper() == _sourceRoom.ToUpper());
+
+    private Resident? _destResident => string.IsNullOrEmpty(_destRoom)
+        ? null
+        : Residents.FirstOrDefault(r => r.RoomNumber?.ToUpper() == _destRoom.ToUpper());
+
+    private bool CanConfirm =>
+        !string.IsNullOrEmpty(_sourceRoom) &&
+        !string.IsNullOrEmpty(_destRoom) &&
+        _sourceRoom.ToUpper() != _destRoom.ToUpper() &&
+        _sourceResident is not null;
+
+    private Task<IEnumerable<string>> SearchRooms(string value, CancellationToken ct)
+    {
+        var q = (value ?? string.Empty).TrimStart('#').Trim();
+        IEnumerable<string> results = Rooms.Keys
+            .Where(k => string.IsNullOrWhiteSpace(q) ||
+                        k.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(k => k);
+        return Task.FromResult(results);
+    }
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok((_sourceRoom!, _destRoom!)));
+}

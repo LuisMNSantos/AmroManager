@@ -19,14 +19,14 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>AmroStockManager</ApplicationTitle>
+        <ApplicationTitle>AmroManager</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>com.amro.stockmanager</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>3.3.0</ApplicationDisplayVersion>
-        <ApplicationVersion>12</ApplicationVersion>
+        <ApplicationDisplayVersion>3.4.0</ApplicationDisplayVersion>
+        <ApplicationVersion>13</ApplicationVersion>
 
         <!-- MSIX packaging — Release only; Debug stays unpackaged for local development -->
         <WindowsPackageType Condition="'$(Configuration)' == 'Release'">MSIX</WindowsPackageType>

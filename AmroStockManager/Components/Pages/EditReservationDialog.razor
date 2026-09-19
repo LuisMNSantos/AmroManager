@@ -1,5 +1,6 @@
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject ISnackbar Snackbar
 @using System.Globalization
 
@@ -21,18 +22,17 @@
                                  FullWidth="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" />
+                <MudTimePicker @bind-Time="_startTime" Label="Hora de Início" AmPm="false" Editable="true" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" />
+                <MudTimePicker @bind-Time="_endTime" Label="Hora de Fim" AmPm="false" Editable="true" />
             </MudItem>
             @if (Reservation.Space == ReservationSpace.Cinema)
             {
-                <MudItem xs="12" sm="6">
-                    <MudSelect T="int" @bind-Value="_endDayOffset" Label="Fim — dia" FullWidth="true">
-                        <MudSelectItem Value="0">Mesmo dia (@_date.ToString("dd/MM"))</MudSelectItem>
-                        <MudSelectItem Value="1">Dia seguinte (@_date.AddDays(1).ToString("dd/MM"))</MudSelectItem>
-                    </MudSelect>
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Info" Dense="true">
+                        Hora de fim anterior ao início é tratada como dia seguinte (atravessa a meia-noite).
+                    </MudAlert>
                 </MudItem>
             }
             <MudItem xs="12">
@@ -62,7 +62,6 @@
     private string _roomInput  = string.Empty;
     private TimeSpan? _startTime;
     private TimeSpan? _endTime;
-    private int _endDayOffset = 0;
     private string? _notes;
     private DateTime _date;
     private bool _saving;
@@ -75,7 +74,6 @@
         _roomInput    = Reservation.RoomNumber;
         _startTime    = start.TimeOfDay;
         _endTime      = end.TimeOfDay;
-        _endDayOffset = (end.Date - start.Date).Days;
         _notes        = Reservation.Notes;
     }
 
@@ -95,7 +93,7 @@
             Snackbar.Add("Indique a hora de início e de fim.", Severity.Warning);
             return;
         }
-        if (_endDayOffset == 0 && _endTime <= _startTime)
+        if (Reservation.Space == ReservationSpace.Cozinha && _endTime <= _startTime)
         {
             Snackbar.Add("A hora de fim deve ser posterior à hora de início.", Severity.Warning);
             return;
@@ -104,12 +102,18 @@
         _saving = true;
         try
         {
-            var endDate = _date.AddDays(_endDayOffset);
-            var startDt = DateTime.SpecifyKind(_date.Date     + _startTime.Value, DateTimeKind.Local);
-            var endDt   = DateTime.SpecifyKind(endDate.Date   + _endTime.Value,   DateTimeKind.Local);
+            var endDayOffset = (Reservation.Space == ReservationSpace.Cinema && _endTime < _startTime) ? 1 : 0;
+            var endDate = _date.AddDays(endDayOffset);
+            var startDt = DateTime.SpecifyKind(_date.Date   + _startTime.Value, DateTimeKind.Local);
+            var endDt   = DateTime.SpecifyKind(endDate.Date + _endTime.Value,   DateTimeKind.Local);
 
             var (ok, error) = await ReservaSvc.UpdateAsync(Reservation.Id, roomNumber, startDt, endDt, _notes);
             if (!ok) { Snackbar.Add(error ?? "Erro ao guardar.", Severity.Error); return; }
+
+            var spaceLabel = Reservation.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+            var byPart     = !string.IsNullOrWhiteSpace(Reservation.ReservedBy) ? $" · {Reservation.ReservedBy}" : "";
+            await LogAsync("Reserva editada",
+                $"#{roomNumber}{byPart} · {spaceLabel} · {startDt.ToLocalTime():dd/MM HH:mm}–{endDt.ToLocalTime():HH:mm}");
 
             Snackbar.Add("Reserva actualizada.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
@@ -119,6 +123,11 @@
             Snackbar.Add($"Erro: {ex.Message}", Severity.Error);
         }
         finally { _saving = false; }
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
     private void Cancel() => MudDialog.Cancel();

@@ -2,6 +2,7 @@
 @using System.Globalization
 @inject ReservationService ReservaSvc
 @inject ResidentService ResidentSvc
+@inject AuditLogService AuditSvc
 @inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -468,6 +469,9 @@ else
         {
             var (ok, error) = await ReservaSvc.ActivateAsync(res.Id);
             if (!ok) { Snackbar.Add(error ?? "Erro ao activar a reserva.", Severity.Error); return; }
+            var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+            await LogAsync("Reserva ativada",
+                $"#{res.RoomNumber} · {res.ReservedBy} · {spaceLabel} · {res.StartTime.ToLocalTime():dd/MM HH:mm} · cartão emitido");
             Snackbar.Add("Cartão de acesso emitido. Reserva activa.", Severity.Success);
             await LoadDay();
         }
@@ -489,7 +493,12 @@ else
             {
                 var ok = await ReservaSvc.CompleteAsync(res.Id);
                 if (ok)
+                {
+                    var spaceLabel = res.Space == ReservationSpace.Cozinha ? "Cozinha MasterChef" : "Cinema";
+                    await LogAsync("Reserva concluída",
+                        $"#{res.RoomNumber} · {res.ReservedBy} · {spaceLabel} · cartão devolvido");
                     Snackbar.Add("Cartão devolvido. Reserva concluída.", Severity.Success);
+                }
                 else
                     Snackbar.Add("Não foi possível concluir — o cartão pode já ter sido devolvido.", Severity.Warning);
                 await LoadDay();
@@ -513,6 +522,8 @@ else
             try
             {
                 await ReservaSvc.CancelAsync(res.Id);
+                await LogAsync("Reserva cancelada",
+                    $"#{res.RoomNumber} · {res.ReservedBy} · {spaceLabel} · {res.StartTime.ToLocalTime():dd/MM HH:mm}");
                 Snackbar.Add("Reserva cancelada.", Severity.Success);
                 await LoadDay();
             }
@@ -521,5 +532,10 @@ else
                 Snackbar.Add($"Erro ao cancelar: {ex.Message}", Severity.Error);
             }
         }
+    }
+
+    private async Task LogAsync(string action, string? details = null)
+    {
+        try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 }

@@ -24,6 +24,31 @@
         }
         else
         {
+            <!-- Category filter chips -->
+            <div class="d-flex gap-1 flex-wrap mb-3">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(_category is null ? Color.Primary : Color.Default)"
+                         Variant="@(_category is null ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => _category = null)"
+                         Style="cursor:pointer;">
+                    Todos (@_logs.Count)
+                </MudChip>
+                @foreach (var cat in _catDefs)
+                {
+                    var c = cat;
+                    var count = _logs.Count(l => GetCategory(l.Action) == c.Name);
+                    if (count == 0) continue;
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(_category == c.Name ? c.Color : Color.Default)"
+                             Variant="@(_category == c.Name ? Variant.Filled : Variant.Outlined)"
+                             Icon="@c.Icon"
+                             OnClick="@(() => _category = c.Name)"
+                             Style="cursor:pointer;">
+                        @c.Name (@count)
+                    </MudChip>
+                }
+            </div>
+
             <MudTextField @bind-Value="_search"
                           Placeholder="Pesquisar operação ou detalhes..."
                           Adornment="Adornment.Start"
@@ -32,29 +57,40 @@
                           FullWidth="true"
                           Class="mb-3" />
 
-            @if (_logs.Count == 0)
+            @if (Filtered.Count == 0)
             {
-                <MudText Color="Color.Secondary" Typo="Typo.body2">Sem registos ainda.</MudText>
+                <MudText Color="Color.Secondary" Typo="Typo.body2">Sem registos.</MudText>
             }
             else
             {
                 <MudTable Items="@Filtered" Dense="true" Hover="true" Elevation="0"
-                          FixedHeader="true" Height="460px">
+                          FixedHeader="true" Height="440px">
                     <HeaderContent>
-                        <MudTh Style="width:130px">Data/Hora</MudTh>
-                        <MudTh Style="width:200px">Operação</MudTh>
+                        <MudTh Style="width:108px">Data/Hora</MudTh>
+                        <MudTh Style="width:110px">Categoria</MudTh>
+                        <MudTh Style="width:190px">Operação</MudTh>
                         <MudTh>Detalhes</MudTh>
                     </HeaderContent>
                     <RowTemplate>
-                        <MudTd>
+                        <MudTd DataLabel="Data/Hora">
                             <MudText Typo="Typo.caption" Color="Color.Secondary">
                                 @context.PerformedAt.ToLocalTime().ToString("dd/MM/yy HH:mm")
                             </MudText>
                         </MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="Categoria">
+                            @{
+                                var cd = GetCategoryDef(context.Action);
+                            }
+                            <MudChip T="string" Size="Size.Small" Color="@cd.Color"
+                                     Variant="Variant.Text"
+                                     Style="height:20px; font-size:0.68rem; padding:0 6px;">
+                                @cd.ShortName
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Operação">
                             <MudText Typo="Typo.body2"><b>@context.Action</b></MudText>
                         </MudTd>
-                        <MudTd>
+                        <MudTd DataLabel="Detalhes">
                             <MudText Typo="Typo.body2" Color="Color.Secondary">
                                 @(context.Details ?? "—")
                             </MudText>
@@ -62,7 +98,7 @@
                     </RowTemplate>
                 </MudTable>
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
-                    @_logs.Count @(_logs.Count == 500 ? "entradas (limite 500)" : "entradas")
+                    @Filtered.Count de @_logs.Count @(_logs.Count >= 2000 ? "entradas (limite 2000)" : "entradas")
                 </MudText>
             }
         }
@@ -75,29 +111,55 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
-    private bool _loading = true;
+    private bool    _loading  = true;
     private string? _error;
-    private string _search = string.Empty;
+    private string  _search   = string.Empty;
+    private string? _category;
     private List<AuditLog> _logs = [];
 
-    private IEnumerable<AuditLog> Filtered => _logs
+    private record CatDef(string Name, string ShortName, Color Color, string Icon);
+
+    private static readonly CatDef[] _catDefs =
+    [
+        new("Residentes",     "Resid.",    Color.Primary,   Icons.Material.Filled.People),
+        new("Encomendas",     "Encom.",    Color.Warning,   Icons.Material.Filled.Inventory2),
+        new("Visitas",        "Visitas",   Color.Success,   Icons.Material.Filled.Groups),
+        new("Reservas",       "Reservas",  Color.Info,      Icons.Material.Filled.EventNote),
+        new("Artigos Gerais", "Artigos",   Color.Secondary, Icons.Material.Filled.Category),
+        new("Reembolsos",     "Reemb.",    Color.Tertiary,  Icons.Material.Filled.Payments),
+        new("Sistema",        "Sistema",   Color.Default,   Icons.Material.Filled.Settings),
+    ];
+
+    private static string GetCategory(string action) => action switch
+    {
+        var a when a.StartsWith("Encomenda") || a.StartsWith("Carta ") => "Encomendas",
+        var a when a.StartsWith("Visita") || a.StartsWith("Checkout") || a.Contains("Excel Visitas") => "Visitas",
+        var a when a.StartsWith("Reserva") => "Reservas",
+        var a when a.StartsWith("Artigo") || a.StartsWith("BIS") => "Artigos Gerais",
+        var a when a.StartsWith("Reembolso") => "Reembolsos",
+        var a when a.StartsWith("Residente") || a.StartsWith("Lista")  ||
+                  a.StartsWith("CSV")        || a.StartsWith("Registo") ||
+                  a.StartsWith("Troca") => "Residentes",
+        _ => "Sistema"
+    };
+
+    private CatDef GetCategoryDef(string action)
+    {
+        var name = GetCategory(action);
+        return _catDefs.FirstOrDefault(c => c.Name == name) ?? _catDefs[^1];
+    }
+
+    private List<AuditLog> Filtered => _logs
+        .Where(l => _category is null || GetCategory(l.Action) == _category)
         .Where(l => string.IsNullOrWhiteSpace(_search) ||
-                    l.Action.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
-                    (l.Details ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase));
+                    l.Action.Contains(_search,  StringComparison.OrdinalIgnoreCase) ||
+                    (l.Details ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            _logs = await AuditSvc.GetAllAsync();
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _loading = false;
-        }
+        try   { _logs = await AuditSvc.GetAllAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
     }
 }

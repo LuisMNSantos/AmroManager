@@ -51,6 +51,11 @@
     <MudText Typo="Typo.h4">Administração</MudText>
 
     <div class="d-flex align-center gap-2">
+        <MudButton StartIcon="@Icons.Material.Filled.SwapHoriz"
+                   Variant="Variant.Outlined" Color="Color.Primary"
+                   OnClick="OpenRoomSwap">
+            Trocar Quarto
+        </MudButton>
         <MudButton StartIcon="@Icons.Material.Filled.PersonAdd"
                    Variant="Variant.Filled" Color="Color.Primary"
                    OnClick="@(() => OpenResidentForm(null))">
@@ -74,6 +79,11 @@
                              IconColor="Color.Warning"
                              OnClick="OpenReimbursements">
                     Reembolsos
+                </MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Pin"
+                             IconColor="Color.Info"
+                             OnClick="SeedVisitPins">
+                    Gerar PINs de Visitas
                 </MudMenuItem>
                 <MudDivider />
                 <MudMenuItem Icon="@Icons.Material.Filled.CleaningServices"
@@ -704,6 +714,44 @@ else
         }
     }
 
+    private async Task OpenRoomSwap()
+    {
+        var parameters = new DialogParameters<RoomSwapDialog>
+        {
+            { x => x.Residents, _residents },
+            { x => x.Rooms,     _rooms }
+        };
+        var dialog = await DialogService.ShowAsync<RoomSwapDialog>(
+            string.Empty, parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, NoHeader = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: true }) return;
+
+        var (roomA, roomB) = ((string, string))result!.Data!;
+        var resA = _residents.FirstOrDefault(r => r.RoomNumber?.ToUpper() == roomA.ToUpper());
+        var resB = _residents.FirstOrDefault(r => r.RoomNumber?.ToUpper() == roomB.ToUpper());
+
+        try
+        {
+            await ResidentSvc.SwapRoomsAsync(roomA, roomB);
+
+            var logDetail = resB is not null
+                ? $"{resA?.Name} (#{roomA}) ↔ {resB.Name} (#{roomB})"
+                : $"{resA?.Name}: #{roomA} → #{roomB}";
+            await LogAsync("Troca de quartos", logDetail);
+            await LoadResidents();
+
+            var msg = resB is not null
+                ? $"Quartos #{roomA} e #{roomB} trocados."
+                : $"{resA?.Name} movido para o quarto #{roomB}.";
+            Snackbar.Add(msg, Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro na troca: {ex.Message}", Severity.Error);
+        }
+    }
+
     private async Task OpenResidentForm(Resident? resident)
     {
         var parameters = new DialogParameters<ResidentFormDialog> { { x => x.Resident, resident } };
@@ -711,11 +759,16 @@ else
         var result     = await DialogService.ShowAsync<ResidentFormDialog>(title, parameters);
         if (!(await result.Result).Canceled)
         {
-            if (resident is null)
-                await LogAsync("Residente adicionado");
-            else
-                await LogAsync("Residente editado", $"{resident.Name} (#{resident.RoomNumber})");
             await LoadResidents();
+            if (resident is null)
+            {
+                var newest = _residents.OrderByDescending(r => r.UpdatedAt).FirstOrDefault();
+                await LogAsync("Residente adicionado", newest is not null ? $"{newest.Name} · #{newest.RoomNumber}" : null);
+            }
+            else
+            {
+                await LogAsync("Residente editado", $"{resident.Name} · #{resident.RoomNumber}");
+            }
         }
     }
 
@@ -747,7 +800,11 @@ else
         if (confirmed != true) return;
 
         await ResidentSvc.DeleteResidentAsync(r.Id);
-        await LogAsync("Residente eliminado", $"{r.Name} (#{r.RoomNumber})");
+        var typeLabel = r.IsCollaborator
+            ? (r.CollaboratorRole == "admin" ? "Administrador" : "Concierge")
+            : "Residente";
+        var phonePart = r.PhoneNumber is not null ? $" · {r.PhoneNumber}" : "";
+        await LogAsync("Residente eliminado", $"{r.Name} · #{r.RoomNumber} · {typeLabel}{phonePart}");
         await LoadResidents();
         Snackbar.Add("Residente eliminado.", Severity.Success);
     }
@@ -769,6 +826,22 @@ else
         await LogAsync("Lista limpa", $"{_residents.Count} residentes eliminados");
         await LoadResidents();
         Snackbar.Add("Lista limpa.", Severity.Success);
+    }
+
+    private async Task SeedVisitPins()
+    {
+        try
+        {
+            var count = await RoomSvc.SeedAllPinsAsync();
+            if (count == 0)
+                Snackbar.Add("Todos os quartos já têm PIN de visitas.", Severity.Info);
+            else
+                Snackbar.Add($"PINs de visitas gerados para {count} quarto(s).", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao gerar PINs: {ex.Message}", Severity.Error);
+        }
     }
 
     private Task OpenReimbursements() =>
@@ -860,7 +933,7 @@ else
         var (success, error) = await BisSvc.LendAsync(resident.RoomNumber!, givenBy, notes);
         if (success)
         {
-            await LogAsync("BIS entregue", $"Quarto #{resident.RoomNumber} ({resident.Name}) por {givenBy}");
+            await LogAsync("BIS entregue", $"#{resident.RoomNumber} · {resident.Name} · por {givenBy}");
             Snackbar.Add($"Cartão BIS entregue ao quarto #{resident.RoomNumber}.", Severity.Success);
             await LoadResidents();
         }
@@ -879,7 +952,7 @@ else
         if (confirmed != true) return;
 
         await BisSvc.ReturnAsync(loan.Id);
-        await LogAsync("BIS devolvido", $"Quarto #{resident.RoomNumber} ({resident.Name})");
+        await LogAsync("BIS devolvido", $"#{resident.RoomNumber} · {resident.Name}");
         Snackbar.Add($"Cartão BIS do quarto #{resident.RoomNumber} devolvido.", Severity.Success);
         await LoadResidents();
     }

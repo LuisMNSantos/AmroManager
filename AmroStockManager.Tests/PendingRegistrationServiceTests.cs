@@ -37,7 +37,7 @@ public class PendingRegistrationServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_OrdersByRequestedAtAscending()
+    public async Task GetAllAsync_OrdersByIdAscending()
     {
         var db  = Substitute.For<ISupabaseClient>();
         var svc = new PendingRegistrationService(db);
@@ -47,7 +47,7 @@ public class PendingRegistrationServiceTests
         await svc.GetAllAsync();
 
         await db.Received(1).GetAsync<PendingRegistration>("pending_registrations",
-            Arg.Is<string?>(q => q != null && q.Contains("requested_at.asc")));
+            Arg.Is<string?>(q => q != null && q.Contains("id.asc")));
     }
 
     [Fact]
