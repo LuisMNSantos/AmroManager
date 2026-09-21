@@ -287,6 +287,9 @@
         </div>
         <h2 id="t-pin-title">Identificação do Quarto</h2>
         <p id="t-pin-subtitle">Introduz o teu quarto e o PIN para continuar.</p>
+        <p id="t-pin-hint" style="font-size:.8rem; color:#888; margin-top:.5rem;">
+          Não sabes o teu PIN? Pede na receção.
+        </p>
       </div>
 
       <label id="t-pin-room-label">Quarto <span class="required">*</span></label>
@@ -414,6 +417,7 @@
         pinRoomNotFound:'Quarto não encontrado. Verifica o número.',
         pinNoPin:'Este quarto ainda não tem PIN configurado. Contacta a receção.',
         pinBack:'Trocar quarto', pinVerifiedLabel:'Quarto',
+        pinHint:'Não sabes o teu PIN? Pede na receção.',
         autoCheckout:'A procurar visitas activas...',
         noActiveVisit:'Não tens visitas activas neste quarto.',
       },
@@ -442,6 +446,7 @@
         pinRoomNotFound:'Habitación no encontrada.',
         pinNoPin:'Esta habitación no tiene PIN configurado. Contacta con recepción.',
         pinBack:'Cambiar habitación', pinVerifiedLabel:'Habitación',
+        pinHint:'¿No sabes tu PIN? Pregunta en recepción.',
         autoCheckout:'Buscando visitas activas...', noActiveVisit:'No tienes visitas activas.',
       },
       en: {
@@ -469,6 +474,7 @@
         pinRoomNotFound:'Room not found. Check the number.',
         pinNoPin:'This room has no PIN configured. Contact reception.',
         pinBack:'Change room', pinVerifiedLabel:'Room',
+        pinHint:"Don't know your PIN? Ask at reception.",
         autoCheckout:'Looking for active visits...', noActiveVisit:'You have no active visits.',
       },
       fr: {
@@ -496,6 +502,7 @@
         pinRoomNotFound:'Chambre introuvable.',
         pinNoPin:'Aucun PIN configuré. Contactez la réception.',
         pinBack:'Changer de chambre', pinVerifiedLabel:'Chambre',
+        pinHint:'Vous ne connaissez pas votre PIN ? Demandez à la réception.',
         autoCheckout:'Recherche de visites actives...', noActiveVisit:"Vous n'avez pas de visite active.",
       },
       it: {
@@ -523,6 +530,7 @@
         pinRoomNotFound:'Stanza non trovata.',
         pinNoPin:'Nessun PIN configurato. Contatta la reception.',
         pinBack:'Cambia stanza', pinVerifiedLabel:'Stanza',
+        pinHint:'Non conosci il tuo PIN? Chiedi alla reception.',
         autoCheckout:'Ricerca visite attive...', noActiveVisit:'Nessuna visita attiva.',
       }
     };
@@ -574,6 +582,7 @@
       document.getElementById('t-pin-room-label').innerHTML   = t.pinRoomLabel + ' <span class="required">*</span>';
       document.getElementById('t-pin-label').innerHTML        = t.pinLabel + ' <span class="required">*</span>';
       document.getElementById('t-verify-text').textContent    = t.pinVerify;
+      document.getElementById('t-pin-hint').textContent       = t.pinHint;
       document.getElementById('t-rv-label').textContent       = t.pinVerifiedLabel;
       document.getElementById('t-rv-change').textContent      = t.pinBack;
       document.querySelectorAll('.name-input').forEach(i => i.placeholder = t.namePh);
