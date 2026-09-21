@@ -59,6 +59,60 @@
     .logo-icon svg { width: 28px; height: 28px; fill: white; }
     .logo h1 { font-size: 1.5rem; color: #1565C0; font-weight: 700; }
     .logo p  { color: #666; font-size: .9rem; margin-top: .25rem; }
+
+    /* ── PIN STEP ────────────────────────────────────────────────────── */
+    .pin-header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .pin-lock-icon {
+      width: 48px; height: 48px;
+      background: #e3f0ff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto .75rem;
+    }
+    .pin-lock-icon svg { width: 26px; height: 26px; fill: #1565C0; }
+    .pin-header h2 { font-size: 1.15rem; color: #333; font-weight: 700; }
+    .pin-header p  { font-size: .88rem; color: #666; margin-top: .3rem; }
+
+    .pin-input-wrap { position: relative; margin-top: .35rem; }
+    .pin-input-wrap input {
+      width: 100%;
+      padding: .65rem .85rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      letter-spacing: .35em;
+      text-align: center;
+      outline: none;
+      background: white;
+      color: #333;
+      transition: border-color .2s;
+    }
+    .pin-input-wrap input:focus { border-color: #1565C0; }
+    .pin-input-wrap input.invalid { border-color: #c62828; }
+
+    /* ── ROOM VERIFIED BANNER ─────────────────────────────────────────── */
+    .room-verified {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #e8f5e9;
+      border: 1.5px solid #c5e1a5;
+      border-radius: 8px;
+      padding: .65rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .room-verified .rv-text { font-size: .9rem; color: #2e7d32; }
+    .room-verified .rv-text b { font-size: 1rem; }
+    .room-verified .rv-change {
+      background: none; border: none;
+      color: #558b2f; font-size: .82rem;
+      cursor: pointer; text-decoration: underline; padding: 0;
+    }
+
+    /* ── SHARED FORM STYLES ──────────────────────────────────────────── */
     .mode-toggle {
       display: flex;
       border: 1.5px solid #ddd;
@@ -105,6 +159,7 @@
     }
     input:focus, textarea:focus { border-color: #1565C0; }
     input.invalid { border-color: #c62828; }
+    input[readonly] { background: #f5f5f5; color: #555; cursor: default; }
     textarea { resize: vertical; min-height: 70px; }
     .field-hint {
       font-size: .78rem;
@@ -146,7 +201,7 @@
     .visitor-cb-row.cb-all { margin-top: .5rem; border-top: 1px solid #c5e1a5; padding-top: .55rem; }
     .visitor-cb-row.cb-all label { color: #558b2f; font-size: .85rem; }
     .hp-trap { position:absolute !important; left:-9999px !important; opacity:0 !important; height:0 !important; width:0 !important; pointer-events:none !important; }
-    button[type=submit], .confirm-btn {
+    button[type=submit], .confirm-btn, .verify-btn {
       display: block;
       width: 100%;
       margin-top: 1.25rem;
@@ -161,9 +216,11 @@
       transition: background .2s;
     }
     button[type=submit]:hover:not(:disabled),
-    .confirm-btn:hover:not(:disabled)  { background: #0d47a1; }
+    .confirm-btn:hover:not(:disabled),
+    .verify-btn:hover:not(:disabled)  { background: #0d47a1; }
     button[type=submit]:disabled,
-    .confirm-btn:disabled              { background: #90caf9; cursor: not-allowed; }
+    .confirm-btn:disabled,
+    .verify-btn:disabled              { background: #90caf9; cursor: not-allowed; }
     .confirm-btn                       { background: #388E3C; margin-top: .9rem; }
     .confirm-btn:hover:not(:disabled)  { background: #2e7d32; }
     .confirm-btn:disabled              { background: #a5d6a7; }
@@ -220,67 +277,98 @@
       <p id="t-subtitle">Registo de Visitas</p>
     </div>
 
-    <div class="mode-toggle">
-      <button class="mode-btn active checkin" id="btn-mode-in" onclick="setMode('checkin')">
-        <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5z"/><path d="M20 19h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-        <span id="t-mode-in">Entrada</span>
-      </button>
-      <button class="mode-btn checkout" id="btn-mode-out" onclick="setMode('checkout')">
-        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5z"/><path d="M4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
-        <span id="t-mode-out">Saída</span>
-      </button>
-    </div>
-
-    <!-- CHECK-IN -->
-    <div id="checkin-section">
-      <form id="form-in" novalidate>
-        <label id="t-name-label">Nome(s) das Visitas<span class="required">*</span></label>
-        <div id="names-container">
-          <div class="name-row">
-            <input type="text" class="name-input" autocomplete="name" />
-            <button type="button" class="remove-person-btn" onclick="removePerson(this)" style="display:none;">✕</button>
-          </div>
+    <!-- ── PIN STEP ──────────────────────────────────────────────── -->
+    <div id="pin-step">
+      <div class="pin-header">
+        <div class="pin-lock-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>
+          </svg>
         </div>
-        <button type="button" class="add-person-btn" id="btn-add-person" onclick="addPerson()">
-          + <span id="t-add-person">Adicionar outra pessoa</span>
-        </button>
+        <h2 id="t-pin-title">Identificação do Quarto</h2>
+        <p id="t-pin-subtitle">Introduz o teu quarto e o PIN para continuar.</p>
+      </div>
 
-        <label id="t-room-in-label">Quarto <span class="required">*</span></label>
-        <input type="text" id="room-in" required autocomplete="off" style="text-transform:uppercase;" />
-        <span class="field-hint" id="room-in-hint"></span>
+      <label id="t-pin-room-label">Quarto <span class="required">*</span></label>
+      <input type="text" id="pin-room" autocomplete="off"
+             style="text-transform:uppercase; text-align:center; font-size:1.1rem;"
+             placeholder="ex: 101" />
+      <span class="field-hint" id="pin-room-hint"></span>
 
-        <label id="t-notes-label">
-          <span id="t-notes-text">Notas</span>
-          <span style="font-weight:400;color:#999;margin-left:.3rem;" id="t-optional">(opcional)</span>
-        </label>
-        <textarea id="notes-in"></textarea>
+      <label id="t-pin-label" style="margin-top:.9rem;">PIN <span class="required">*</span></label>
+      <div class="pin-input-wrap">
+        <input type="password" id="pin-input" inputmode="numeric"
+               maxlength="4" autocomplete="off" placeholder="••••" />
+      </div>
+      <span class="field-hint" id="pin-hint"></span>
 
-        <input class="hp-trap" type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" />
-        <button type="submit" id="btn-in">Registar Entrada</button>
-      </form>
+      <button class="verify-btn" id="btn-verify" onclick="verifyPin()">
+        <span id="t-verify-text">Verificar</span>
+      </button>
+      <div class="msg" id="pin-msg"></div>
     </div>
 
-    <!-- CHECK-OUT -->
-    <div id="checkout-section" style="display:none;">
-      <label id="t-room-out-label">Quarto <span class="required">*</span></label>
-      <div class="search-row">
-        <input type="text" id="room-out" autocomplete="off" style="text-transform:uppercase;" />
-        <button class="search-btn" id="btn-search" onclick="searchVisit()">
-          <span id="t-search-text">Procurar</span>
-        </button>
-      </div>
-      <span class="field-hint" id="room-out-hint"></span>
+    <!-- ── VISIT STEP (hidden until PIN verified) ─────────────────── -->
+    <div id="visit-step" style="display:none;">
 
-      <div class="visit-card" id="visit-card">
-        <div class="visit-meta" id="visit-meta"></div>
-        <div id="visitors-list"></div>
-        <button class="confirm-btn" id="btn-confirm" onclick="confirmCheckout()">
-          <span id="t-confirm-text">Confirmar Saída</span>
+      <!-- Room verified banner -->
+      <div class="room-verified">
+        <span class="rv-text">
+          ✓ <span id="t-rv-label">Quarto</span>&nbsp;<b id="verified-room-display"></b>
+        </span>
+        <button class="rv-change" onclick="resetPin()" id="t-rv-change">Trocar quarto</button>
+      </div>
+
+      <div class="mode-toggle">
+        <button class="mode-btn active checkin" id="btn-mode-in" onclick="setMode('checkin')">
+          <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5z"/><path d="M20 19h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+          <span id="t-mode-in">Entrada</span>
+        </button>
+        <button class="mode-btn checkout" id="btn-mode-out" onclick="setMode('checkout')">
+          <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5z"/><path d="M4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+          <span id="t-mode-out">Saída</span>
         </button>
       </div>
+
+      <!-- CHECK-IN -->
+      <div id="checkin-section">
+        <form id="form-in" novalidate>
+          <label id="t-name-label">Nome(s) das Visitas<span class="required">*</span></label>
+          <div id="names-container">
+            <div class="name-row">
+              <input type="text" class="name-input" autocomplete="name" />
+              <button type="button" class="remove-person-btn" onclick="removePerson(this)" style="display:none;">✕</button>
+            </div>
+          </div>
+          <button type="button" class="add-person-btn" id="btn-add-person" onclick="addPerson()">
+            + <span id="t-add-person">Adicionar outra pessoa</span>
+          </button>
+
+          <label id="t-notes-label">
+            <span id="t-notes-text">Notas</span>
+            <span style="font-weight:400;color:#999;margin-left:.3rem;" id="t-optional">(opcional)</span>
+          </label>
+          <textarea id="notes-in"></textarea>
+
+          <input class="hp-trap" type="text" name="website" autocomplete="off" tabindex="-1" aria-hidden="true" />
+          <button type="submit" id="btn-in">Registar Entrada</button>
+        </form>
+      </div>
+
+      <!-- CHECK-OUT -->
+      <div id="checkout-section" style="display:none;">
+        <div class="msg" id="msg-checkout-auto"></div>
+        <div class="visit-card" id="visit-card">
+          <div class="visit-meta" id="visit-meta"></div>
+          <div id="visitors-list"></div>
+          <button class="confirm-btn" id="btn-confirm" onclick="confirmCheckout()">
+            <span id="t-confirm-text">Confirmar Saída</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="msg" id="msg"></div>
     </div>
-
-    <div class="msg" id="msg"></div>
   </div>
 
   <script>
@@ -294,193 +382,205 @@
     };
     const GET_HEADERS = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
 
-    let _validRooms = null;
-    let _foundVisits = [];
-    let currentMode = 'checkin';
-    let currentLang = 'pt';
-
-    (async function loadRooms() {
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/rooms?select=number`, { headers: GET_HEADERS });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0)
-            _validRooms = new Set(data.map(r => String(r.number).toUpperCase()));
-        }
-      } catch { /* fail open */ }
-    })();
-
-    function computeOvernights(checkInISO) {
-      const inDate = new Date(checkInISO);
-      // Check-in between 00:00–07:59 counts from the previous night
-      const effectiveIn = inDate.getHours() < 8
-        ? new Date(inDate.getFullYear(), inDate.getMonth(), inDate.getDate() - 1)
-        : new Date(inDate.getFullYear(), inDate.getMonth(), inDate.getDate());
-      const now   = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return Math.max(0, Math.round((today - effectiveIn) / 86400000));
-    }
-
-    function fmtDT(isoStr) {
-      const d = new Date(isoStr);
-      const p = n => String(n).padStart(2, '0');
-      return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
-    }
+    let _verifiedRoom = null;
+    let _foundVisits  = [];
+    let currentMode   = 'checkin';
+    let currentLang   = 'pt';
 
     const i18n = {
       pt: {
         subtitle:'Registo de Visita', modeIn:'Entrada', modeOut:'Saída',
         nameLabel:'Nome(s) das Visitas', namePh:'Ex: João Silva',
-        roomLabel:'Quarto', roomPh:'Ex: 101',
         notesLabel:'Notas', notesPh:'Informação adicional...', optional:'(opcional)',
         addPerson:'Adicionar outra pessoa',
         submitIn:'Registar Entrada', sendingIn:'A registar...',
         successIn:'✓ Entrada registada com sucesso!',
         successInMulti:n=>`✓ ${n} entradas registadas com sucesso!`,
         errorIn:'Erro ao registar. Tenta novamente.',
-        invalidRoom:'Quarto não encontrado. Verifica o número.',
-        search:'Procurar', searching:'...',
         noVisit:'Nenhuma visita activa encontrada para este quarto.',
-        visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
+        visitMeta:(room,dt)=>`#${room} · Entrada: ${dt}`,
         selectAll:'Selecionar todos',
         confirmOut:'Confirmar Saída', confirmingOut:'A registar saída...',
         successOut:n=>n>0?`✓ Saída registada. ${n} overnight(s) contabilizado(s).`:'✓ Saída registada com sucesso!',
         successOutMulti:n=>`✓ ${n} saídas registadas com sucesso!`,
         errorOut:'Erro ao registar saída. Tenta novamente.',
         rateLimited:s=>`Demasiadas tentativas. Tenta novamente em ${s}s.`,
+        // PIN
+        pinTitle:'Identificação do Quarto',
+        pinSubtitle:'Introduz o teu quarto e o PIN para continuar.',
+        pinRoomLabel:'Quarto', pinLabel:'PIN',
+        pinVerify:'Verificar', pinVerifying:'A verificar...',
+        pinError:'PIN incorreto. Tenta novamente.',
+        pinRoomNotFound:'Quarto não encontrado. Verifica o número.',
+        pinNoPin:'Este quarto ainda não tem PIN configurado. Contacta a receção.',
+        pinBack:'Trocar quarto', pinVerifiedLabel:'Quarto',
+        autoCheckout:'A procurar visitas activas...',
+        noActiveVisit:'Não tens visitas activas neste quarto.',
       },
       es: {
         subtitle:'Registro de Visita', modeIn:'Entrada', modeOut:'Salida',
         nameLabel:'Nombre(s) de las Visitas', namePh:'Ej: Juan García',
-        roomLabel:'Habitación', roomPh:'Ej: 101',
         notesLabel:'Notas', notesPh:'Información adicional...', optional:'(opcional)',
         addPerson:'Añadir otra persona',
         submitIn:'Registrar Entrada', sendingIn:'Registrando...',
         successIn:'✓ ¡Entrada registrada correctamente!',
-        successInMulti:n=>`✓ ¡${n} entradas registradas correctamente!`,
+        successInMulti:n=>`✓ ¡${n} entradas registradas!`,
         errorIn:'Error al registrar. Inténtalo de nuevo.',
-        invalidRoom:'Habitación no encontrada. Verifica el número.',
-        search:'Buscar', searching:'...',
         noVisit:'No se encontró ninguna visita activa para esta habitación.',
-        visitMeta:(name,dt)=>`${name} · Entrada: ${dt}`,
+        visitMeta:(room,dt)=>`#${room} · Entrada: ${dt}`,
         selectAll:'Seleccionar todos',
         confirmOut:'Confirmar Salida', confirmingOut:'Registrando salida...',
-        successOut:n=>n>0?`✓ Salida registrada. ${n} noche(s) contabilizada(s).`:'✓ ¡Salida registrada correctamente!',
-        successOutMulti:n=>`✓ ${n} salidas registradas con éxito!`,
-        errorOut:'Error al registrar la salida. Inténtalo de nuevo.',
-        rateLimited:s=>`Demasiados intentos. Inténtalo de nuevo en ${s}s.`,
+        successOut:n=>n>0?`✓ Salida registrada. ${n} noche(s).`:'✓ ¡Salida registrada!',
+        successOutMulti:n=>`✓ ${n} salidas registradas!`,
+        errorOut:'Error al registrar la salida.',
+        rateLimited:s=>`Demasiados intentos. Espera ${s}s.`,
+        pinTitle:'Identificación de la Habitación',
+        pinSubtitle:'Introduce tu habitación y PIN para continuar.',
+        pinRoomLabel:'Habitación', pinLabel:'PIN',
+        pinVerify:'Verificar', pinVerifying:'Verificando...',
+        pinError:'PIN incorrecto. Inténtalo de nuevo.',
+        pinRoomNotFound:'Habitación no encontrada.',
+        pinNoPin:'Esta habitación no tiene PIN configurado. Contacta con recepción.',
+        pinBack:'Cambiar habitación', pinVerifiedLabel:'Habitación',
+        autoCheckout:'Buscando visitas activas...', noActiveVisit:'No tienes visitas activas.',
       },
       en: {
         subtitle:'Visitor Check-in', modeIn:'Check-in', modeOut:'Check-out',
         nameLabel:'Visitor Name(s)', namePh:'E.g. John Smith',
-        roomLabel:'Room', roomPh:'E.g. 101',
         notesLabel:'Notes', notesPh:'Additional information...', optional:'(optional)',
         addPerson:'Add another person',
         submitIn:'Check In', sendingIn:'Checking in...',
         successIn:'✓ Check-in registered successfully!',
-        successInMulti:n=>`✓ ${n} check-ins registered successfully!`,
+        successInMulti:n=>`✓ ${n} check-ins registered!`,
         errorIn:'Error registering. Please try again.',
-        invalidRoom:'Room not found. Please check the number.',
-        search:'Search', searching:'...',
         noVisit:'No active visit found for this room.',
-        visitMeta:(name,dt)=>`${name} · Checked in: ${dt}`,
+        visitMeta:(room,dt)=>`#${room} · Checked in: ${dt}`,
         selectAll:'Select all',
         confirmOut:'Confirm Check-out', confirmingOut:'Checking out...',
-        successOut:n=>n>0?`✓ Checked out. ${n} overnight(s) recorded.`:'✓ Checked out successfully!',
-        successOutMulti:n=>`✓ ${n} check-outs registered successfully!`,
+        successOut:n=>n>0?`✓ Checked out. ${n} overnight(s) recorded.`:'✓ Checked out!',
+        successOutMulti:n=>`✓ ${n} check-outs registered!`,
         errorOut:'Error checking out. Please try again.',
-        rateLimited:s=>`Too many attempts. Please wait ${s}s.`,
+        rateLimited:s=>`Too many attempts. Wait ${s}s.`,
+        pinTitle:'Room Verification',
+        pinSubtitle:'Enter your room number and PIN to continue.',
+        pinRoomLabel:'Room', pinLabel:'PIN',
+        pinVerify:'Verify', pinVerifying:'Verifying...',
+        pinError:'Incorrect PIN. Please try again.',
+        pinRoomNotFound:'Room not found. Check the number.',
+        pinNoPin:'This room has no PIN configured. Contact reception.',
+        pinBack:'Change room', pinVerifiedLabel:'Room',
+        autoCheckout:'Looking for active visits...', noActiveVisit:'You have no active visits.',
       },
       fr: {
         subtitle:'Enregistrement de Visite', modeIn:'Arrivée', modeOut:'Départ',
         nameLabel:'Nom(s) des Visiteurs', namePh:'Ex : Jean Dupont',
-        roomLabel:'Chambre', roomPh:'Ex : 101',
         notesLabel:'Notes', notesPh:'Informations supplémentaires...', optional:'(facultatif)',
         addPerson:'Ajouter une autre personne',
         submitIn:"Enregistrer l'arrivée", sendingIn:'Enregistrement...',
-        successIn:'✓ Arrivée enregistrée avec succès !',
-        successInMulti:n=>`✓ ${n} arrivées enregistrées avec succès !`,
-        errorIn:"Erreur lors de l'enregistrement. Réessayez.",
-        invalidRoom:'Chambre introuvable. Vérifiez le numéro.',
-        search:'Chercher', searching:'...',
-        noVisit:'Aucune visite active trouvée pour cette chambre.',
-        visitMeta:(name,dt)=>`${name} · Arrivée : ${dt}`,
+        successIn:'✓ Arrivée enregistrée !',
+        successInMulti:n=>`✓ ${n} arrivées enregistrées !`,
+        errorIn:"Erreur. Réessayez.",
+        noVisit:'Aucune visite active pour cette chambre.',
+        visitMeta:(room,dt)=>`#${room} · Arrivée : ${dt}`,
         selectAll:'Tout sélectionner',
-        confirmOut:'Confirmer le départ', confirmingOut:'Enregistrement du départ...',
-        successOut:n=>n>0?`✓ Départ enregistré. ${n} nuit(s) comptabilisée(s).`:'✓ Départ enregistré avec succès !',
-        successOutMulti:n=>`✓ ${n} départs enregistrés avec succès !`,
-        errorOut:'Erreur lors du départ. Réessayez.',
-        rateLimited:s=>`Trop de tentatives. Réessayez dans ${s}s.`,
+        confirmOut:'Confirmer le départ', confirmingOut:'Enregistrement...',
+        successOut:n=>n>0?`✓ Départ enregistré. ${n} nuit(s).`:'✓ Départ enregistré !',
+        successOutMulti:n=>`✓ ${n} départs enregistrés !`,
+        errorOut:'Erreur. Réessayez.',
+        rateLimited:s=>`Trop de tentatives. Attendez ${s}s.`,
+        pinTitle:'Identification de la Chambre',
+        pinSubtitle:'Entrez votre numéro de chambre et le PIN.',
+        pinRoomLabel:'Chambre', pinLabel:'PIN',
+        pinVerify:'Vérifier', pinVerifying:'Vérification...',
+        pinError:'PIN incorrect. Réessayez.',
+        pinRoomNotFound:'Chambre introuvable.',
+        pinNoPin:'Aucun PIN configuré. Contactez la réception.',
+        pinBack:'Changer de chambre', pinVerifiedLabel:'Chambre',
+        autoCheckout:'Recherche de visites actives...', noActiveVisit:"Vous n'avez pas de visite active.",
       },
       it: {
         subtitle:'Registrazione Visita', modeIn:'Arrivo', modeOut:'Partenza',
         nameLabel:'Nome/i dei Visitatori', namePh:'Es: Mario Rossi',
-        roomLabel:'Stanza', roomPh:'Es: 101',
         notesLabel:'Note', notesPh:'Informazioni aggiuntive...', optional:'(facoltativo)',
-        addPerson:'Aggiungi un\'altra persona',
+        addPerson:"Aggiungi un'altra persona",
         submitIn:'Registra Arrivo', sendingIn:'Registrazione...',
         successIn:'✓ Arrivo registrato con successo!',
-        successInMulti:n=>`✓ ${n} arrivi registrati con successo!`,
-        errorIn:'Errore nella registrazione. Riprova.',
-        invalidRoom:'Stanza non trovata. Controlla il numero.',
-        search:'Cerca', searching:'...',
-        noVisit:'Nessuna visita attiva trovata per questa stanza.',
-        visitMeta:(name,dt)=>`${name} · Arrivo: ${dt}`,
+        successInMulti:n=>`✓ ${n} arrivi registrati!`,
+        errorIn:'Errore. Riprova.',
+        noVisit:'Nessuna visita attiva per questa stanza.',
+        visitMeta:(room,dt)=>`#${room} · Arrivo: ${dt}`,
         selectAll:'Seleziona tutti',
-        confirmOut:'Conferma Partenza', confirmingOut:'Registrazione partenza...',
-        successOut:n=>n>0?`✓ Partenza registrata. ${n} notte/i contabilizzata/e.`:'✓ Partenza registrata con successo!',
-        successOutMulti:n=>`✓ ${n} partenze registrate con successo!`,
-        errorOut:'Errore nella registrazione della partenza. Riprova.',
+        confirmOut:'Conferma Partenza', confirmingOut:'Registrazione...',
+        successOut:n=>n>0?`✓ Partenza registrata. ${n} notte/i.`:'✓ Partenza registrata!',
+        successOutMulti:n=>`✓ ${n} partenze registrate!`,
+        errorOut:'Errore. Riprova.',
         rateLimited:s=>`Troppe richieste. Riprova tra ${s}s.`,
+        pinTitle:'Identificazione della Stanza',
+        pinSubtitle:'Inserisci il numero della stanza e il PIN.',
+        pinRoomLabel:'Stanza', pinLabel:'PIN',
+        pinVerify:'Verifica', pinVerifying:'Verifica in corso...',
+        pinError:'PIN non corretto. Riprova.',
+        pinRoomNotFound:'Stanza non trovata.',
+        pinNoPin:'Nessun PIN configurato. Contatta la reception.',
+        pinBack:'Cambia stanza', pinVerifiedLabel:'Stanza',
+        autoCheckout:'Ricerca visite attive...', noActiveVisit:'Nessuna visita attiva.',
       }
     };
 
-    function clearMsg_() {
+    function clearMsg() {
       const m = document.getElementById('msg');
       m.className = 'msg'; m.textContent = '';
     }
-
     function showMsg(text, type) {
       const m = document.getElementById('msg');
       m.textContent = text; m.className = 'msg ' + type;
       m.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
-
+    function showPinMsg(text, type) {
+      const m = document.getElementById('pin-msg');
+      m.textContent = text; m.className = 'msg ' + type;
+    }
+    function clearPinMsg() {
+      const m = document.getElementById('pin-msg');
+      m.className = 'msg'; m.textContent = '';
+    }
     function setFieldError(hintId, inputId, text) {
       const hint  = document.getElementById(hintId);
       const input = document.getElementById(inputId);
       if (text) {
         hint.textContent = text; hint.classList.add('visible');
-        input.classList.add('invalid');
+        if (input) input.classList.add('invalid');
       } else {
         hint.textContent = ''; hint.classList.remove('visible');
-        input.classList.remove('invalid');
+        if (input) input.classList.remove('invalid');
       }
     }
 
-    function setLang(lang, clearMsg = true) {
+    function setLang(lang, clearMsgs = true) {
       currentLang = lang;
       const t = i18n[lang];
-      document.documentElement.lang                         = lang;
-      document.getElementById('t-subtitle').textContent     = t.subtitle;
-      document.getElementById('t-mode-in').textContent      = t.modeIn;
-      document.getElementById('t-mode-out').textContent     = t.modeOut;
-      document.getElementById('t-name-label').innerHTML     = t.nameLabel  + ' <span class="required">*</span>';
-      document.getElementById('t-room-in-label').innerHTML  = t.roomLabel  + ' <span class="required">*</span>';
-      document.getElementById('t-room-out-label').innerHTML = t.roomLabel  + ' <span class="required">*</span>';
-      document.getElementById('t-notes-text').textContent   = t.notesLabel;
-      document.getElementById('t-optional').textContent     = t.optional;
-      document.getElementById('t-add-person').textContent   = t.addPerson;
+      document.documentElement.lang                           = lang;
+      document.getElementById('t-subtitle').textContent       = t.subtitle;
+      document.getElementById('t-mode-in').textContent        = t.modeIn;
+      document.getElementById('t-mode-out').textContent       = t.modeOut;
+      document.getElementById('t-name-label').innerHTML       = t.nameLabel + ' <span class="required">*</span>';
+      document.getElementById('t-notes-text').textContent     = t.notesLabel;
+      document.getElementById('t-optional').textContent       = t.optional;
+      document.getElementById('t-add-person').textContent     = t.addPerson;
+      document.getElementById('btn-in').textContent           = t.submitIn;
+      document.getElementById('t-confirm-text').textContent   = t.confirmOut;
+      document.getElementById('t-pin-title').textContent      = t.pinTitle;
+      document.getElementById('t-pin-subtitle').textContent   = t.pinSubtitle;
+      document.getElementById('t-pin-room-label').innerHTML   = t.pinRoomLabel + ' <span class="required">*</span>';
+      document.getElementById('t-pin-label').innerHTML        = t.pinLabel + ' <span class="required">*</span>';
+      document.getElementById('t-verify-text').textContent    = t.pinVerify;
+      document.getElementById('t-rv-label').textContent       = t.pinVerifiedLabel;
+      document.getElementById('t-rv-change').textContent      = t.pinBack;
       document.querySelectorAll('.name-input').forEach(i => i.placeholder = t.namePh);
-      document.getElementById('room-in').placeholder        = t.roomPh;
-      document.getElementById('room-out').placeholder       = t.roomPh;
-      document.getElementById('notes-in').placeholder       = t.notesPh;
-      document.getElementById('btn-in').textContent         = t.submitIn;
-      document.getElementById('t-search-text').textContent  = t.search;
-      document.getElementById('t-confirm-text').textContent = t.confirmOut;
+      document.getElementById('notes-in').placeholder         = t.notesPh;
       document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
-      if (clearMsg) clearMsg_();
+      if (clearMsgs) { clearMsg(); clearPinMsg(); }
     }
 
     function setMode(mode) {
@@ -493,24 +593,119 @@
       document.getElementById('logo-icon').classList.toggle('out', !isIn);
       document.getElementById('icon-in').style.display  = isIn ? '' : 'none';
       document.getElementById('icon-out').style.display = isIn ? 'none' : '';
-      if (!isIn) {
-        _foundVisits = [];
-        document.getElementById('visit-card').classList.remove('visible');
-        document.getElementById('room-out').value = '';
-        setFieldError('room-out-hint', 'room-out', '');
-      }
-      clearMsg_();
+      clearMsg();
+      if (!isIn && _verifiedRoom) loadCheckout();
     }
 
     setLang('pt');
 
+    // ── PIN STEP ─────────────────────────────────────────────────────────────
+    document.getElementById('pin-room').addEventListener('input', function() {
+      this.value = this.value.toUpperCase();
+      setFieldError('pin-room-hint', 'pin-room', '');
+      clearPinMsg();
+    });
+    document.getElementById('pin-input').addEventListener('input', () => clearPinMsg());
+    document.getElementById('pin-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); verifyPin(); }
+    });
+    document.getElementById('pin-room').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); document.getElementById('pin-input').focus(); }
+    });
+
+    async function verifyPin() {
+      const t    = i18n[currentLang];
+      const room = document.getElementById('pin-room').value.trim().toUpperCase();
+      const pin  = document.getElementById('pin-input').value.trim();
+
+      if (!room) { setFieldError('pin-room-hint', 'pin-room', t.pinRoomNotFound); return; }
+      if (!pin)  { showPinMsg(t.pinError, 'error'); return; }
+
+      const btn  = document.getElementById('btn-verify');
+      const span = document.getElementById('t-verify-text');
+      btn.disabled = true; span.textContent = t.pinVerifying;
+      clearPinMsg();
+      setFieldError('pin-room-hint', 'pin-room', '');
+
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/rooms?number=eq.${encodeURIComponent(room)}&select=number,visit_pin`,
+          { headers: GET_HEADERS }
+        );
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          setFieldError('pin-room-hint', 'pin-room', t.pinRoomNotFound); return;
+        }
+        const roomData = data[0];
+        if (!roomData.visit_pin) {
+          showPinMsg(t.pinNoPin, 'info'); return;
+        }
+        if (roomData.visit_pin !== pin) {
+          showPinMsg(t.pinError, 'error');
+          document.getElementById('pin-input').value = '';
+          document.getElementById('pin-input').focus();
+          return;
+        }
+
+        // ✓ PIN correct
+        _verifiedRoom = room;
+        document.getElementById('verified-room-display').textContent = `#${room}`;
+        document.getElementById('pin-step').style.display   = 'none';
+        document.getElementById('visit-step').style.display = '';
+        clearMsg();
+
+        if (currentMode === 'checkout') loadCheckout();
+      } catch {
+        showPinMsg(t.pinError, 'error');
+      } finally {
+        btn.disabled = false; span.textContent = t.pinVerify;
+      }
+    }
+
+    function resetPin() {
+      _verifiedRoom = null;
+      _foundVisits  = [];
+      document.getElementById('pin-step').style.display   = '';
+      document.getElementById('visit-step').style.display = 'none';
+      document.getElementById('pin-input').value          = '';
+      document.getElementById('visit-card').classList.remove('visible');
+      clearMsg(); clearPinMsg();
+      setFieldError('pin-room-hint', 'pin-room', '');
+      document.getElementById('pin-room').focus();
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────────────────────
+    function rateLimit(key, max, windowMs) {
+      const now = Date.now();
+      let ts = [];
+      try { ts = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+      ts = ts.filter(t => now - t < windowMs);
+      if (ts.length >= max) return { ok: false, wait: Math.ceil((windowMs - (now - ts[0])) / 1000) };
+      ts.push(now);
+      try { localStorage.setItem(key, JSON.stringify(ts)); } catch {}
+      return { ok: true };
+    }
+    function computeOvernights(checkInISO) {
+      const inDate = new Date(checkInISO);
+      const effectiveIn = inDate.getHours() < 8
+        ? new Date(inDate.getFullYear(), inDate.getMonth(), inDate.getDate() - 1)
+        : new Date(inDate.getFullYear(), inDate.getMonth(), inDate.getDate());
+      const now   = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return Math.max(0, Math.round((today - effectiveIn) / 86400000));
+    }
+    function fmtDT(isoStr) {
+      const d = new Date(isoStr);
+      const p = n => String(n).padStart(2, '0');
+      return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
     function updateRemoveButtons() {
       const rows = document.querySelectorAll('.name-row');
       rows.forEach(row => {
         row.querySelector('.remove-person-btn').style.display = rows.length > 1 ? '' : 'none';
       });
     }
-
     function addPerson() {
       const t = i18n[currentLang];
       const div = document.createElement('div');
@@ -521,72 +716,36 @@
       updateRemoveButtons();
       div.querySelector('input').focus();
     }
-
     function removePerson(btn) {
       btn.closest('.name-row').remove();
       updateRemoveButtons();
     }
 
-    ['room-in','room-out'].forEach(id =>
-      document.getElementById(id).addEventListener('input', function() {
-        this.value = this.value.toUpperCase();
-      })
-    );
-    document.getElementById('room-in').addEventListener('input', () =>
-      setFieldError('room-in-hint','room-in',''));
-    document.getElementById('room-out').addEventListener('input', () => {
-      setFieldError('room-out-hint','room-out','');
-      _foundVisits = [];
-      document.getElementById('visit-card').classList.remove('visible');
-      clearMsg_();
-    });
-    document.getElementById('room-out').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); searchVisit(); }
-    });
-
-    // ── RATE LIMITING ────────────────────────────────────────────────────────
-    function rateLimit(key, max, windowMs) {
-      const now = Date.now();
-      let ts = [];
-      try { ts = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
-      ts = ts.filter(t => now - t < windowMs);
-      if (ts.length >= max) {
-        return { ok: false, wait: Math.ceil((windowMs - (now - ts[0])) / 1000) };
-      }
-      ts.push(now);
-      try { localStorage.setItem(key, JSON.stringify(ts)); } catch {}
-      return { ok: true };
-    }
-
     // ── CHECK-IN ──────────────────────────────────────────────────────────────
     document.getElementById('form-in').addEventListener('submit', async e => {
       e.preventDefault();
-      const t     = i18n[currentLang];
-      const btn   = document.getElementById('btn-in');
+      if (!_verifiedRoom) return;
+      const t   = i18n[currentLang];
+      const btn = document.getElementById('btn-in');
       const names = [...document.querySelectorAll('.name-input')]
                       .map(i => i.value.trim()).filter(Boolean);
-      const room  = document.getElementById('room-in').value.trim().toUpperCase();
       const notes = document.getElementById('notes-in').value.trim() || null;
-      if (names.length === 0 || !room) return;
+      if (names.length === 0) return;
       if (document.querySelector('#form-in .hp-trap')?.value) return;
-      const rlIn = rateLimit('rl_amro_checkin', 5, 60000);
-      if (!rlIn.ok) { showMsg(t.rateLimited(rlIn.wait), 'error'); return; }
+      const rl = rateLimit('rl_amro_pin_checkin', 5, 60000);
+      if (!rl.ok) { showMsg(t.rateLimited(rl.wait), 'error'); return; }
 
-      if (_validRooms !== null && !_validRooms.has(room)) {
-        setFieldError('room-in-hint','room-in', t.invalidRoom); return;
-      }
-      setFieldError('room-in-hint','room-in','');
       btn.disabled = true; btn.textContent = t.sendingIn;
-
       const now = new Date().toISOString();
       try {
         await Promise.all(names.map(name =>
           fetch(`${SUPABASE_URL}/rest/v1/visits`, {
             method: 'POST', headers: API_HEADERS,
             body: JSON.stringify({
-              sync_id: crypto.randomUUID(), visitor_name: name, room_number: room,
-              checked_in_at: now, overnights: 0, notes, is_deleted: false,
-              created_at: now, updated_at: now
+              sync_id: crypto.randomUUID(), visitor_name: name,
+              room_number: _verifiedRoom,
+              checked_in_at: now, overnights: 0, notes,
+              is_deleted: false, created_at: now, updated_at: now
             })
           }).then(r => { if (!r.ok) throw new Error(); })
         ));
@@ -600,36 +759,30 @@
       finally { btn.disabled = false; btn.textContent = t.submitIn; }
     });
 
-    // ── CHECK-OUT SEARCH ──────────────────────────────────────────────────────
-    async function searchVisit() {
-      const t    = i18n[currentLang];
-      const room = document.getElementById('room-out').value.trim().toUpperCase();
-      if (!room) return;
-
-      if (_validRooms !== null && !_validRooms.has(room)) {
-        setFieldError('room-out-hint','room-out', t.invalidRoom); return;
-      }
-      setFieldError('room-out-hint','room-out','');
-
-      const btn  = document.getElementById('btn-search');
-      const span = document.getElementById('t-search-text');
-      btn.disabled = true; span.textContent = t.searching;
+    // ── CHECK-OUT (auto-loads when switching to checkout mode) ───────────────
+    async function loadCheckout() {
+      if (!_verifiedRoom) return;
+      const t = i18n[currentLang];
+      const autoMsg = document.getElementById('msg-checkout-auto');
+      autoMsg.textContent = t.autoCheckout; autoMsg.className = 'msg info';
+      _foundVisits = [];
       document.getElementById('visit-card').classList.remove('visible');
-      _foundVisits = []; clearMsg_();
-
+      clearMsg();
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/visits?room_number=eq.${encodeURIComponent(room)}` +
+          `${SUPABASE_URL}/rest/v1/visits?room_number=eq.${encodeURIComponent(_verifiedRoom)}` +
           `&checked_out_at=is.null&is_deleted=eq.false&order=checked_in_at.asc` +
           `&select=sync_id,visitor_name,checked_in_at`,
           { headers: GET_HEADERS }
         );
         const data = await res.json();
+        autoMsg.className = 'msg';
         if (!Array.isArray(data) || data.length === 0) {
-          showMsg(t.noVisit, 'info'); return;
+          showMsg(t.noActiveVisit, 'info'); return;
         }
         _foundVisits = data.map(v => ({ id: v.sync_id, visitorName: v.visitor_name, checkedInAt: v.checked_in_at }));
-        document.getElementById('visit-meta').textContent = t.visitMeta(`#${room}`, fmtDT(data[0].checked_in_at));
+        document.getElementById('visit-meta').textContent =
+          t.visitMeta(_verifiedRoom, fmtDT(data[0].checked_in_at));
 
         const listEl = document.getElementById('visitors-list');
         if (_foundVisits.length === 1) {
@@ -647,34 +800,30 @@
               <label for="vcb-all">${t.selectAll}</label>
             </div>`;
           const allCb = document.getElementById('vcb-all');
-          allCb.addEventListener('change', () => {
-            _foundVisits.forEach((_, i) => document.getElementById(`vcb-${i}`).checked = allCb.checked);
-          });
-          _foundVisits.forEach((_, i) => {
+          allCb.addEventListener('change', () =>
+            _foundVisits.forEach((_, i) => document.getElementById(`vcb-${i}`).checked = allCb.checked));
+          _foundVisits.forEach((_, i) =>
             document.getElementById(`vcb-${i}`).addEventListener('change', () => {
               allCb.checked = _foundVisits.every((_, j) => document.getElementById(`vcb-${j}`).checked);
-            });
-          });
+            }));
         }
-
         document.getElementById('t-confirm-text').textContent = t.confirmOut;
         document.getElementById('visit-card').classList.add('visible');
-      } catch { showMsg(t.errorOut, 'error'); }
-      finally { btn.disabled = false; span.textContent = t.search; }
+      } catch {
+        autoMsg.className = 'msg'; showMsg(t.errorOut, 'error');
+      }
     }
 
-    // ── CHECK-OUT CONFIRM ─────────────────────────────────────────────────────
     async function confirmCheckout() {
       if (!_foundVisits.length) return;
-      const t   = i18n[currentLang];
-      const rlOut = rateLimit('rl_amro_checkout', 10, 60000);
-      if (!rlOut.ok) { showMsg(t.rateLimited(rlOut.wait), 'error'); return; }
-      const btn = document.getElementById('btn-confirm');
+      const t     = i18n[currentLang];
+      const rl    = rateLimit('rl_amro_pin_checkout', 10, 60000);
+      if (!rl.ok) { showMsg(t.rateLimited(rl.wait), 'error'); return; }
+      const btn   = document.getElementById('btn-confirm');
       btn.disabled = true;
       document.getElementById('t-confirm-text').textContent = t.confirmingOut;
 
       const now = new Date().toISOString();
-
       const toCheckOut = _foundVisits.length === 1
         ? _foundVisits
         : _foundVisits.filter((_, i) => document.getElementById(`vcb-${i}`)?.checked);
@@ -683,18 +832,15 @@
       try {
         await Promise.all(toCheckOut.map(v => {
           const overnights = computeOvernights(v.checkedInAt);
-          return fetch(
-            `${SUPABASE_URL}/rest/v1/visits?sync_id=eq.${v.id}`,
+          return fetch(`${SUPABASE_URL}/rest/v1/visits?sync_id=eq.${v.id}`,
             { method:'PATCH', headers: API_HEADERS,
               body: JSON.stringify({ checked_out_at: now, overnights, updated_at: now }) }
           ).then(r => { if (!r.ok) throw new Error(); });
         }));
-
         const count = toCheckOut.length;
         const maxOvernights = Math.max(...toCheckOut.map(v => computeOvernights(v.checkedInAt)));
         _foundVisits = [];
         document.getElementById('visit-card').classList.remove('visible');
-        document.getElementById('room-out').value = '';
         showMsg(count > 1 ? t.successOutMulti(count) : t.successOut(maxOvernights), 'success');
       } catch {
         showMsg(t.errorOut, 'error');
