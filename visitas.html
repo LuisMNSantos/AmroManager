@@ -26,9 +26,7 @@
     }
     .lang-bar {
       display: flex;
-      justify-content: flex-end;
       gap: .4rem;
-      margin-bottom: 1.2rem;
       flex-wrap: wrap;
     }
     .lang-btn {
@@ -256,12 +254,15 @@
 </head>
 <body>
   <div class="card">
-    <div class="lang-bar">
-      <button class="lang-btn active" onclick="setLang('pt')">🇵🇹 PT</button>
-      <button class="lang-btn" onclick="setLang('es')">🇪🇸 ES</button>
-      <button class="lang-btn" onclick="setLang('en')">🇬🇧 EN</button>
-      <button class="lang-btn" onclick="setLang('fr')">🇫🇷 FR</button>
-      <button class="lang-btn" onclick="setLang('it')">🇮🇹 IT</button>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem; gap:.5rem; flex-wrap:wrap;">
+      <img src="assets/Amro-Estudiantes-Web-scaled.png" alt="AMRO Estudiantes" style="height:30px; width:auto;" />
+      <div class="lang-bar">
+        <button class="lang-btn active" onclick="setLang('pt')">🇵🇹 PT</button>
+        <button class="lang-btn" onclick="setLang('es')">🇪🇸 ES</button>
+        <button class="lang-btn" onclick="setLang('en')">🇬🇧 EN</button>
+        <button class="lang-btn" onclick="setLang('fr')">🇫🇷 FR</button>
+        <button class="lang-btn" onclick="setLang('it')">🇮🇹 IT</button>
+      </div>
     </div>
 
     <div class="logo">
