@@ -57,7 +57,7 @@
       margin-bottom: .35rem;
       margin-top: 1rem;
     }
-    input, textarea, select {
+    input, textarea {
       width: 100%;
       padding: .65rem .85rem;
       border: 1.5px solid #ddd;
@@ -68,24 +68,88 @@
       background: white;
       color: #333;
     }
-    input:focus, textarea:focus, select:focus { border-color: #1565C0; }
+    input:focus, textarea:focus { border-color: #1565C0; }
     input.invalid { border-color: #c62828; }
     textarea { resize: vertical; min-height: 80px; }
-    .phone-row {
+
+    /* ── Phone row ── */
+    .phone-row { display: flex; gap: .5rem; }
+    .phone-row input { flex: 1; min-width: 0; }
+
+    /* ── Country prefix picker ── */
+    .prefix-wrapper { position: relative; flex-shrink: 0; }
+    .prefix-btn {
       display: flex;
-      gap: .5rem;
-    }
-    .phone-row select {
-      width: auto;
-      flex-shrink: 0;
-      padding-left: .6rem;
-      padding-right: .6rem;
+      align-items: center;
+      gap: .35rem;
+      padding: .65rem .75rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      background: white;
       cursor: pointer;
+      font-size: .95rem;
+      white-space: nowrap;
+      color: #333;
+      transition: border-color .2s;
+      height: 100%;
+      line-height: 1;
     }
-    .phone-row input {
-      flex: 1;
-      min-width: 0;
+    .prefix-btn:hover, .prefix-btn:focus { border-color: #1565C0; outline: none; }
+    .prefix-btn.open { border-color: #1565C0; }
+    .prefix-btn .pb-code { font-size: .9rem; font-weight: 600; }
+    .prefix-arrow { font-size: .65rem; color: #999; transition: transform .15s; margin-left: .1rem; }
+    .prefix-btn.open .prefix-arrow { transform: rotate(180deg); }
+
+    .prefix-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 300;
+      background: white;
+      border: 1.5px solid #1565C0;
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      width: 270px;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      max-height: 300px;
     }
+    .prefix-dropdown.open { display: flex; }
+    .prefix-search-wrap {
+      padding: .5rem .6rem;
+      border-bottom: 1px solid #eee;
+    }
+    .prefix-search {
+      width: 100%;
+      border: 1.5px solid #ddd;
+      border-radius: 6px;
+      padding: .45rem .65rem;
+      font-size: .88rem;
+      outline: none;
+      background: #f8f9fa;
+    }
+    .prefix-search:focus { border-color: #1565C0; background: white; }
+    .prefix-list { overflow-y: auto; flex: 1; }
+    .prefix-item {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      padding: .5rem .75rem;
+      cursor: pointer;
+      font-size: .9rem;
+      transition: background .08s;
+    }
+    .prefix-item:hover, .prefix-item.active { background: #e3f0ff; }
+    .prefix-item .pi-name { flex: 1; color: #222; font-size: .88rem; }
+    .prefix-item .pi-dial { color: #777; font-size: .82rem; font-weight: 600; }
+    .prefix-empty {
+      padding: .9rem .75rem;
+      font-size: .88rem;
+      color: #999;
+      text-align: center;
+    }
+
     .field-hint {
       font-size: .78rem;
       margin-top: .3rem;
@@ -147,27 +211,26 @@
 
       <label id="t-phone-label">Telemóvel <span class="required">*</span></label>
       <div class="phone-row">
-        <select id="prefix" aria-label="Prefixo do país">
-          <option value="+351">🇵🇹 +351</option>
-          <option value="+34">🇪🇸 +34</option>
-          <option value="+44">🇬🇧 +44</option>
-          <option value="+33">🇫🇷 +33</option>
-          <option value="+39">🇮🇹 +39</option>
-          <option value="+49">🇩🇪 +49</option>
-          <option value="+55">🇧🇷 +55</option>
-          <option value="+31">🇳🇱 +31</option>
-          <option value="+32">🇧🇪 +32</option>
-          <option value="+41">🇨🇭 +41</option>
-          <option value="+48">🇵🇱 +48</option>
-          <option value="+40">🇷🇴 +40</option>
-          <option value="+212">🇲🇦 +212</option>
-          <option value="+244">🇦🇴 +244</option>
-          <option value="+238">🇨🇻 +238</option>
-          <option value="+245">🇬🇼 +245</option>
-          <option value="+258">🇲🇿 +258</option>
-          <option value="+221">🇸🇳 +221</option>
-          <option value="+86">🇨🇳 +86</option>
-        </select>
+        <!-- Custom searchable country prefix picker -->
+        <div class="prefix-wrapper" id="prefix-wrapper">
+          <button type="button" class="prefix-btn" id="prefix-btn"
+                  aria-haspopup="listbox" aria-expanded="false"
+                  onclick="togglePrefixDropdown()">
+            <span id="pb-flag">🇵🇹</span>
+            <span class="pb-code" id="pb-code">+351</span>
+            <span class="prefix-arrow">▾</span>
+          </button>
+          <div class="prefix-dropdown" id="prefix-dropdown" role="listbox">
+            <div class="prefix-search-wrap">
+              <input type="text" class="prefix-search" id="prefix-search"
+                     placeholder="Pesquisar país ou código..."
+                     autocomplete="off" oninput="filterCountries(this.value)" />
+            </div>
+            <div class="prefix-list" id="prefix-list"></div>
+          </div>
+        </div>
+        <!-- Hidden input holds the actual dial code value -->
+        <input type="hidden" id="prefix" value="+351" />
         <input type="tel" id="phone-local" required autocomplete="tel-national" />
       </div>
 
@@ -185,7 +248,279 @@
     const SUPABASE_URL = 'https://cxohpkuuvvilnqdpxaie.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4b2hwa3V1dnZpbG5xZHB4YWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxOTE0MzksImV4cCI6MjEwMTc2NzQzOX0.F71ShyzHpih3WUlrxDDJ_i4QeE67eD40A6ldBHwma2U';
 
-    // Loaded on page start. null = still loading or failed → skip validation (fail open).
+    // ── Country list [flag, name (PT/EN), dial] ──────────────────────────────
+    // Sorted: PALOP + PT first, then EU, Americas, Africa, Asia, Oceania
+    const COUNTRIES = [
+      ['🇵🇹','Portugal',              '+351'],
+      ['🇧🇷','Brasil / Brazil',        '+55' ],
+      ['🇦🇴','Angola',                 '+244'],
+      ['🇨🇻','Cabo Verde',             '+238'],
+      ['🇲🇿','Moçambique / Mozambique','+258'],
+      ['🇬🇼','Guiné-Bissau',           '+245'],
+      ['🇸🇹','São Tomé e Príncipe',    '+239'],
+      ['🇹🇱','Timor-Leste',            '+670'],
+      // EU + Europe
+      ['🇪🇸','Espanha / Spain',        '+34' ],
+      ['🇫🇷','França / France',         '+33' ],
+      ['🇮🇹','Itália / Italy',          '+39' ],
+      ['🇩🇪','Alemanha / Germany',      '+49' ],
+      ['🇬🇧','Reino Unido / UK',        '+44' ],
+      ['🇮🇪','Irlanda / Ireland',       '+353'],
+      ['🇳🇱','Holanda / Netherlands',   '+31' ],
+      ['🇧🇪','Bélgica / Belgium',       '+32' ],
+      ['🇨🇭','Suíça / Switzerland',     '+41' ],
+      ['🇦🇹','Áustria / Austria',       '+43' ],
+      ['🇸🇪','Suécia / Sweden',         '+46' ],
+      ['🇳🇴','Noruega / Norway',        '+47' ],
+      ['🇩🇰','Dinamarca / Denmark',     '+45' ],
+      ['🇫🇮','Finlândia / Finland',     '+358'],
+      ['🇬🇷','Grécia / Greece',         '+30' ],
+      ['🇵🇱','Polónia / Poland',        '+48' ],
+      ['🇨🇿','Chéquia / Czech Rep.',    '+420'],
+      ['🇸🇰','Eslováquia / Slovakia',   '+421'],
+      ['🇭🇺','Hungria / Hungary',       '+36' ],
+      ['🇷🇴','Roménia / Romania',       '+40' ],
+      ['🇧🇬','Bulgária / Bulgaria',     '+359'],
+      ['🇭🇷','Croácia / Croatia',       '+385'],
+      ['🇸🇮','Eslovénia / Slovenia',    '+386'],
+      ['🇷🇸','Sérvia / Serbia',         '+381'],
+      ['🇦🇱','Albânia / Albania',       '+355'],
+      ['🇧🇦','Bósnia / Bosnia',         '+387'],
+      ['🇲🇪','Montenegro',              '+382'],
+      ['🇲🇰','Macedónia do Norte',      '+389'],
+      ['🇽🇰','Kosovo',                  '+383'],
+      ['🇱🇹','Lituânia / Lithuania',    '+370'],
+      ['🇱🇻','Letónia / Latvia',        '+371'],
+      ['🇪🇪','Estónia / Estonia',       '+372'],
+      ['🇲🇩','Moldávia / Moldova',      '+373'],
+      ['🇺🇦','Ucrânia / Ukraine',       '+380'],
+      ['🇧🇾','Bielorrússia / Belarus',  '+375'],
+      ['🇷🇺','Rússia / Russia',         '+7'  ],
+      ['🇱🇺','Luxemburgo',              '+352'],
+      ['🇲🇹','Malta',                   '+356'],
+      ['🇮🇸','Islândia / Iceland',      '+354'],
+      ['🇨🇾','Chipre / Cyprus',         '+357'],
+      ['🇦🇩','Andorra',                 '+376'],
+      ['🇲🇨','Mónaco / Monaco',         '+377'],
+      ['🇸🇲','San Marino',              '+378'],
+      ['🇱🇮','Liechtenstein',           '+423'],
+      // Americas
+      ['🇺🇸','EUA / USA',               '+1'  ],
+      ['🇨🇦','Canadá / Canada',         '+1'  ],
+      ['🇲🇽','México / Mexico',         '+52' ],
+      ['🇦🇷','Argentina',               '+54' ],
+      ['🇨🇱','Chile',                   '+56' ],
+      ['🇨🇴','Colômbia / Colombia',     '+57' ],
+      ['🇵🇪','Peru',                    '+51' ],
+      ['🇻🇪','Venezuela',               '+58' ],
+      ['🇪🇨','Equador / Ecuador',       '+593'],
+      ['🇧🇴','Bolívia / Bolivia',       '+591'],
+      ['🇺🇾','Uruguai / Uruguay',       '+598'],
+      ['🇵🇾','Paraguai / Paraguay',     '+595'],
+      ['🇨🇺','Cuba',                    '+53' ],
+      ['🇩🇴','República Dominicana',    '+1'  ],
+      ['🇯🇲','Jamaica',                 '+1'  ],
+      ['🇵🇷','Porto Rico',              '+1'  ],
+      ['🇵🇦','Panamá / Panama',         '+507'],
+      ['🇨🇷','Costa Rica',              '+506'],
+      ['🇬🇹','Guatemala',               '+502'],
+      ['🇭🇳','Honduras',                '+504'],
+      ['🇸🇻','El Salvador',             '+503'],
+      ['🇳🇮','Nicarágua / Nicaragua',   '+505'],
+      // Africa
+      ['🇲🇦','Marrocos / Morocco',      '+212'],
+      ['🇩🇿','Argélia / Algeria',       '+213'],
+      ['🇹🇳','Tunísia / Tunisia',       '+216'],
+      ['🇪🇬','Egito / Egypt',           '+20' ],
+      ['🇱🇾','Líbia / Libya',           '+218'],
+      ['🇸🇩','Sudão / Sudan',           '+249'],
+      ['🇸🇳','Senegal',                 '+221'],
+      ['🇬🇳','Guiné / Guinea',          '+224'],
+      ['🇸🇱','Serra Leoa / Sierra Leone','+232'],
+      ['🇱🇷','Libéria / Liberia',       '+231'],
+      ['🇨🇮','Costa do Marfim',         '+225'],
+      ['🇬🇭','Gana / Ghana',            '+233'],
+      ['🇹🇬','Togo',                    '+228'],
+      ['🇧🇯','Benim / Benin',           '+229'],
+      ['🇳🇬','Nigéria / Nigeria',       '+234'],
+      ['🇲🇱','Mali',                    '+223'],
+      ['🇧🇫','Burkina Faso',            '+226'],
+      ['🇳🇪','Níger / Niger',           '+227'],
+      ['🇨🇲','Camarões / Cameroon',     '+237'],
+      ['🇬🇦','Gabão / Gabon',           '+241'],
+      ['🇨🇬','Congo',                   '+242'],
+      ['🇨🇩','RD Congo / DR Congo',     '+243'],
+      ['🇨🇫','Rep. Centro-Africana',    '+236'],
+      ['🇹🇩','Chade / Chad',            '+235'],
+      ['🇿🇦','África do Sul / S. Africa','+27'],
+      ['🇿🇲','Zâmbia / Zambia',         '+260'],
+      ['🇿🇼','Zimbabué / Zimbabwe',     '+263'],
+      ['🇰🇪','Quénia / Kenya',          '+254'],
+      ['🇹🇿','Tanzânia / Tanzania',     '+255'],
+      ['🇺🇬','Uganda',                  '+256'],
+      ['🇷🇼','Ruanda / Rwanda',         '+250'],
+      ['🇧🇮','Burúndi / Burundi',       '+257'],
+      ['🇪🇹','Etiópia / Ethiopia',      '+251'],
+      ['🇸🇴','Somália / Somalia',       '+252'],
+      ['🇩🇯','Djibuti / Djibouti',      '+253'],
+      ['🇪🇷','Eritreia / Eritrea',      '+291'],
+      ['🇲🇼','Malawi',                  '+265'],
+      ['🇳🇦','Namíbia / Namibia',       '+264'],
+      ['🇧🇼','Botsuana / Botswana',     '+267'],
+      ['🇸🇿','Eswatini',                '+268'],
+      ['🇱🇸','Lesoto / Lesotho',        '+266'],
+      ['🇲🇬','Madagáscar / Madagascar', '+261'],
+      ['🇲🇺','Maurícia / Mauritius',    '+230'],
+      ['🇰🇲','Comores / Comoros',       '+269'],
+      ['🇸🇨','Seicheles / Seychelles',  '+248'],
+      // Asia & Middle East
+      ['🇨🇳','China',                   '+86' ],
+      ['🇯🇵','Japão / Japan',           '+81' ],
+      ['🇰🇷','Coreia do Sul / S. Korea','+82' ],
+      ['🇰🇵','Coreia do Norte / N. Korea','+850'],
+      ['🇮🇳','Índia / India',           '+91' ],
+      ['🇵🇰','Paquistão / Pakistan',    '+92' ],
+      ['🇧🇩','Bangladesh',              '+880'],
+      ['🇱🇰','Sri Lanka',               '+94' ],
+      ['🇳🇵','Nepal',                   '+977'],
+      ['🇲🇲','Mianmar / Myanmar',       '+95' ],
+      ['🇹🇭','Tailândia / Thailand',    '+66' ],
+      ['🇻🇳','Vietname / Vietnam',      '+84' ],
+      ['🇮🇩','Indonésia / Indonesia',   '+62' ],
+      ['🇲🇾','Malásia / Malaysia',      '+60' ],
+      ['🇵🇭','Filipinas / Philippines', '+63' ],
+      ['🇸🇬','Singapura / Singapore',   '+65' ],
+      ['🇰🇭','Camboja / Cambodia',      '+855'],
+      ['🇱🇦','Laos',                    '+856'],
+      ['🇹🇼','Taiwan',                  '+886'],
+      ['🇭🇰','Hong Kong',               '+852'],
+      ['🇲🇴','Macau',                   '+853'],
+      ['🇲🇳','Mongólia / Mongolia',     '+976'],
+      ['🇦🇫','Afeganistão',             '+93' ],
+      ['🇮🇷','Irão / Iran',             '+98' ],
+      ['🇮🇶','Iraque / Iraq',           '+964'],
+      ['🇸🇾','Síria / Syria',           '+963'],
+      ['🇱🇧','Líbano / Lebanon',        '+961'],
+      ['🇯🇴','Jordânia / Jordan',       '+962'],
+      ['🇮🇱','Israel',                  '+972'],
+      ['🇵🇸','Palestina / Palestine',   '+970'],
+      ['🇸🇦','Arábia Saudita / S. Arabia','+966'],
+      ['🇦🇪','Emirados Árabes / UAE',   '+971'],
+      ['🇶🇦','Qatar',                   '+974'],
+      ['🇰🇼','Kuwait',                  '+965'],
+      ['🇧🇭','Bahrein / Bahrain',       '+973'],
+      ['🇴🇲','Omã / Oman',              '+968'],
+      ['🇾🇪','Iémen / Yemen',           '+967'],
+      ['🇹🇷','Turquia / Turkey',        '+90' ],
+      ['🇬🇪','Geórgia / Georgia',       '+995'],
+      ['🇦🇲','Arménia / Armenia',       '+374'],
+      ['🇦🇿','Azerbaijão / Azerbaijan', '+994'],
+      ['🇰🇿','Cazaquistão / Kazakhstan','+7'  ],
+      ['🇺🇿','Uzbequistão / Uzbekistan','+998'],
+      ['🇹🇲','Turquemenistão',          '+993'],
+      ['🇰🇬','Quirguistão / Kyrgyzstan','+996'],
+      ['🇹🇯','Tajiquistão / Tajikistan','+992'],
+      // Oceania
+      ['🇦🇺','Austrália / Australia',   '+61' ],
+      ['🇳🇿','Nova Zelândia / N. Zealand','+64'],
+      ['🇫🇯','Fiji',                    '+679'],
+      ['🇵🇬','Papua Nova Guiné',        '+675'],
+    ];
+
+    // ── Prefix picker logic ──────────────────────────────────────────────────
+    let _prefixOpen = false;
+    let _selectedCountry = COUNTRIES[0]; // Portugal
+
+    function renderList(q) {
+      const list = document.getElementById('prefix-list');
+      const lower = (q || '').toLowerCase().trim();
+      const filtered = lower
+        ? COUNTRIES.filter(c => c[1].toLowerCase().includes(lower) || c[2].includes(lower))
+        : COUNTRIES;
+
+      if (!filtered.length) {
+        list.innerHTML = '<div class="prefix-empty">Nenhum resultado</div>';
+        return;
+      }
+
+      list.innerHTML = filtered.map((c, i) =>
+        `<div class="prefix-item${c === _selectedCountry ? ' active' : ''}"
+              role="option" tabindex="-1"
+              onmousedown="selectCountry(${COUNTRIES.indexOf(c)})">
+          <span>${c[0]}</span>
+          <span class="pi-name">${c[1]}</span>
+          <span class="pi-dial">${c[2]}</span>
+        </div>`
+      ).join('');
+    }
+
+    function selectCountry(idx) {
+      _selectedCountry = COUNTRIES[idx];
+      document.getElementById('prefix').value   = _selectedCountry[2];
+      document.getElementById('pb-flag').textContent = _selectedCountry[0];
+      document.getElementById('pb-code').textContent = _selectedCountry[2];
+      closePrefixDropdown();
+    }
+
+    function selectCountryByDial(dial) {
+      const found = COUNTRIES.find(c => c[2] === dial) || COUNTRIES[0];
+      const idx   = COUNTRIES.indexOf(found);
+      _selectedCountry = found;
+      document.getElementById('prefix').value        = found[2];
+      document.getElementById('pb-flag').textContent = found[0];
+      document.getElementById('pb-code').textContent = found[2];
+    }
+
+    function togglePrefixDropdown() {
+      _prefixOpen ? closePrefixDropdown() : openPrefixDropdown();
+    }
+
+    function openPrefixDropdown() {
+      _prefixOpen = true;
+      const btn = document.getElementById('prefix-btn');
+      const dd  = document.getElementById('prefix-dropdown');
+      const sr  = document.getElementById('prefix-search');
+      btn.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      dd.classList.add('open');
+      sr.value = '';
+      renderList('');
+      sr.focus();
+      // Scroll active item into view
+      setTimeout(() => {
+        const active = dd.querySelector('.prefix-item.active');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+      }, 30);
+    }
+
+    function closePrefixDropdown() {
+      _prefixOpen = false;
+      const btn = document.getElementById('prefix-btn');
+      const dd  = document.getElementById('prefix-dropdown');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      dd.classList.remove('open');
+    }
+
+    function filterCountries(q) {
+      renderList(q);
+    }
+
+    // Close on outside click
+    document.addEventListener('mousedown', e => {
+      if (_prefixOpen && !document.getElementById('prefix-wrapper').contains(e.target))
+        closePrefixDropdown();
+    });
+
+    // Close on ESC
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _prefixOpen) {
+        closePrefixDropdown();
+        document.getElementById('prefix-btn').focus();
+      }
+    });
+
+    // ── Rooms validation ─────────────────────────────────────────────────────
     let _validRooms = null;
 
     (async function loadRooms() {
@@ -201,9 +536,10 @@
           if (Array.isArray(data) && data.length > 0)
             _validRooms = new Set(data.map(r => String(r.number).toUpperCase()));
         }
-      } catch { /* network error — skip room validation */ }
+      } catch { /* skip */ }
     })();
 
+    // ── i18n ─────────────────────────────────────────────────────────────────
     const i18n = {
       pt: {
         subtitle:    'Registo de Residente',
@@ -211,7 +547,8 @@
         phoneLabel:  'Telemóvel',          notesLabel: 'Notas (opcional)',
         namePh:      'Ex: João Silva',     roomPh:     'Ex: 101',
         phonePh:     '912 345 678',        notesPh:    'Informação adicional...',
-        submit:      'Enviar pedido de registo',        sending:     'A enviar...',
+        searchPh:    'Pesquisar país ou código...',
+        submit:      'Enviar pedido de registo',     sending:     'A enviar...',
         success:     '✓ Pedido enviado! A administração irá adicionar-te em breve.',
         error:       'Erro ao enviar. Tenta novamente ou contacta a administração.',
         invalidRoom: 'Quarto não encontrado. Verifica o número ou contacta a administração.',
@@ -224,7 +561,8 @@
         phoneLabel:  'Teléfono',           notesLabel: 'Notas (opcional)',
         namePh:      'Ej: Juan García',    roomPh:     'Ej: 101',
         phonePh:     '612 345 678',        notesPh:    'Información adicional...',
-        submit:      'Enviar solicitud de registro',    sending:     'Enviando...',
+        searchPh:    'Buscar país o código...',
+        submit:      'Enviar solicitud de registro',  sending:     'Enviando...',
         success:     '✓ Solicitud enviada. La administración te añadirá en breve.',
         error:       'Error al enviar. Inténtalo de nuevo o contacta con la administración.',
         invalidRoom: 'Habitación no encontrada. Verifica el número o contacta con la administración.',
@@ -237,7 +575,8 @@
         phoneLabel:  'Phone number',       notesLabel: 'Notes (optional)',
         namePh:      'E.g. John Smith',    roomPh:     'E.g. 101',
         phonePh:     '7700 900000',        notesPh:    'Additional information...',
-        submit:      'Submit registration request',     sending:     'Sending...',
+        searchPh:    'Search country or code...',
+        submit:      'Submit registration request',   sending:     'Sending...',
         success:     '✓ Request submitted! The administration will add you shortly.',
         error:       'Error sending request. Please try again or contact reception.',
         invalidRoom: 'Room not found. Please check the number or contact reception.',
@@ -250,7 +589,8 @@
         phoneLabel:  'Téléphone',          notesLabel: 'Notes (facultatif)',
         namePh:      'Ex : Jean Dupont',   roomPh:     'Ex : 101',
         phonePh:     '6 12 34 56 78',      notesPh:    'Informations supplémentaires...',
-        submit:      "Envoyer la demande d'inscription", sending:   'Envoi en cours...',
+        searchPh:    'Rechercher pays ou indicatif...',
+        submit:      "Envoyer la demande d'inscription", sending: 'Envoi en cours...',
         success:     "✓ Demande envoyée ! L'administration vous ajoutera bientôt.",
         error:       "Erreur lors de l'envoi. Réessayez ou contactez la réception.",
         invalidRoom: 'Chambre introuvable. Vérifiez le numéro ou contactez la réception.',
@@ -263,7 +603,8 @@
         phoneLabel:  'Telefono',           notesLabel: 'Note (facoltativo)',
         namePh:      'Es: Mario Rossi',    roomPh:     'Es: 101',
         phonePh:     '320 123 4567',       notesPh:    'Informazioni aggiuntive...',
-        submit:      'Invia richiesta di registrazione', sending:   'Invio in corso...',
+        searchPh:    'Cerca paese o prefisso...',
+        submit:      'Invia richiesta di registrazione', sending: 'Invio in corso...',
         success:     "✓ Richiesta inviata! L'amministrazione ti aggiungerà a breve.",
         error:       "Errore nell'invio. Riprova o contatta la reception.",
         invalidRoom: 'Stanza non trovata. Controlla il numero o contatta la reception.',
@@ -274,7 +615,6 @@
 
     let currentLang = 'pt';
 
-    // clearMsg: true when switching language (user action), false when restoring after submit
     function setLang(lang, clearMsg = true) {
       currentLang = lang;
       const t = i18n[lang];
@@ -288,8 +628,9 @@
       document.getElementById('room').placeholder          = t.roomPh;
       document.getElementById('phone-local').placeholder   = t.phonePh;
       document.getElementById('notes').placeholder         = t.notesPh;
+      document.getElementById('prefix-search').placeholder = t.searchPh;
       document.getElementById('btn').textContent           = t.submit;
-      document.getElementById('prefix').value              = t.dialCode;
+      selectCountryByDial(t.dialCode);
       document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.getAttribute('onclick').includes("'" + lang + "'")));
       if (clearMsg) {
@@ -352,7 +693,6 @@
       const rl = rateLimit('rl_amro_register', 3, 300000);
       if (!rl.ok) { showMsg(t.rateLimited(rl.wait), 'error'); return; }
 
-      // Room validation — only when DB data is available
       if (_validRooms !== null && !_validRooms.has(room)) {
         setRoomError(t.invalidRoom);
         return;
@@ -376,8 +716,6 @@
 
         if (!res.ok) throw new Error(`${res.status}`);
 
-        // Reset form then restore language state (without clearing the message),
-        // then show the success message so it is always visible.
         document.getElementById('form').reset();
         setLang(currentLang, false);
         showMsg(t.success, 'success');
