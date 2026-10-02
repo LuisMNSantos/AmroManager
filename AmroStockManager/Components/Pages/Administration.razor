@@ -10,6 +10,7 @@
 @inject RenewerKitService KitSvc
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject WhatsAppService WhatsAppSvc
 
 <!-- ── PIN lock overlay ── -->
 @if (!_unlocked)
@@ -318,7 +319,7 @@ else
 
     <MudPaper Elevation="2" Class="overflow-hidden">
         <!-- Table header -->
-        <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 100px;
+        <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 130px;
                     padding:8px 16px; background:var(--mud-palette-background-grey); border-bottom:1px solid rgba(0,0,0,0.12);">
             <MudText Typo="Typo.caption" Style="font-weight:700;">Quarto</MudText>
             <MudText Typo="Typo.caption" Style="font-weight:700;">Nome</MudText>
@@ -336,7 +337,7 @@ else
             var roomNumber = roomInfo?.Number ?? resident?.RoomNumber ?? "";
             var isVacant = resident is null;
             _activeBis.TryGetValue(roomNumber, out var bis);
-            <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 100px;
+            <div style="display:grid; grid-template-columns:90px 1fr 180px 140px 95px 175px 130px;
                         padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                         align-items:center; @(isVacant ? "background:rgba(76,175,80,0.04);" : "")">
                 <MudText Typo="Typo.body2" Style="font-weight:600;">
@@ -447,6 +448,13 @@ else
                                        Color="Color.Default" Size="Size.Small"
                                        Title="Ver quarto"
                                        OnClick="@(() => OpenDetailDialog(resident!))" />
+                        @if (resident!.PhoneNumber is not null)
+                        {
+                            <MudIconButton Icon="@Icons.Custom.Brands.WhatsApp"
+                                           Color="Color.Success" Size="Size.Small"
+                                           Title="Iniciar conversa no WhatsApp"
+                                           OnClick="@(() => WhatsAppSvc.Open(resident!.PhoneNumber))" />
+                        }
                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                        Color="Color.Error" Size="Size.Small"
                                        Title="Eliminar"

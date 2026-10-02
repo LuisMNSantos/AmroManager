@@ -39,6 +39,13 @@
                 const r = el.getBoundingClientRect();
                 return { left: Math.round(r.left), top: Math.round(r.top),
                          width: Math.round(r.width), height: Math.round(r.height) };
+            },
+            // Returns the element's real top/left from the DOM flow, but fills height to the bottom of the window.
+            getElementFillRect: function (el) {
+                if (!el) return { left: 0, top: 0, width: 0, height: 0 };
+                const r = el.getBoundingClientRect();
+                return { left: Math.round(r.left), top: Math.round(r.top),
+                         width: Math.round(r.width), height: Math.round(window.innerHeight - r.top) };
             }
         };
     </script>

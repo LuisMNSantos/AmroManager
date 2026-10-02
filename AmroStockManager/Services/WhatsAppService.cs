@@ -4,33 +4,43 @@ public sealed class WhatsAppService
 {
     private double _areaLeft, _areaTop, _areaWidth, _areaHeight;
 
-    /// <summary>URL to open when the /whatsapp page next renders (set by Open() from other pages).</summary>
     public string? PendingUrl { get; private set; }
 
-    public event Action<string, double, double, double, double>? OpenRequested;
+    // First load or explicit navigation with URL — sets Source + bounds + visible.
+    public event Action<string, double, double, double, double>? LoadRequested;
+    // Returning to /whatsapp with session already alive — only repositions + shows.
+    public event Action<double, double, double, double>? ShowRequested;
     public event Action? CloseRequested;
-    /// <summary>Raised when Open() is called from outside /whatsapp — MainLayout navigates there.</summary>
     public event Action? NavigateToWhatsAppRequested;
+
+    private bool _isInitialized;
 
     public void SetContentArea(double left, double top, double width, double height)
     {
         _areaLeft = left; _areaTop = top; _areaWidth = width; _areaHeight = height;
     }
 
-    /// <summary>Called from notification buttons (Deliveries, Reservations, etc.).</summary>
     public void Open(string? phone = null, string? prefilledText = null)
     {
         PendingUrl = BuildUrl(phone, prefilledText);
         MainThread.BeginInvokeOnMainThread(() => NavigateToWhatsAppRequested?.Invoke());
     }
 
-    /// <summary>Called from the /whatsapp page with the measured container bounds.</summary>
     public void OpenAt(string? phone, string? prefilledText, double left, double top, double width, double height)
     {
-        var url = phone is not null ? BuildUrl(phone, prefilledText) : (PendingUrl ?? "https://web.whatsapp.com");
-        PendingUrl = null;
-        MainThread.BeginInvokeOnMainThread(() =>
-            OpenRequested?.Invoke(url, left, top, width, height));
+        bool needsLoad = !_isInitialized || PendingUrl is not null || phone is not null;
+
+        if (needsLoad)
+        {
+            var url = phone is not null ? BuildUrl(phone, prefilledText) : (PendingUrl ?? "https://web.whatsapp.com");
+            PendingUrl = null;
+            _isInitialized = true;
+            MainThread.BeginInvokeOnMainThread(() => LoadRequested?.Invoke(url, left, top, width, height));
+        }
+        else
+        {
+            MainThread.BeginInvokeOnMainThread(() => ShowRequested?.Invoke(left, top, width, height));
+        }
     }
 
     public void Close()

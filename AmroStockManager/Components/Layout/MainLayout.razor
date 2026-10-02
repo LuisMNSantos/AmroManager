@@ -95,7 +95,7 @@
                 Sem ligação à internet. Algumas funcionalidades podem não estar disponíveis.
             </MudAlert>
         }
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-6 pb-6">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="@(_isWhatsAppPage ? "pa-0" : "pt-6 pb-6")">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -105,6 +105,7 @@
     private bool _drawerOpen     = true;
     private bool _drawerOpenLast = true;
     private bool _isDark;
+    private bool _isWhatsAppPage;
 
     private readonly MudTheme _theme = new()
     {
@@ -132,6 +133,8 @@
             ? Preferences.Default.Get("darkMode", false)
             : Application.Current?.RequestedTheme == AppTheme.Dark;
 
+        _isWhatsAppPage = new Uri(NavManager.Uri).AbsolutePath == "/whatsapp";
+
         Connectivity.Changed                      += OnConnectivityChanged;
         NavManager.LocationChanged                += OnLocationChanged;
         WhatsAppSvc.NavigateToWhatsAppRequested   += OnNavigateToWhatsApp;
@@ -140,8 +143,10 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         var path = new Uri(e.Location).AbsolutePath;
-        if (path != "/whatsapp")
+        _isWhatsAppPage = path == "/whatsapp";
+        if (!_isWhatsAppPage)
             WhatsAppSvc.Close();
+        InvokeAsync(StateHasChanged);
     }
 
     private void OnNavigateToWhatsApp()
