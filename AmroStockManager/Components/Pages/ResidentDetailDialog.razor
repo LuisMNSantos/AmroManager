@@ -3,7 +3,7 @@
 @inject DeliveryService DeliverySvc
 @inject RoomService RoomSvc
 @inject ISnackbar Snackbar
-@using Microsoft.Maui.ApplicationModel
+@inject WhatsAppService WhatsAppSvc
 @using Microsoft.Maui.ApplicationModel.DataTransfer
 
 <MudDialog Style="min-width:480px; max-width:600px;">
@@ -283,10 +283,9 @@
         catch { Snackbar.Add("Não foi possível copiar.", Severity.Warning); }
     }
 
-    private async Task OpenWhatsApp()
+    private void OpenWhatsApp()
     {
         if (string.IsNullOrEmpty(Resident.PhoneNumber)) return;
-        var phone = Resident.PhoneNumber.Replace("+", "").Replace(" ", "");
-        await Launcher.Default.OpenAsync(new Uri($"https://wa.me/{phone}"));
+        WhatsAppSvc.Open(Resident.PhoneNumber);
     }
 }

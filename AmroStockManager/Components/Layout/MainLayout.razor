@@ -4,6 +4,9 @@
 @using AmroStockManager.Components.Pages
 @inject ConnectivityService Connectivity
 @inject IDialogService DialogService
+@inject WhatsAppService WhatsAppSvc
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
 @implements IDisposable
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDark" />
@@ -57,6 +60,10 @@
                     Visitas
                 </MudNavLink>
                 <MudDivider Class="my-2" />
+                <MudNavLink Href="/whatsapp" Icon="@Icons.Custom.Brands.WhatsApp">
+                    WhatsApp
+                </MudNavLink>
+                <MudDivider Class="my-2" />
                 <MudNavLink Href="/administracao" Icon="@Icons.Material.Filled.AdminPanelSettings">
                     Administração
                 </MudNavLink>
@@ -71,7 +78,7 @@
                 </MudText>
             </div>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block" Style="padding-left:2px;">
-                Versão 3.4 &nbsp;·&nbsp; 2026
+                Versão 3.5 &nbsp;·&nbsp; 2026
             </MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1" Style="padding-left:2px;">
                 Desenvolvido por <span style="font-weight:600; color:var(--mud-palette-primary);">Luis Santos</span>
@@ -95,7 +102,8 @@
 </MudLayout>
 
 @code {
-    private bool _drawerOpen = true;
+    private bool _drawerOpen     = true;
+    private bool _drawerOpenLast = true;
     private bool _isDark;
 
     private readonly MudTheme _theme = new()
@@ -124,10 +132,41 @@
             ? Preferences.Default.Get("darkMode", false)
             : Application.Current?.RequestedTheme == AppTheme.Dark;
 
-        Connectivity.Changed += OnConnectivityChanged;
+        Connectivity.Changed                      += OnConnectivityChanged;
+        NavManager.LocationChanged                += OnLocationChanged;
+        WhatsAppSvc.NavigateToWhatsAppRequested   += OnNavigateToWhatsApp;
     }
 
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var path = new Uri(e.Location).AbsolutePath;
+        if (path != "/whatsapp")
+            WhatsAppSvc.Close();
+    }
+
+    private void OnNavigateToWhatsApp()
+        => InvokeAsync(() => NavManager.NavigateTo("/whatsapp"));
+
     private void OnConnectivityChanged() => InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || _drawerOpen != _drawerOpenLast)
+        {
+            _drawerOpenLast = _drawerOpen;
+            await MeasureContentAreaAsync();
+        }
+    }
+
+    private async Task MeasureContentAreaAsync()
+    {
+        try
+        {
+            var r = await JS.InvokeAsync<ContentRect>("amro.getMainContentRect");
+            WhatsAppSvc.SetContentArea(r.Left, r.Top, r.Width, r.Height);
+        }
+        catch { }
+    }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -141,5 +180,13 @@
         Preferences.Default.Set("darkMode", _isDark);
     }
 
-    public void Dispose() => Connectivity.Changed -= OnConnectivityChanged;
+    public void Dispose()
+    {
+        Connectivity.Changed                    -= OnConnectivityChanged;
+        NavManager.LocationChanged              -= OnLocationChanged;
+        WhatsAppSvc.NavigateToWhatsAppRequested -= OnNavigateToWhatsApp;
+    }
+
+    private record ContentRect(double Left, double Top, double Width, double Height);
+
 }

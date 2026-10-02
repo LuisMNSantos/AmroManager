@@ -25,6 +25,23 @@
 
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script>
+        window.amro = {
+            getMainContentRect: function () {
+                const el = document.querySelector('.mud-main-content');
+                if (!el) return { left: 0, top: 0, width: 0, height: 0 };
+                const r = el.getBoundingClientRect();
+                return { left: Math.round(r.left), top: Math.round(r.top),
+                         width: Math.round(r.width), height: Math.round(r.height) };
+            },
+            getElementRect: function (el) {
+                if (!el) return { left: 0, top: 0, width: 0, height: 0 };
+                const r = el.getBoundingClientRect();
+                return { left: Math.round(r.left), top: Math.round(r.top),
+                         width: Math.round(r.width), height: Math.round(r.height) };
+            }
+        };
+    </script>
 </body>
 
 </html>

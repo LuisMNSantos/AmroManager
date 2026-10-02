@@ -3,7 +3,7 @@
 @inject AuditLogService AuditSvc
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-@using Microsoft.Maui.ApplicationModel
+@inject WhatsAppService WhatsAppSvc
 
 <MudDialog>
     <TitleContent>
@@ -181,10 +181,7 @@
                 yesText: "Abrir WhatsApp", cancelText: "Ignorar");
 
             if (send == true)
-            {
-                var phone = resident.PhoneNumber.Replace("+", "").Replace(" ", "");
-                await Launcher.Default.OpenAsync(new Uri($"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}"));
-            }
+                WhatsAppSvc.Open(resident.PhoneNumber, msg);
         }
 
         Snackbar.Add("Reserva criada. Active-a na altura certa para emitir o cartão.", Severity.Success);

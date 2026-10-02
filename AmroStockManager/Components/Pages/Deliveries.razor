@@ -1,8 +1,8 @@
 @page "/encomendas"
-@using Microsoft.Maui.ApplicationModel
 @inject DeliveryService DeliverySvc
 @inject ResidentService ResidentSvc
 @inject AuditLogService AuditSvc
+@inject WhatsAppService WhatsAppSvc
 @inject SupabaseRealtimeService Realtime
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -127,6 +127,7 @@ else
                         <MudIconButton Icon="@Icons.Custom.Brands.WhatsApp"
                                        Color="Color.Success"
                                        Size="Size.Small"
+                                       Title="Notificar via WhatsApp"
                                        OnClick="@(() => NotifyWhatsApp(d, resident))" />
                     }
                     <MudButton Variant="Variant.Filled"
@@ -279,16 +280,11 @@ else
         try { await AuditSvc.LogAsync(action, details); } catch { }
     }
 
-    private async Task NotifyWhatsApp(Delivery d, Resident resident)
+    private void NotifyWhatsApp(Delivery d, Resident resident)
     {
         var lang = MessageLocalizer.DetectLang(resident.PhoneNumber);
         var msg  = MessageLocalizer.DeliveryNotify(resident.Name, d.Type, d.Quantity, d.ArrivedAt.ToLocalTime(), lang);
-
-        var phone = resident.PhoneNumber!
-            .Replace("+", "").Replace(" ", "").Replace("-", "");
-
-        await Launcher.Default.OpenAsync(
-            new Uri($"https://wa.me/{phone}?text={Uri.EscapeDataString(msg)}"));
+        WhatsAppSvc.Open(resident.PhoneNumber, msg);
     }
 
     private async Task ToggleHistory()
