@@ -1,0 +1,80 @@
+@page "/whatsapp"
+@inject WhatsAppService WhatsAppSvc
+@inject IJSRuntime JS
+
+<div class="d-flex align-center justify-space-between mb-3">
+    <div class="d-flex align-center gap-2">
+        <MudIcon Icon="@Icons.Custom.Brands.WhatsApp" Color="Color.Success" Style="font-size:2rem;" />
+        <MudText Typo="Typo.h4">WhatsApp</MudText>
+    </div>
+    @if (_isOpen)
+    {
+        <MudButton Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.KeyboardArrowLeft"
+                   OnClick="Close">
+            Fechar
+        </MudButton>
+    }
+    else
+    {
+        <MudButton StartIcon="@Icons.Custom.Brands.WhatsApp"
+                   Variant="Variant.Filled"
+                   Color="Color.Success"
+                   OnClick="OpenAsync">
+            Abrir WhatsApp
+        </MudButton>
+    }
+</div>
+
+@if (!_isOpen)
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+        Na primeira utilização, digitalize o QR code com o telemóvel. A sessão fica guardada automaticamente.
+    </MudAlert>
+}
+
+<!-- Wrapper div measured by JS to position the MAUI WebView overlay precisely -->
+<div @ref="_hostRef" style="width:100%; height:calc(100vh - 230px);">
+    <MudPaper Elevation="2" Style="width:100%; height:100%; overflow:hidden; border-radius:8px;">
+        @if (!_isOpen)
+        {
+            <div class="d-flex align-center justify-center" style="height:100%;">
+                <div style="text-align:center; opacity:0.5;">
+                    <MudIcon Icon="@Icons.Custom.Brands.WhatsApp" Color="Color.Success"
+                             Style="font-size:5rem;" Class="mb-2" />
+                    <MudText Typo="Typo.h6">WhatsApp</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                        Clique em <b>Abrir WhatsApp</b> para iniciar
+                    </MudText>
+                </div>
+            </div>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private ElementReference _hostRef;
+    private bool _isOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await OpenAsync();
+    }
+
+    private async Task OpenAsync()
+    {
+        var rect = await JS.InvokeAsync<WaRect>("amro.getElementRect", _hostRef);
+        // PendingUrl is set when coming from a notification button (Deliveries, etc.)
+        WhatsAppSvc.OpenAt(null, null, rect.Left, rect.Top, rect.Width, rect.Height);
+        _isOpen = true;
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        WhatsAppSvc.Close();
+        _isOpen = false;
+    }
+
+    private record WaRect(double Left, double Top, double Width, double Height);
+}

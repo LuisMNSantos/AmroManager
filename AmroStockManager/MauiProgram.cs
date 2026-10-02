@@ -40,6 +40,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<VisitService>();
         builder.Services.AddSingleton<RenewerKitService>();
         builder.Services.AddSingleton<ReimbursementService>();
+        builder.Services.AddSingleton<WhatsAppService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
