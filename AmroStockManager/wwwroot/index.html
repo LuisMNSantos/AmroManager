@@ -46,6 +46,10 @@
                 const r = el.getBoundingClientRect();
                 return { left: Math.round(r.left), top: Math.round(r.top),
                          width: Math.round(r.width), height: Math.round(window.innerHeight - r.top) };
+            },
+            scrollToBottom: function (id) {
+                var el = document.getElementById(id);
+                if (el) el.scrollTop = el.scrollHeight;
             }
         };
     </script>
