@@ -17,13 +17,44 @@
                 <MudText Typo="Typo.caption" Color="Color.Secondary">Pergunta o que quiseres sobre a aplicação</MudText>
             </div>
         </div>
-        <MudTooltip Text="Limpar conversa">
-            <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep"
-                           Size="Size.Small"
-                           Disabled="@(!_messages.Any() && !_isStreaming)"
-                           OnClick="ClearChat" />
-        </MudTooltip>
+        <div style="display:flex; align-items:center;">
+            @if (_apiKeySet)
+            {
+                <MudTooltip Text="@(_showKeyPanel ? "Fechar configuração" : "Alterar chave de API")">
+                    <MudIconButton Icon="@Icons.Material.Filled.Key"
+                                   Size="Size.Small"
+                                   Color="@(_showKeyPanel ? Color.Primary : Color.Default)"
+                                   OnClick="@(() => { _showKeyPanel = !_showKeyPanel; _apiKeyInput = string.Empty; })" />
+                </MudTooltip>
+            }
+            <MudTooltip Text="Limpar conversa">
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep"
+                               Size="Size.Small"
+                               Disabled="@(!_messages.Any() && !_isStreaming)"
+                               OnClick="ClearChat" />
+            </MudTooltip>
+        </div>
     </div>
+
+    @if (_showKeyPanel)
+    {
+        <div style="padding:10px 16px; border-bottom:1px solid rgba(128,128,128,0.15);
+                    display:flex; align-items:center; gap:8px; flex-shrink:0;
+                    background:rgba(21,101,192,0.04);">
+            <MudTextField @bind-Value="_apiKeyInput"
+                          Label="Nova chave de API Anthropic"
+                          Placeholder="sk-ant-..."
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="flex:1;" />
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                       Disabled="@string.IsNullOrWhiteSpace(_apiKeyInput)"
+                       OnClick="SaveApiKeyAsync">
+                Guardar
+            </MudButton>
+        </div>
+    }
 
     @if (!_apiKeySet)
     {
@@ -195,6 +226,7 @@
     private string?                     _error;
     private bool                        _isStreaming;
     private bool                        _apiKeySet;
+    private bool                        _showKeyPanel;
     private CancellationTokenSource     _cts         = new();
 
     private static readonly string[] _suggestions =
@@ -215,8 +247,9 @@
     {
         if (string.IsNullOrWhiteSpace(_apiKeyInput)) return;
         await ChatbotSvc.SetApiKeyAsync(_apiKeyInput);
-        _apiKeyInput = string.Empty;
-        _apiKeySet   = true;
+        _apiKeyInput  = string.Empty;
+        _apiKeySet    = true;
+        _showKeyPanel = false;
     }
 
     private void ClearChat()
