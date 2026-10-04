@@ -52,6 +52,11 @@
     <MudText Typo="Typo.h4">Administração</MudText>
 
     <div class="d-flex align-center gap-2">
+        <MudButton StartIcon="@Icons.Material.Filled.ExitToApp"
+                   Variant="Variant.Outlined" Color="Color.Warning"
+                   OnClick="OpenCheckout">
+            Checkout
+        </MudButton>
         <MudButton StartIcon="@Icons.Material.Filled.SwapHoriz"
                    Variant="Variant.Outlined" Color="Color.Primary"
                    OnClick="OpenRoomSwap">
@@ -720,6 +725,38 @@ else
         {
             Snackbar.Add($"Erro ao importar: {ex.Message}", Severity.Error);
         }
+    }
+
+    private async Task OpenCheckout()
+    {
+        var residents = _residents.Where(r => !r.IsCollaborator || r.CollaboratorRole != "admin").ToList();
+
+        var parameters = new DialogParameters<CheckoutDialog>
+        {
+            { d => d.Residents, residents }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog   = await DialogService.ShowAsync<CheckoutDialog>("", parameters, options);
+        var result   = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        var selected = (List<Resident>)result.Data!;
+        if (selected.Count == 0) return;
+
+        foreach (var r in selected)
+        {
+            await ResidentSvc.DeleteResidentAsync(r.Id);
+            var typeLabel = r.IsCollaborator ? "Concierge" : "Residente";
+            var phonePart = r.PhoneNumber is not null ? $" · {r.PhoneNumber}" : "";
+            await LogAsync("Checkout", $"{r.Name} · #{r.RoomNumber} · {typeLabel}{phonePart}");
+        }
+
+        await LoadResidents();
+        Snackbar.Add(
+            selected.Count == 1
+                ? $"Checkout de {selected[0].Name} efectuado."
+                : $"Checkout de {selected.Count} residentes efectuado.",
+            Severity.Success);
     }
 
     private async Task OpenRoomSwap()
