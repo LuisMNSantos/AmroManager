@@ -1,0 +1,391 @@
+@inject ChatbotService ChatbotSvc
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div style="display:flex; flex-direction:column; height:calc(100vh - 64px);">
+
+    <!-- Header -->
+    <div style="padding:10px 16px; border-bottom:1px solid rgba(128,128,128,0.15);
+                display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <MudAvatar Color="Color.Primary" Size="Size.Small">
+                <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size:1rem;" />
+            </MudAvatar>
+            <div>
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600; line-height:1.2;">Assistente AMRO</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Pergunta o que quiseres sobre a aplicação</MudText>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center;">
+            @if (_apiKeySet)
+            {
+                <MudTooltip Text="@(_showKeyPanel ? "Fechar configuração" : "Alterar chave de API")">
+                    <MudIconButton Icon="@Icons.Material.Filled.Key"
+                                   Size="Size.Small"
+                                   Color="@(_showKeyPanel ? Color.Primary : Color.Default)"
+                                   OnClick="@(() => { _showKeyPanel = !_showKeyPanel; _apiKeyInput = string.Empty; })" />
+                </MudTooltip>
+            }
+            <MudTooltip Text="Limpar conversa">
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep"
+                               Size="Size.Small"
+                               Disabled="@(!_messages.Any() && !_isStreaming)"
+                               OnClick="ClearChat" />
+            </MudTooltip>
+        </div>
+    </div>
+
+    @if (_showKeyPanel)
+    {
+        <div style="padding:10px 16px; border-bottom:1px solid rgba(128,128,128,0.15);
+                    display:flex; align-items:center; gap:8px; flex-shrink:0;
+                    background:rgba(21,101,192,0.04);">
+            <MudTextField @bind-Value="_apiKeyInput"
+                          Label="Nova chave de API Anthropic"
+                          Placeholder="sk-ant-..."
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="flex:1;" />
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small"
+                       Disabled="@string.IsNullOrWhiteSpace(_apiKeyInput)"
+                       OnClick="SaveApiKeyAsync">
+                Guardar
+            </MudButton>
+        </div>
+    }
+
+    @if (!_apiKeySet)
+    {
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:24px;">
+            <MudCard Style="max-width:440px; width:100%;" Elevation="2">
+                <MudCardContent>
+                    <div style="text-align:center; margin-bottom:16px;">
+                        <MudIcon Icon="@Icons.Material.Filled.Key" Color="Color.Primary" Style="font-size:2.5rem;" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Configurar Assistente</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                            Introduz a tua chave de API Anthropic para ativar o assistente de IA.
+                        </MudText>
+                    </div>
+                    <MudTextField @bind-Value="_apiKeyInput"
+                                  Label="Chave de API Anthropic"
+                                  Placeholder="sk-ant-..."
+                                  InputType="InputType.Password"
+                                  Variant="Variant.Outlined"
+                                  FullWidth="true"
+                                  Class="mb-3" />
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                               FullWidth="true"
+                               Disabled="@string.IsNullOrWhiteSpace(_apiKeyInput)"
+                               OnClick="SaveApiKeyAsync">
+                        Guardar e Ativar
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        </div>
+    }
+    else
+    {
+        <!-- Messages -->
+        <div id="chatbot-messages"
+             style="flex:1; overflow-y:auto; padding:16px;
+                    display:flex; flex-direction:column; gap:10px;">
+
+            @if (!_messages.Any() && !_isStreaming)
+            {
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center;
+                            justify-content:center; text-align:center; padding:32px 16px; gap:12px;">
+                    <MudIcon Icon="@Icons.Material.Filled.SmartToy"
+                             Style="font-size:3rem;" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6">Olá! Como posso ajudar?</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width:380px;">
+                        Sou o assistente do AMRO Porto Manager. Pergunta-me qualquer coisa sobre as funcionalidades da aplicação.
+                    </MudText>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:8px;">
+                        @foreach (var s in _suggestions)
+                        {
+                            var sug = s;
+                            <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined"
+                                     Size="Size.Small" Style="cursor:pointer;"
+                                     OnClick="@(() => SendSuggestionAsync(sug))">
+                                @sug
+                            </MudChip>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var msg in _messages)
+                {
+                    <div style="display:flex; @(msg.IsUser ? "justify-content:flex-end;" : "justify-content:flex-start;")">
+                        @if (!msg.IsUser)
+                        {
+                            <MudAvatar Color="Color.Primary" Size="Size.Small"
+                                       Style="margin-right:8px; margin-top:2px; flex-shrink:0;">
+                                <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size:1rem;" />
+                            </MudAvatar>
+                        }
+                        <div style="max-width:74%; padding:10px 14px;
+                                    border-radius:@(msg.IsUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px");
+                                    background:@(msg.IsUser ? "var(--mud-palette-primary)" : "var(--mud-palette-surface)");
+                                    color:@(msg.IsUser ? "var(--mud-palette-white)" : "inherit");
+                                    box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                            @if (msg.IsUser)
+                            {
+                                <MudText Typo="Typo.body2"
+                                         Style="white-space:pre-wrap; word-break:break-word;">
+                                    @msg.Text
+                                </MudText>
+                            }
+                            else
+                            {
+                                <div style="word-break:break-word; font-size:0.875rem; line-height:1.5;">
+                                    @((MarkupString)RenderMarkdown(msg.Text))
+                                </div>
+                            }
+                            <MudText Typo="Typo.caption"
+                                     Style="@TimestampStyle(msg.IsUser)">
+                                @msg.Timestamp.ToString("HH:mm")
+                            </MudText>
+                        </div>
+                        @if (msg.IsUser)
+                        {
+                            <MudAvatar Color="Color.Secondary" Size="Size.Small"
+                                       Style="margin-left:8px; margin-top:2px; flex-shrink:0;">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Style="font-size:1rem;" />
+                            </MudAvatar>
+                        }
+                    </div>
+                }
+
+                @if (_isStreaming)
+                {
+                    <div style="display:flex; justify-content:flex-start;">
+                        <MudAvatar Color="Color.Primary" Size="Size.Small"
+                                   Style="margin-right:8px; margin-top:2px; flex-shrink:0;">
+                            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Style="font-size:1rem;" />
+                        </MudAvatar>
+                        <div style="max-width:74%; padding:10px 14px; border-radius:16px 16px 16px 4px;
+                                    background:var(--mud-palette-surface); box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                            @if (string.IsNullOrEmpty(_streamingText))
+                            {
+                                <div class="chatbot-typing">
+                                    <span></span><span></span><span></span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="word-break:break-word; font-size:0.875rem; line-height:1.5;">
+                                    @((MarkupString)RenderMarkdown(_streamingText))
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_error is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-1"
+                          ShowCloseIcon="true" CloseIconClicked="@(() => _error = null)">
+                    @_error
+                </MudAlert>
+            }
+        </div>
+
+        <!-- Input -->
+        <div style="padding:12px 16px; border-top:1px solid rgba(128,128,128,0.15); flex-shrink:0;">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <MudTextField @bind-Value="_input"
+                              Placeholder="Pergunta o que quiseres..."
+                              Variant="Variant.Outlined"
+                              FullWidth="true"
+                              Disabled="@_isStreaming"
+                              OnKeyDown="OnKeyDownAsync"
+                              Style="flex:1;" />
+                <MudIconButton Icon="@Icons.Material.Filled.Send"
+                               Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               Size="Size.Medium"
+                               Disabled="@(string.IsNullOrWhiteSpace(_input) || _isStreaming)"
+                               OnClick="SendMessageAsync" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private record ChatMsg(bool IsUser, string Text, DateTime Timestamp);
+
+    private readonly List<ChatMsg>      _messages    = [];
+    private string                      _input       = string.Empty;
+    private string                      _apiKeyInput = string.Empty;
+    private string                      _streamingText = string.Empty;
+    private string?                     _error;
+    private bool                        _isStreaming;
+    private bool                        _apiKeySet;
+    private bool                        _showKeyPanel;
+    private CancellationTokenSource     _cts         = new();
+
+    private static readonly string[] _suggestions =
+    [
+        "O que é o AMRO Porto Manager?",
+        "Como fazer checkout de residentes?",
+        "Como registar uma encomenda?",
+        "Como ver o histórico de operações?",
+        "Que funcionalidades tem a aplicação?",
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiKeySet = await ChatbotSvc.HasApiKeyAsync();
+    }
+
+    private async Task SaveApiKeyAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_apiKeyInput)) return;
+        await ChatbotSvc.SetApiKeyAsync(_apiKeyInput);
+        _apiKeyInput  = string.Empty;
+        _apiKeySet    = true;
+        _showKeyPanel = false;
+    }
+
+    private void ClearChat()
+    {
+        _cts.Cancel();
+        _cts          = new CancellationTokenSource();
+        _streamingText = string.Empty;
+        _isStreaming   = false;
+        _error         = null;
+        _messages.Clear();
+        ChatbotSvc.ClearHistory();
+    }
+
+    private Task SendSuggestionAsync(string text)
+    {
+        _input = text;
+        return SendMessageAsync();
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !_isStreaming && !string.IsNullOrWhiteSpace(_input))
+            await SendMessageAsync();
+    }
+
+    private async Task SendMessageAsync()
+    {
+        var text = _input.Trim();
+        if (string.IsNullOrEmpty(text) || _isStreaming) return;
+
+        _input         = string.Empty;
+        _isStreaming   = true;
+        _streamingText = string.Empty;
+        _error         = null;
+
+        _messages.Add(new ChatMsg(true, text, DateTime.Now));
+        await InvokeAsync(StateHasChanged);
+        await ScrollToBottomAsync();
+
+        try
+        {
+            await foreach (var chunk in ChatbotSvc.SendAsync(text, _cts.Token))
+            {
+                _streamingText += chunk;
+                await InvokeAsync(StateHasChanged);
+                if (_streamingText.Length % 80 == 0)
+                    await ScrollToBottomAsync();
+            }
+
+            if (!string.IsNullOrEmpty(_streamingText))
+                _messages.Add(new ChatMsg(false, _streamingText, DateTime.Now));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Não foi possível obter resposta: {ex.Message}";
+        }
+        finally
+        {
+            _streamingText = string.Empty;
+            _isStreaming   = false;
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottomAsync();
+        }
+    }
+
+    private async Task ScrollToBottomAsync()
+    {
+        try { await JS.InvokeVoidAsync("amro.scrollToBottom", "chatbot-messages"); }
+        catch { }
+    }
+
+    private static string RenderMarkdown(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        var sb    = new System.Text.StringBuilder();
+        var lines = text.Split('\n');
+
+        foreach (var rawLine in lines)
+        {
+            if (rawLine.StartsWith("### "))
+            {
+                sb.Append($"<strong>{HtmlEscape(rawLine[4..])}</strong><br/>");
+            }
+            else if (rawLine.StartsWith("## "))
+            {
+                sb.Append($"<strong style=\"font-size:1rem;\">{HtmlEscape(rawLine[3..])}</strong><br/>");
+            }
+            else if (rawLine.StartsWith("# "))
+            {
+                sb.Append($"<strong style=\"font-size:1.05rem;\">{HtmlEscape(rawLine[2..])}</strong><br/>");
+            }
+            else if (rawLine.StartsWith("- ") || rawLine.StartsWith("* "))
+            {
+                sb.Append($"&nbsp;&nbsp;• {InlineFormat(HtmlEscape(rawLine[2..]))}<br/>");
+            }
+            else if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                sb.Append("<br/>");
+            }
+            else
+            {
+                sb.Append(InlineFormat(HtmlEscape(rawLine)));
+                sb.Append("<br/>");
+            }
+        }
+
+        var result = sb.ToString();
+        while (result.EndsWith("<br/>"))
+            result = result[..^5];
+
+        return result;
+    }
+
+    private static string InlineFormat(string text)
+    {
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"\*(.+?)\*", "<em>$1</em>");
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text, @"`(.+?)`",
+            "<code style=\"background:rgba(0,0,0,0.07);padding:1px 4px;border-radius:3px;font-size:0.85em;\">$1</code>");
+        return text;
+    }
+
+    private static string HtmlEscape(string s) =>
+        s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+    private static string TimestampStyle(bool isUser) =>
+        "opacity:0.55; font-size:0.65rem; margin-top:4px; display:block; text-align:" +
+        (isUser ? "right" : "left") + ";";
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

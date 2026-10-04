@@ -41,6 +41,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<RenewerKitService>();
         builder.Services.AddSingleton<ReimbursementService>();
         builder.Services.AddSingleton<WhatsAppService>();
+        builder.Services.AddSingleton<ChatbotService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

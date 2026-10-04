@@ -101,6 +101,11 @@
     </MudMainContent>
 </MudLayout>
 
+@if (!_isWhatsAppPage)
+{
+    <ChatbotFloating />
+}
+
 @code {
     private bool _drawerOpen     = true;
     private bool _drawerOpenLast = true;
