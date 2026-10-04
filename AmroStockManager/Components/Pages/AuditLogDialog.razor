@@ -133,13 +133,13 @@
     private static string GetCategory(string action) => action switch
     {
         var a when a.StartsWith("Encomenda") || a.StartsWith("Carta ") => "Encomendas",
-        var a when a.StartsWith("Visita") || a.StartsWith("Checkout") || a.Contains("Excel Visitas") => "Visitas",
+        var a when a.StartsWith("Visita") || a.Contains("Excel Visitas") => "Visitas",
         var a when a.StartsWith("Reserva") => "Reservas",
         var a when a.StartsWith("Artigo") || a.StartsWith("BIS") => "Artigos Gerais",
         var a when a.StartsWith("Reembolso") => "Reembolsos",
-        var a when a.StartsWith("Residente") || a.StartsWith("Lista")  ||
-                  a.StartsWith("CSV")        || a.StartsWith("Registo") ||
-                  a.StartsWith("Troca") => "Residentes",
+        var a when a.StartsWith("Residente") || a.StartsWith("Lista")    ||
+                  a.StartsWith("CSV")        || a.StartsWith("Registo")  ||
+                  a.StartsWith("Troca")      || a == "Checkout" => "Residentes",
         _ => "Sistema"
     };
 

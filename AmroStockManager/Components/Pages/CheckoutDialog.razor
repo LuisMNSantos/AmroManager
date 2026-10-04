@@ -1,0 +1,219 @@
+@using AmroStockManager.Data.Models
+@inject ResidentService ResidentSvc
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.ExitToApp" Color="Color.Warning" />
+            <MudText Typo="Typo.h6">Checkout de Residentes</MudText>
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center align-center" style="min-height:120px;">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else if (!Residents.Any())
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">Não há residentes activos.</MudAlert>
+        }
+        else
+        {
+            <!-- Search -->
+            <MudTextField @bind-Value="_search" Placeholder="Pesquisar por nome ou quarto..."
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true" Immediate="true" Dense="true" Class="mb-2"
+                          Variant="Variant.Outlined" />
+
+            <!-- Floor filters -->
+            @if (_floors.Count > 1)
+            {
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(_floorFilter == null ? Color.Primary : Color.Default)"
+                             Variant="@(_floorFilter == null ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => _floorFilter = null)">
+                        Todos os pisos
+                    </MudChip>
+                    @foreach (var f in _floors)
+                    {
+                        var floor = f;
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(_floorFilter == floor ? Color.Primary : Color.Default)"
+                                 Variant="@(_floorFilter == floor ? Variant.Filled : Variant.Outlined)"
+                                 OnClick="@(() => _floorFilter = floor)">
+                            Piso @floor
+                        </MudChip>
+                    }
+                </div>
+            }
+
+            <!-- Select all / counter -->
+            <div class="d-flex align-center justify-space-between mb-1">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    @_selected.Count de @Residents.Count() selecionados
+                </MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="ToggleAll">
+                    @(_selected.Count == Filtered.Count() && Filtered.Any() ? "Limpar filtrados" : "Selecionar filtrados")
+                </MudButton>
+            </div>
+
+            <!-- Resident list -->
+            <div style="max-height:360px; overflow-y:auto; border:1px solid rgba(0,0,0,0.12); border-radius:8px;">
+                @if (!Filtered.Any())
+                {
+                    <div class="d-flex justify-center align-center pa-4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Sem resultados</MudText>
+                    </div>
+                }
+                @foreach (var r in Filtered)
+                {
+                    var isChecked = _selected.Contains(r.Id);
+                    _counts.TryGetValue(r.Id, out var counts);
+                    var hasActive = counts.HasValue && (counts.Value.d > 0 || counts.Value.l > 0 || counts.Value.v > 0);
+
+                    <div class="d-flex align-center gap-2 pa-2"
+                         style="border-bottom:1px solid rgba(0,0,0,0.06); cursor:pointer;
+                                @(isChecked ? "background:rgba(255,152,0,0.07);" : "")"
+                         @onclick="@(() => Toggle(r.Id))">
+
+                        <MudCheckBox T="bool" Value="isChecked" Color="Color.Warning"
+                                     ValueChanged="@(_ => Toggle(r.Id))"
+                                     @onclick:stopPropagation="true" />
+
+                        <MudText Typo="Typo.body2" Style="font-weight:600; min-width:42px;">
+                            #@r.RoomNumber
+                        </MudText>
+
+                        <MudText Typo="Typo.body2" Style="flex:1;">@r.Name</MudText>
+
+                        <MudChip T="string" Size="Size.Small" Class="ma-0"
+                                 Color="@(r.IsCollaborator ? Color.Secondary : Color.Primary)">
+                            @(r.IsCollaborator
+                                ? (r.CollaboratorRole == "admin" ? "Admin" : "Concierge")
+                                : "Residente")
+                        </MudChip>
+
+                        @if (hasActive)
+                        {
+                            <MudTooltip Text="@BuildActiveLabel(counts!.Value)">
+                                <MudIcon Icon="@Icons.Material.Filled.Warning"
+                                         Color="Color.Error" Size="Size.Small" />
+                            </MudTooltip>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (_selected.Any(id => HasActive(id)))
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                    Alguns residentes selecionados têm encomendas, empréstimos ou reservas activos. Os dados ficam registados mas o quarto ficará livre.
+                </MudAlert>
+            }
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Cancelar</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Filled"
+                   Disabled="@(_selected.Count == 0)"
+                   StartIcon="@Icons.Material.Filled.ExitToApp"
+                   OnClick="Confirm">
+            Checkout (@_selected.Count)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public IEnumerable<Resident> Residents { get; set; } = [];
+
+    private readonly HashSet<string> _selected = [];
+    private readonly Dictionary<string, (int d, int l, int v)?> _counts = [];
+    private bool   _loading = true;
+    private string _search      = string.Empty;
+    private string? _floorFilter;
+    private List<string> _floors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Compute available floors from room numbers (first char(s) before last 2 digits)
+        _floors = Residents
+            .Select(r => FloorOf(r.RoomNumber))
+            .Where(f => f is not null)
+            .Distinct()
+            .OrderBy(f => f)
+            .ToList()!;
+
+        // Load active item counts in parallel
+        var tasks = Residents.Select(async r =>
+        {
+            var (d, l, v) = await ResidentSvc.GetActiveItemCountsForRoomAsync(r.RoomNumber);
+            return (r.Id, d, l, v);
+        });
+        foreach (var (id, d, l, v) in await Task.WhenAll(tasks))
+            _counts[id] = (d, l, v);
+
+        _loading = false;
+    }
+
+    private IEnumerable<Resident> Filtered => Residents
+        .Where(r =>
+        {
+            if (_floorFilter is not null && FloorOf(r.RoomNumber) != _floorFilter) return false;
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                var q = _search.Trim();
+                if (!r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                    !r.RoomNumber.Contains(q, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            return true;
+        })
+        .OrderBy(r => r.RoomNumber);
+
+    private static string? FloorOf(string roomNumber)
+    {
+        // Room numbers like "101", "202A", "B101" — floor = everything before last 2 chars
+        var digits = new string(roomNumber.Where(char.IsDigit).ToArray());
+        return digits.Length >= 3 ? digits[..^2] : null;
+    }
+
+    private void Toggle(string id)
+    {
+        if (!_selected.Remove(id)) _selected.Add(id);
+    }
+
+    private void ToggleAll()
+    {
+        var filtered = Filtered.ToList();
+        bool allSelected = filtered.All(r => _selected.Contains(r.Id));
+        if (allSelected)
+            foreach (var r in filtered) _selected.Remove(r.Id);
+        else
+            foreach (var r in filtered) _selected.Add(r.Id);
+    }
+
+    private bool HasActive(string id)
+        => _counts.TryGetValue(id, out var c) && c.HasValue && (c.Value.d > 0 || c.Value.l > 0 || c.Value.v > 0);
+
+    private static string BuildActiveLabel((int d, int l, int v) c)
+    {
+        var parts = new List<string>();
+        if (c.d > 0) parts.Add($"{c.d} encomenda{(c.d > 1 ? "s" : "")}");
+        if (c.l > 0) parts.Add($"{c.l} empréstimo{(c.l > 1 ? "s" : "")}");
+        if (c.v > 0) parts.Add($"{c.v} reserva{(c.v > 1 ? "s" : "")}");
+        return string.Join(", ", parts) + " activos";
+    }
+
+    private void Confirm()
+    {
+        var result = Residents.Where(r => _selected.Contains(r.Id)).ToList();
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+}
