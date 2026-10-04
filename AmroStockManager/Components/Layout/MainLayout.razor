@@ -63,9 +63,6 @@
                 <MudNavLink Href="/whatsapp" Icon="@Icons.Custom.Brands.WhatsApp">
                     WhatsApp
                 </MudNavLink>
-                <MudNavLink Href="/chatbot" Icon="@Icons.Material.Filled.SmartToy">
-                    Assistente IA
-                </MudNavLink>
                 <MudDivider Class="my-2" />
                 <MudNavLink Href="/administracao" Icon="@Icons.Material.Filled.AdminPanelSettings">
                     Administração
@@ -98,18 +95,22 @@
                 Sem ligação à internet. Algumas funcionalidades podem não estar disponíveis.
             </MudAlert>
         }
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="@(_isWhatsAppPage || _isChatbotPage ? "pa-0" : "pt-6 pb-6")">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="@(_isWhatsAppPage ? "pa-0" : "pt-6 pb-6")">
             @Body
         </MudContainer>
     </MudMainContent>
 </MudLayout>
+
+@if (!_isWhatsAppPage)
+{
+    <ChatbotFloating />
+}
 
 @code {
     private bool _drawerOpen     = true;
     private bool _drawerOpenLast = true;
     private bool _isDark;
     private bool _isWhatsAppPage;
-    private bool _isChatbotPage;
 
     private readonly MudTheme _theme = new()
     {
@@ -138,7 +139,6 @@
             : Application.Current?.RequestedTheme == AppTheme.Dark;
 
         _isWhatsAppPage = new Uri(NavManager.Uri).AbsolutePath == "/whatsapp";
-        _isChatbotPage  = new Uri(NavManager.Uri).AbsolutePath == "/chatbot";
 
         Connectivity.Changed                      += OnConnectivityChanged;
         NavManager.LocationChanged                += OnLocationChanged;
@@ -149,7 +149,6 @@
     {
         var path = new Uri(e.Location).AbsolutePath;
         _isWhatsAppPage = path == "/whatsapp";
-        _isChatbotPage  = path == "/chatbot";
         if (!_isWhatsAppPage)
             WhatsAppSvc.Close();
         InvokeAsync(StateHasChanged);
