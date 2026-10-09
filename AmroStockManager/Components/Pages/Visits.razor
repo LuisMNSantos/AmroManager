@@ -257,7 +257,8 @@ else
                             <tr>
                                 <th>Quarto</th>
                                 <th>Residente</th>
-                                <th>Total noites</th>
+                                <th>Noites (mês)</th>
+                                <th>Total acumulado</th>
                                 <th>Grátis (perk)</th>
                                 <th>Saldo</th>
                             </tr>
@@ -265,7 +266,7 @@ else
                         <tbody>
                             @foreach (var stat in OvernightStats)
                             {
-                                var remaining = stat.FreeAllowance - stat.UsedOvernights;
+                                var remaining = stat.FreeAllowance - stat.TotalUsedAllTime;
                                 <tr>
                                     <td><b>#@stat.RoomNumber</b></td>
                                     <td>
@@ -277,6 +278,7 @@ else
                                         }
                                     </td>
                                     <td>@stat.UsedOvernights</td>
+                                    <td>@stat.TotalUsedAllTime</td>
                                     <td>
                                         @if (stat.IsRenewer)
                                         { <span>@stat.FreeAllowance</span> }
@@ -315,7 +317,8 @@ else
     private int    _exportMonth = DateTime.Now.Month;
     private int    _exportYear  = DateTime.Now.Year;
 
-    private List<Visit> _visits = [];
+    private List<Visit> _visits    = [];
+    private List<Visit> _allVisits = [];
     private Dictionary<string, Resident> _residents = [];
 
     // Admin PIN
@@ -327,7 +330,7 @@ else
 
     private record OvernightStat(
         string RoomNumber, string? ResidentName, bool IsRenewer,
-        int FreeAllowance, int UsedOvernights);
+        int FreeAllowance, int UsedOvernights, int TotalUsedAllTime);
 
     private int MonthOvernights => _visits
         .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
@@ -358,12 +361,18 @@ else
         .Select(g =>
         {
             _residents.TryGetValue(g.Key, out var resident);
+            // Count overnights from move-in date so that swapping residents resets the balance
+            var moveIn = resident?.UpdatedAt ?? DateTime.MinValue;
+            var allTime = _allVisits
+                .Where(v => v.RoomNumber == g.Key && v.CheckedInAt >= moveIn)
+                .Sum(v => v.LiveOvernights);
             return new OvernightStat(
                 g.Key,
                 resident?.Name,
                 resident?.IsRenewer ?? false,
                 resident?.FreeOvernights ?? 0,
-                g.Sum(v => v.LiveOvernights));
+                g.Sum(v => v.LiveOvernights),
+                allTime);
         })
         .Where(s => s.UsedOvernights > 0)
         .OrderByDescending(s => s.UsedOvernights);
@@ -379,7 +388,8 @@ else
         var activeTask    = VisitSvc.GetActiveAsync();
         var monthTask     = VisitSvc.GetByMonthAsync(_exportYear, _exportMonth);
         var residentsTask = ResidentSvc.GetAllAsync();
-        await Task.WhenAll(activeTask, monthTask, residentsTask);
+        var allVisitsTask = VisitSvc.GetAllNonDeletedAsync();
+        await Task.WhenAll(activeTask, monthTask, residentsTask, allVisitsTask);
 
         // Merge: month visits + any active visits that started in a different month
         var monthVisits  = monthTask.Result;
@@ -388,6 +398,8 @@ else
             .Concat(activeTask.Result.Where(v => !monthIds.Contains(v.Id)))
             .OrderByDescending(v => v.CheckedInAt)
             .ToList();
+
+        _allVisits = allVisitsTask.Result;
 
         _residents = residentsTask.Result
             .Where(r => r.RoomNumber is not null)
@@ -463,7 +475,7 @@ else
 
             // ── Sheet 2: Overnights por Quarto ───────────────────────────────
             var ws2 = wb.Worksheets.Add("Overnights por Quarto");
-            string[] h2 = ["Quarto", "Residente", "Renovador", "Total Noites", "Grátis (perk)", "Saldo", "Nº Visitas"];
+            string[] h2 = ["Quarto", "Residente", "Renovador", "Noites (mês)", "Total acumulado", "Grátis (perk)", "Saldo", "Nº Visitas"];
             for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
             var hr2 = ws2.Range(1, 1, 1, h2.Length);
             hr2.Style.Font.Bold = true;
@@ -475,13 +487,18 @@ else
                 .Select(g =>
                 {
                     _residents.TryGetValue(g.Key, out var r);
-                    int total = g.Sum(v => v.LiveOvernights);
+                    int monthTotal = g.Sum(v => v.LiveOvernights);
+                    var moveIn = r?.UpdatedAt ?? DateTime.MinValue;
+                    int allTimeTotal = _allVisits
+                        .Where(v => v.RoomNumber == g.Key && v.CheckedInAt >= moveIn)
+                        .Sum(v => v.LiveOvernights);
                     bool renewer = r?.IsRenewer ?? false;
                     int free = renewer ? (r?.FreeOvernights ?? 0) : 0;
                     return (Room: g.Key, Resident: r?.Name ?? "", Renewer: renewer,
-                            Total: total, Free: free, Balance: free - total, Count: g.Count());
+                            MonthTotal: monthTotal, AllTimeTotal: allTimeTotal,
+                            Free: free, Balance: free - allTimeTotal, Count: g.Count());
                 })
-                .OrderByDescending(s => s.Total);
+                .OrderByDescending(s => s.MonthTotal);
 
             row = 2;
             foreach (var s in ovStats)
@@ -489,10 +506,11 @@ else
                 ws2.Cell(row, 1).Value = s.Room;
                 ws2.Cell(row, 2).Value = s.Resident;
                 ws2.Cell(row, 3).Value = s.Renewer ? "Sim" : "Não";
-                ws2.Cell(row, 4).Value = s.Total;
-                ws2.Cell(row, 5).Value = s.Renewer ? s.Free : 0;
-                ws2.Cell(row, 6).Value = s.Renewer ? s.Balance : 0;
-                ws2.Cell(row, 7).Value = s.Count;
+                ws2.Cell(row, 4).Value = s.MonthTotal;
+                ws2.Cell(row, 5).Value = s.AllTimeTotal;
+                ws2.Cell(row, 6).Value = s.Renewer ? s.Free : 0;
+                ws2.Cell(row, 7).Value = s.Renewer ? s.Balance : 0;
+                ws2.Cell(row, 8).Value = s.Count;
                 if (row % 2 == 0)
                     ws2.Range(row, 1, row, h2.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
                 row++;

@@ -15,6 +15,9 @@ public class VisitService(ISupabaseClient db)
             $"is_deleted=eq.false&checked_in_at=gte.{start:O}&checked_in_at=lt.{end:O}&order=checked_in_at.desc");
     }
 
+    public Task<List<Visit>> GetAllNonDeletedAsync() =>
+        db.GetAsync<Visit>("visits", "is_deleted=eq.false&order=checked_in_at.desc");
+
     public Task<List<Visit>> GetByRoomAsync(string roomNumber) =>
         db.GetAsync<Visit>("visits",
             $"is_deleted=eq.false&room_number=eq.{Uri.EscapeDataString(roomNumber.Trim().ToUpper())}&order=checked_in_at.desc");
