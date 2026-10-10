@@ -1,9 +1,18 @@
+using Microsoft.Maui.Storage;
+
 namespace AmroStockManager;
 
-// Thin wrapper — on the dev branch this class adds a runtime Prod/Dev toggle.
-// On master it simply forwards to AppSecrets (single production environment).
 internal static class AppEnvironment
 {
-    public static string SupabaseUrl => AppSecrets.SupabaseUrl;
-    public static string SupabaseKey => AppSecrets.SupabaseKey;
+    private const string PrefKey = "db_environment";
+
+    public static bool IsDev
+    {
+        get => Preferences.Default.Get(PrefKey, defaultValue: true);
+        set => Preferences.Default.Set(PrefKey, value);
+    }
+
+    public static string SupabaseUrl => IsDev ? AppSecrets.DevSupabaseUrl : AppSecrets.ProdSupabaseUrl;
+    public static string SupabaseKey => IsDev ? AppSecrets.DevSupabaseKey : AppSecrets.ProdSupabaseKey;
+    public static string Label       => IsDev ? "DEV" : "PROD";
 }

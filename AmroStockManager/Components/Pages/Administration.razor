@@ -105,6 +105,12 @@
                     Exportar Excel
                 </MudMenuItem>
                 <MudDivider />
+                <MudMenuItem Icon="@Icons.Material.Filled.Storage"
+                             IconColor="@(AppEnvironment.IsDev ? Color.Warning : Color.Success)"
+                             OnClick="ToggleEnvironment">
+                    BD: @AppEnvironment.Label — Mudar para @(AppEnvironment.IsDev ? "PROD" : "DEV")
+                </MudMenuItem>
+                <MudDivider />
                 <MudMenuItem Icon="@Icons.Material.Filled.LockOpen"
                              IconColor="Color.Default" OnClick="Logout">
                     Bloquear sessão
@@ -594,6 +600,19 @@ else
         _unlocked        = false;
         _pinInput        = string.Empty;
         _pinError        = false;
+    }
+
+    private async Task ToggleEnvironment()
+    {
+        var target = AppEnvironment.IsDev ? "PROD" : "DEV";
+        var confirmed = await DialogService.ShowMessageBox(
+            "Mudar Base de Dados",
+            $"Mudar para a base de dados de {target}? A app vai reiniciar a ligação.",
+            yesText: $"Mudar para {target}", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        AppEnvironment.IsDev = !AppEnvironment.IsDev;
+        Snackbar.Add($"A usar base de dados {AppEnvironment.Label}. Reinicie a app para garantir ligação limpa.", Severity.Warning, cfg => cfg.VisibleStateDuration = 6000);
     }
 
     private async Task LoadResidents()
