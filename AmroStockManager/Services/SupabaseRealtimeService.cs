@@ -34,10 +34,10 @@ public sealed class SupabaseRealtimeService : IAsyncDisposable
     public SupabaseRealtimeService(CacheService cache)
     {
         _cache  = cache;
-        _apiKey = AppSecrets.SupabaseKey.Trim();
+        _apiKey = AppEnvironment.SupabaseKey.Trim();
 
         // Convert https:// → wss://
-        var baseUrl = AppSecrets.SupabaseUrl.Trim().TrimEnd('/');
+        var baseUrl = AppEnvironment.SupabaseUrl.Trim().TrimEnd('/');
         _wsUrl = (baseUrl.StartsWith("https://") ? "wss://" + baseUrl[8..] : baseUrl)
                  + $"/realtime/v1/websocket?apikey={Uri.EscapeDataString(_apiKey)}&vsn=1.0.0";
     }

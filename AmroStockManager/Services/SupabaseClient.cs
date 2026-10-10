@@ -19,8 +19,8 @@ public class SupabaseClient : ISupabaseClient
 
     public SupabaseClient()
     {
-        var url = AppSecrets.SupabaseUrl.Trim().TrimEnd('/') + "/";
-        var key = AppSecrets.SupabaseKey.Trim();
+        var url = AppEnvironment.SupabaseUrl.Trim().TrimEnd('/') + "/";
+        var key = AppEnvironment.SupabaseKey.Trim();
         _http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromSeconds(30) };
         _http.DefaultRequestHeaders.Add("apikey", key);
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", key);
