@@ -170,7 +170,17 @@ else
                 <div style="display:grid; grid-template-columns:1fr 80px 160px 120px 120px 70px 120px 140px;
                             padding:10px 16px; border-bottom:1px solid rgba(0,0,0,0.06);
                             align-items:center; @(v.IsActive ? "background:rgba(255,152,0,0.04);" : "")">
-                    <MudText Typo="Typo.body2"><b>@v.VisitorName</b></MudText>
+                    <div class="d-flex align-center gap-1">
+                        <MudText Typo="Typo.body2"><b>@v.VisitorName</b></MudText>
+                        @if (!string.IsNullOrWhiteSpace(v.Notes))
+                        {
+                            <MudTooltip Text="@v.Notes" Placement="Placement.Right" Arrow="true" RootStyle="line-height:0">
+                                <MudIcon Icon="@Icons.Material.Outlined.StickyNote2"
+                                         Size="Size.Small" Color="Color.Warning"
+                                         Style="font-size:15px; opacity:0.85; cursor:default;" />
+                            </MudTooltip>
+                        }
+                    </div>
                     <MudText Typo="Typo.body2" Style="font-weight:600;">@($"#{v.RoomNumber}")</MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary"
                              Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -488,12 +498,19 @@ else
             // ── Sheet 2: Overnights por Quarto ───────────────────────────────
             var ws2 = wb.Worksheets.Add("Overnights por Quarto");
             var monthName = new DateTime(_exportYear, _exportMonth, 1).ToString("MMM", new System.Globalization.CultureInfo("pt-PT"));
-            string[] h2 = ["Quarto", "Residente", "Renovador", $"Noites ({monthName})", "Total acumulado", "Grátis (perk)", "Saldo", "Nº Visitas"];
-            for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
-            var hr2 = ws2.Range(1, 1, 1, h2.Length);
+            string[] h2 = ["Quarto", "Residente", "Renovador", $"Noites ({monthName})", "Total acumulado", "Grátis (perk)", "Saldo", "Nº Visitas", $"A pagar ({monthName})"];
+            for (int i = 0; i < h2.Length - 1; i++) ws2.Cell(1, i + 1).Value = h2[i];
+            var hr2 = ws2.Range(1, 1, 1, h2.Length - 1);
             hr2.Style.Font.Bold = true;
             hr2.Style.Fill.BackgroundColor = XLColor.FromHtml("#1565C0");
             hr2.Style.Font.FontColor = XLColor.White;
+
+            // Last header column highlighted distinctly
+            ws2.Cell(1, h2.Length).Value = h2[^1];
+            var payHeader = ws2.Cell(1, h2.Length);
+            payHeader.Style.Font.Bold = true;
+            payHeader.Style.Fill.BackgroundColor = XLColor.FromHtml("#E65100");
+            payHeader.Style.Font.FontColor = XLColor.White;
 
             var ovStats = monthVisits
                 .GroupBy(v => v.RoomNumber)
@@ -508,9 +525,14 @@ else
                         : v.CheckedInAt >= moveIn).Sum(v => v.LiveOvernights);
                     bool renewer = r?.IsRenewer ?? false;
                     int free = renewer ? (r?.FreeOvernights ?? 0) : 0;
+                    // Nights consumed before this month; free perk remaining at month start
+                    int usedBefore = allTimeTotal - monthTotal;
+                    int freeLeft   = Math.Max(0, free - usedBefore);
+                    int toPay      = Math.Max(0, monthTotal - freeLeft);
                     return (Room: g.Key, Resident: resName ?? "", Renewer: renewer,
                             MonthTotal: monthTotal, AllTimeTotal: allTimeTotal,
-                            Free: free, Balance: free - allTimeTotal, Count: g.Count());
+                            Free: free, Balance: free - allTimeTotal, Count: g.Count(),
+                            ToPay: toPay);
                 })
                 .OrderByDescending(s => s.AllTimeTotal);
 
@@ -525,8 +547,23 @@ else
                 ws2.Cell(row, 6).Value = s.Renewer ? s.Free : 0;
                 ws2.Cell(row, 7).Value = s.Renewer ? s.Balance : 0;
                 ws2.Cell(row, 8).Value = s.Count;
+                ws2.Cell(row, 9).Value = s.ToPay;
+
+                var payCell = ws2.Cell(row, 9);
+                payCell.Style.Font.Bold = true;
+                if (s.ToPay > 0)
+                {
+                    payCell.Style.Fill.BackgroundColor = XLColor.FromHtml("#FFCCBC");
+                    payCell.Style.Font.FontColor       = XLColor.FromHtml("#BF360C");
+                }
+                else
+                {
+                    payCell.Style.Fill.BackgroundColor = XLColor.FromHtml("#C8E6C9");
+                    payCell.Style.Font.FontColor       = XLColor.FromHtml("#1B5E20");
+                }
+
                 if (row % 2 == 0)
-                    ws2.Range(row, 1, row, h2.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
+                    ws2.Range(row, 1, row, h2.Length - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#f5f5f5");
                 row++;
             }
             ws2.Columns().AdjustToContents();
