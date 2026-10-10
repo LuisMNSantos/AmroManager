@@ -7,4 +7,5 @@ public interface ISupabaseClient
     Task<T?>      InsertAsync<T>(string table, object body);
     Task          PatchAsync(string table, string filter, object patch, bool verifyAffected = false);
     Task          DeleteAsync(string table, string filter);
+    Task<T?>      CallRpcAsync<T>(string function, object body);
 }

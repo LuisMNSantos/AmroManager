@@ -126,6 +126,7 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
 
             if (string.IsNullOrWhiteSpace(name)) { skipped++; continue; }
 
+            var now = DateTime.UtcNow;
             residents.Add(new
             {
                 sync_id         = Guid.NewGuid().ToString(),
@@ -135,14 +136,14 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
                 is_collaborator = collab,
                 is_renewer      = !collab && renewer,
                 is_deleted      = false,
-                updated_at      = DateTime.UtcNow
+                moved_in_at     = now,
+                updated_at      = now
             });
         }
 
         await db.PatchAsync("residents", "is_deleted=eq.false", new { is_deleted = true, updated_at = DateTime.UtcNow });
 
-        foreach (var r in residents)
-            await db.InsertAsync<Resident>("residents", r);
+        await Task.WhenAll(residents.Select(r => db.InsertAsync<Resident>("residents", r)));
 
         cache.Invalidate(_residentsKey);
         return (residents.Count, skipped);
@@ -172,6 +173,7 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
 
         if (string.IsNullOrEmpty(r.Id))
         {
+            var now = DateTime.UtcNow;
             await db.InsertAsync<Resident>("residents", new
             {
                 sync_id           = Guid.NewGuid().ToString(),
@@ -183,7 +185,8 @@ public class ResidentService(ISupabaseClient db, CacheService cache)
                 is_renewer        = r.IsRenewer,
                 free_overnights   = r.FreeOvernights,
                 is_deleted        = false,
-                updated_at        = DateTime.UtcNow
+                moved_in_at       = now,
+                updated_at        = now
             });
         }
         else

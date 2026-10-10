@@ -174,7 +174,7 @@ else
                     <MudText Typo="Typo.body2" Style="font-weight:600;">@($"#{v.RoomNumber}")</MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary"
                              Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        @(resident?.Name ?? "—")
+                        @(v.ResidentNameAtCheckin ?? resident?.Name ?? "—")
                     </MudText>
                     <MudText Typo="Typo.caption">
                         @v.CheckedInAt.ToLocalTime().ToString("dd/MM HH:mm")
@@ -257,7 +257,7 @@ else
                             <tr>
                                 <th>Quarto</th>
                                 <th>Residente</th>
-                                <th>Noites (mês)</th>
+                                <th>Noites (@(new DateTime(_exportYear, _exportMonth, 1).ToString("MMM", new System.Globalization.CultureInfo("pt-PT"))))</th>
                                 <th>Total acumulado</th>
                                 <th>Grátis (perk)</th>
                                 <th>Saldo</th>
@@ -317,12 +317,11 @@ else
     private int    _exportMonth = DateTime.Now.Month;
     private int    _exportYear  = DateTime.Now.Year;
 
-    private List<Visit> _visits    = [];
-    private List<Visit> _allVisits = [];
-    private Dictionary<string, Resident> _residents = [];
+    private List<Visit> _visits = [];
+    private Dictionary<string, int>      _overnightTotals = [];
+    private Dictionary<string, Resident> _residents       = [];
 
     // Admin PIN
-    private bool   _adminUnlocked;
     private bool   _showPin;
     private string _pinInput = string.Empty;
     private bool   _pinError;
@@ -357,25 +356,27 @@ else
     private IEnumerable<OvernightStat> OvernightStats => _visits
         .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
                  && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
+        .Where(v => string.IsNullOrWhiteSpace(_search) ||
+                    v.RoomNumber.Contains(_search, StringComparison.OrdinalIgnoreCase))
         .GroupBy(v => v.RoomNumber)
         .Select(g =>
         {
             _residents.TryGetValue(g.Key, out var resident);
-            // Count overnights from move-in date so that swapping residents resets the balance
-            var moveIn = resident?.UpdatedAt ?? DateTime.MinValue;
-            var allTime = _allVisits
-                .Where(v => v.RoomNumber == g.Key && v.CheckedInAt >= moveIn)
-                .Sum(v => v.LiveOvernights);
+            _overnightTotals.TryGetValue(g.Key, out var allTime);
+            var residentName = resident?.Name;
+            var moveIn      = resident?.MovedInAt ?? DateTime.MinValue;
             return new OvernightStat(
                 g.Key,
-                resident?.Name,
+                residentName,
                 resident?.IsRenewer ?? false,
                 resident?.FreeOvernights ?? 0,
-                g.Sum(v => v.LiveOvernights),
+                g.Where(v => v.ResidentNameAtCheckin != null
+                    ? v.ResidentNameAtCheckin == residentName
+                    : v.CheckedInAt >= moveIn).Sum(v => v.LiveOvernights),
                 allTime);
         })
-        .Where(s => s.UsedOvernights > 0)
-        .OrderByDescending(s => s.UsedOvernights);
+        .Where(s => s.UsedOvernights > 0 || (s.IsRenewer && s.TotalUsedAllTime > 0))
+        .OrderByDescending(s => s.TotalUsedAllTime);
 
     protected override async Task OnInitializedAsync()
     {
@@ -388,8 +389,7 @@ else
         var activeTask    = VisitSvc.GetActiveAsync();
         var monthTask     = VisitSvc.GetByMonthAsync(_exportYear, _exportMonth);
         var residentsTask = ResidentSvc.GetAllAsync();
-        var allVisitsTask = VisitSvc.GetAllNonDeletedAsync();
-        await Task.WhenAll(activeTask, monthTask, residentsTask, allVisitsTask);
+        await Task.WhenAll(activeTask, monthTask, residentsTask);
 
         // Merge: month visits + any active visits that started in a different month
         var monthVisits  = monthTask.Result;
@@ -399,12 +399,22 @@ else
             .OrderByDescending(v => v.CheckedInAt)
             .ToList();
 
-        _allVisits = allVisitsTask.Result;
-
         _residents = residentsTask.Result
             .Where(r => r.RoomNumber is not null)
             .GroupBy(r => r.RoomNumber.ToUpper())
             .ToDictionary(g => g.Key, g => g.First());
+
+        // Ask the DB to aggregate overnights per room since each resident's creation date
+        // (CreatedAt is immutable; swapping residents resets the counter automatically)
+        var roomParams = _visits
+            .Select(v => v.RoomNumber)
+            .Distinct()
+            .ToDictionary(
+                r => r,
+                r => _residents.TryGetValue(r, out var res)
+                    ? new VisitService.RoomOvernightParam(res.Name, res.MovedInAt)
+                    : new VisitService.RoomOvernightParam(null, DateTime.MinValue));
+        _overnightTotals = await VisitSvc.GetOvernightTotalsAsync(roomParams);
     }
 
     private async Task OnMonthChanged(int month)
@@ -431,7 +441,9 @@ else
     {
         try
         {
-            var monthVisits = (await VisitSvc.GetByMonthAsync(_exportYear, _exportMonth))
+            var monthVisits = _visits
+                .Where(v => v.CheckedInAt.ToLocalTime().Year  == _exportYear
+                         && v.CheckedInAt.ToLocalTime().Month == _exportMonth)
                 .OrderBy(v => v.CheckedInAt)
                 .ToList();
 
@@ -458,7 +470,7 @@ else
                 _residents.TryGetValue(v.RoomNumber, out var res);
                 ws1.Cell(row, 1).Value = v.VisitorName;
                 ws1.Cell(row, 2).Value = v.RoomNumber;
-                ws1.Cell(row, 3).Value = res?.Name ?? "";
+                ws1.Cell(row, 3).Value = v.ResidentNameAtCheckin ?? res?.Name ?? "";
                 ws1.Cell(row, 4).Value = v.CheckedInAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
                 ws1.Cell(row, 5).Value = v.CheckedOutAt.HasValue
                     ? v.CheckedOutAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
@@ -475,7 +487,8 @@ else
 
             // ── Sheet 2: Overnights por Quarto ───────────────────────────────
             var ws2 = wb.Worksheets.Add("Overnights por Quarto");
-            string[] h2 = ["Quarto", "Residente", "Renovador", "Noites (mês)", "Total acumulado", "Grátis (perk)", "Saldo", "Nº Visitas"];
+            var monthName = new DateTime(_exportYear, _exportMonth, 1).ToString("MMM", new System.Globalization.CultureInfo("pt-PT"));
+            string[] h2 = ["Quarto", "Residente", "Renovador", $"Noites ({monthName})", "Total acumulado", "Grátis (perk)", "Saldo", "Nº Visitas"];
             for (int i = 0; i < h2.Length; i++) ws2.Cell(1, i + 1).Value = h2[i];
             var hr2 = ws2.Range(1, 1, 1, h2.Length);
             hr2.Style.Font.Bold = true;
@@ -487,18 +500,19 @@ else
                 .Select(g =>
                 {
                     _residents.TryGetValue(g.Key, out var r);
-                    int monthTotal = g.Sum(v => v.LiveOvernights);
-                    var moveIn = r?.UpdatedAt ?? DateTime.MinValue;
-                    int allTimeTotal = _allVisits
-                        .Where(v => v.RoomNumber == g.Key && v.CheckedInAt >= moveIn)
-                        .Sum(v => v.LiveOvernights);
+                    _overnightTotals.TryGetValue(g.Key, out var allTimeTotal);
+                    var resName = r?.Name;
+                    var moveIn  = r?.MovedInAt ?? DateTime.MinValue;
+                    int monthTotal = g.Where(v => v.ResidentNameAtCheckin != null
+                        ? v.ResidentNameAtCheckin == resName
+                        : v.CheckedInAt >= moveIn).Sum(v => v.LiveOvernights);
                     bool renewer = r?.IsRenewer ?? false;
                     int free = renewer ? (r?.FreeOvernights ?? 0) : 0;
-                    return (Room: g.Key, Resident: r?.Name ?? "", Renewer: renewer,
+                    return (Room: g.Key, Resident: resName ?? "", Renewer: renewer,
                             MonthTotal: monthTotal, AllTimeTotal: allTimeTotal,
                             Free: free, Balance: free - allTimeTotal, Count: g.Count());
                 })
-                .OrderByDescending(s => s.MonthTotal);
+                .OrderByDescending(s => s.AllTimeTotal);
 
             row = 2;
             foreach (var s in ovStats)
@@ -548,7 +562,8 @@ else
 
         try
         {
-            await VisitSvc.CreateAsync(visitorName, roomNumber, registeredBy, notes);
+            _residents.TryGetValue(roomNumber.Trim().ToUpper(), out var currentResident);
+            await VisitSvc.CreateAsync(visitorName, roomNumber, registeredBy, notes, currentResident?.Name);
             await LogAsync("Visita registada", $"{visitorName} → #{roomNumber}");
             Snackbar.Add($"Entrada de {visitorName} registada.", Severity.Success);
             await LoadData();
@@ -657,7 +672,6 @@ else
     // Admin PIN helpers
     private void RequireAdmin(Func<Task> action)
     {
-        if (_adminUnlocked) { _ = action(); return; }
         _pendingAction = action;
         _showPin       = true;
         StateHasChanged();
@@ -667,7 +681,6 @@ else
     {
         if (ResidentSvc.VerifyPin(_pinInput))
         {
-            _adminUnlocked = true;
             _pinError      = false;
             _showPin       = false;
             var action     = _pendingAction;

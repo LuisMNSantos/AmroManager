@@ -79,6 +79,17 @@ public class SupabaseClient : ISupabaseClient
         return list[0];
     }
 
+    public async Task<T?> CallRpcAsync<T>(string function, object body)
+    {
+        var resp = await SendWithRetryAsync(() =>
+            new HttpRequestMessage(HttpMethod.Post, $"rest/v1/rpc/{function}")
+            {
+                Content = JsonContent.Create(body, options: _opts)
+            });
+        await EnsureSuccessAsync(resp, $"RPC {function}");
+        return await resp.Content.ReadFromJsonAsync<T>(_opts);
+    }
+
     public async Task DeleteAsync(string table, string filter)
     {
         var resp = await SendWithRetryAsync(() =>
