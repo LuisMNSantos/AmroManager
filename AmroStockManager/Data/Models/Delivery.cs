@@ -17,12 +17,10 @@ public class Delivery
     public int Quantity { get; set; } = 1;
     [JsonPropertyName("registered_by")]
     public string? RegisteredBy { get; set; }
-    public DateTime ArrivedAt { get; set; } = DateTime.UtcNow;
+    public DateTime  ArrivedAt   { get; set; }
     public DateTime? CollectedAt { get; set; }
-    public string? Notes { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
-    public bool IsDelivered { get; set; }
-
-    [JsonIgnore] public bool IsCollected => IsDelivered;
+    public string?   Notes       { get; set; }
+    public DateTime  UpdatedAt   { get; set; }
+    public bool      IsDeleted   { get; set; }
+    public bool      IsDelivered { get; set; }
 }
