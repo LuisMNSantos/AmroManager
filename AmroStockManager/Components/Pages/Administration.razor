@@ -607,12 +607,12 @@ else
         var target = AppEnvironment.IsDev ? "PROD" : "DEV";
         var confirmed = await DialogService.ShowMessageBox(
             "Mudar Base de Dados",
-            $"Mudar para a base de dados de {target}? A app vai reiniciar a ligação.",
+            $"Mudar para a base de dados de {target}? A app vai reiniciar automaticamente.",
             yesText: $"Mudar para {target}", cancelText: "Cancelar");
         if (confirmed != true) return;
 
         AppEnvironment.IsDev = !AppEnvironment.IsDev;
-        Snackbar.Add($"A usar base de dados {AppEnvironment.Label}. Reinicie a app para garantir ligação limpa.", Severity.Warning, cfg => cfg.VisibleStateDuration = 6000);
+        Microsoft.Windows.AppLifecycle.AppInstance.Restart("");
     }
 
     private async Task LoadResidents()
