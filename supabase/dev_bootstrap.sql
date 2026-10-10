@@ -6,6 +6,33 @@
 -- ============================================================
 
 
+-- ── 0. DROP EXISTING TABLES ────────────────────────────────
+-- CASCADE drops dependent FK constraints automatically.
+-- Order doesn't matter because of CASCADE.
+
+DROP TABLE IF EXISTS public.renewer_kit_delivery_items CASCADE;
+DROP TABLE IF EXISTS public.renewer_kit_deliveries     CASCADE;
+DROP TABLE IF EXISTS public.renewer_kit_items          CASCADE;
+DROP TABLE IF EXISTS public.reimbursements             CASCADE;
+DROP TABLE IF EXISTS public.distribution_records       CASCADE;
+DROP TABLE IF EXISTS public.distribution_campaigns     CASCADE;
+DROP TABLE IF EXISTS public.stock_movements            CASCADE;
+DROP TABLE IF EXISTS public.size_variants              CASCADE;
+DROP TABLE IF EXISTS public.products                   CASCADE;
+DROP TABLE IF EXISTS public.general_item_loans         CASCADE;
+DROP TABLE IF EXISTS public.general_items              CASCADE;
+DROP TABLE IF EXISTS public.bis_loans                  CASCADE;
+DROP TABLE IF EXISTS public.pending_registrations      CASCADE;
+DROP TABLE IF EXISTS public.audit_logs                 CASCADE;
+DROP TABLE IF EXISTS public.visits                     CASCADE;
+DROP TABLE IF EXISTS public.reservations               CASCADE;
+DROP TABLE IF EXISTS public.deliveries                 CASCADE;
+DROP TABLE IF EXISTS public.residents                  CASCADE;
+DROP TABLE IF EXISTS public.rooms                      CASCADE;
+
+DROP FUNCTION IF EXISTS public.get_overnight_totals(jsonb);
+
+
 -- ── 1. TABLES ──────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.products (
