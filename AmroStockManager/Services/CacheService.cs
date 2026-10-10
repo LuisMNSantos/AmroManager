@@ -3,8 +3,9 @@ namespace AmroStockManager.Services;
 public sealed class CacheService
 {
     private sealed record Entry(object Data, DateTime Expires);
-    private readonly Dictionary<string, Entry> _store = [];
-    private readonly Lock _lock = new();
+    private readonly Dictionary<string, Entry>    _store     = [];
+    private readonly Lock                         _lock      = new();
+    private readonly SemaphoreSlim                _semaphore = new(1, 1);
 
     public async Task<T> GetOrFetchAsync<T>(string key, Func<Task<T>> fetch, TimeSpan ttl)
     {
@@ -14,14 +15,26 @@ public sealed class CacheService
                 return (T)hit.Data;
         }
 
-        var data = await fetch();
-
-        lock (_lock)
+        await _semaphore.WaitAsync();
+        try
         {
-            _store[key] = new Entry(data!, DateTime.UtcNow + ttl);
-        }
+            // Double-check inside the semaphore so concurrent callers don't both fetch
+            lock (_lock)
+            {
+                if (_store.TryGetValue(key, out var hit) && hit.Expires > DateTime.UtcNow)
+                    return (T)hit.Data;
+            }
 
-        return data;
+            var data = await fetch();
+
+            lock (_lock) { _store[key] = new Entry(data!, DateTime.UtcNow + ttl); }
+
+            return data;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     public void Invalidate(string key)
