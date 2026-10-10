@@ -309,62 +309,84 @@ ALTER TABLE public.reimbursements             ENABLE ROW LEVEL SECURITY;
 -- ── 3. POLICIES (anon = full access) ───────────────────────
 -- The app uses the anon key without user authentication,
 -- so all operations must be permitted for the anon role.
+-- PostgreSQL has no "CREATE POLICY IF NOT EXISTS", so we
+-- drop first (the DROP TABLE above already removes them,
+-- but keep these for safety on partial re-runs).
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.products
+DROP POLICY IF EXISTS "anon_all" ON public.products;
+CREATE POLICY "anon_all" ON public.products
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.size_variants
+DROP POLICY IF EXISTS "anon_all" ON public.size_variants;
+CREATE POLICY "anon_all" ON public.size_variants
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.stock_movements
+DROP POLICY IF EXISTS "anon_all" ON public.stock_movements;
+CREATE POLICY "anon_all" ON public.stock_movements
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.general_items
+DROP POLICY IF EXISTS "anon_all" ON public.general_items;
+CREATE POLICY "anon_all" ON public.general_items
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.general_item_loans
+DROP POLICY IF EXISTS "anon_all" ON public.general_item_loans;
+CREATE POLICY "anon_all" ON public.general_item_loans
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.residents
+DROP POLICY IF EXISTS "anon_all" ON public.residents;
+CREATE POLICY "anon_all" ON public.residents
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.reservations
+DROP POLICY IF EXISTS "anon_all" ON public.reservations;
+CREATE POLICY "anon_all" ON public.reservations
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.deliveries
+DROP POLICY IF EXISTS "anon_all" ON public.deliveries;
+CREATE POLICY "anon_all" ON public.deliveries
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.distribution_campaigns
+DROP POLICY IF EXISTS "anon_all" ON public.distribution_campaigns;
+CREATE POLICY "anon_all" ON public.distribution_campaigns
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.distribution_records
+DROP POLICY IF EXISTS "anon_all" ON public.distribution_records;
+CREATE POLICY "anon_all" ON public.distribution_records
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.rooms
+DROP POLICY IF EXISTS "anon_all" ON public.rooms;
+CREATE POLICY "anon_all" ON public.rooms
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.bis_loans
+DROP POLICY IF EXISTS "anon_all" ON public.bis_loans;
+CREATE POLICY "anon_all" ON public.bis_loans
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.pending_registrations
+DROP POLICY IF EXISTS "anon_all" ON public.pending_registrations;
+CREATE POLICY "anon_all" ON public.pending_registrations
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.audit_logs
+DROP POLICY IF EXISTS "anon_all" ON public.audit_logs;
+CREATE POLICY "anon_all" ON public.audit_logs
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.visits
+DROP POLICY IF EXISTS "anon_all" ON public.visits;
+CREATE POLICY "anon_all" ON public.visits
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.renewer_kit_items
+DROP POLICY IF EXISTS "anon_all" ON public.renewer_kit_items;
+CREATE POLICY "anon_all" ON public.renewer_kit_items
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.renewer_kit_deliveries
+DROP POLICY IF EXISTS "anon_all" ON public.renewer_kit_deliveries;
+CREATE POLICY "anon_all" ON public.renewer_kit_deliveries
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.renewer_kit_delivery_items
+DROP POLICY IF EXISTS "anon_all" ON public.renewer_kit_delivery_items;
+CREATE POLICY "anon_all" ON public.renewer_kit_delivery_items
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "anon_all" ON public.reimbursements
+DROP POLICY IF EXISTS "anon_all" ON public.reimbursements;
+CREATE POLICY "anon_all" ON public.reimbursements
   FOR ALL TO anon USING (true) WITH CHECK (true);
 
 
