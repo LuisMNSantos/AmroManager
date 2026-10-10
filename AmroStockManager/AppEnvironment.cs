@@ -1,9 +1,12 @@
 namespace AmroStockManager;
 
-// Thin wrapper — on the dev branch this class adds a runtime Prod/Dev toggle.
-// On master it simply forwards to AppSecrets (single production environment).
+// AppSecrets always defines DevSupabaseUrl/Key + ProdSupabaseUrl/Key so the
+// same AppSecrets.cs works on both branches without manual edits on checkout.
+// Only this file differs between branches:
+//   master → always prod
+//   dev    → runtime toggle via Preferences (defaults to dev)
 internal static class AppEnvironment
 {
-    public static string SupabaseUrl => AppSecrets.SupabaseUrl;
-    public static string SupabaseKey => AppSecrets.SupabaseKey;
+    public static string SupabaseUrl => AppSecrets.ProdSupabaseUrl;
+    public static string SupabaseKey => AppSecrets.ProdSupabaseKey;
 }
