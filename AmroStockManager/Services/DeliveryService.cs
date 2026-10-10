@@ -45,14 +45,14 @@ public class DeliveryService(ISupabaseClient db)
 
     public async Task<DeliveryDashboardStats> GetDashboardStatsAsync()
     {
-        var todayUtc = DateTime.Today.ToUniversalTime();
+        var today = DateTime.Today;
         var all = await db.GetAsync<Delivery>("deliveries",
             "is_deleted=eq.false&select=type,is_delivered,arrived_at,collected_at");
         return new DeliveryDashboardStats(
             PendingPackages: all.Count(d => !d.IsDelivered && d.Type == DeliveryType.Encomenda),
             PendingLetters:  all.Count(d => !d.IsDelivered && d.Type == DeliveryType.Carta),
-            ArrivedToday:    all.Count(d => d.ArrivedAt >= todayUtc),
-            CollectedToday:  all.Count(d => d.IsDelivered && d.CollectedAt >= todayUtc)
+            ArrivedToday:    all.Count(d => d.ArrivedAt.ToLocalTime().Date == today),
+            CollectedToday:  all.Count(d => d.IsDelivered && d.CollectedAt?.ToLocalTime().Date == today)
         );
     }
 

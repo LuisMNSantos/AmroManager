@@ -7,7 +7,8 @@ public class Visit
     [JsonPropertyName("sync_id")]       public string    Id           { get; set; } = string.Empty;
     [JsonPropertyName("visitor_name")]  public string    VisitorName  { get; set; } = string.Empty;
     [JsonPropertyName("room_number")]   public string    RoomNumber   { get; set; } = string.Empty;
-    [JsonPropertyName("registered_by")] public string?   RegisteredBy { get; set; }
+    [JsonPropertyName("registered_by")]              public string?   RegisteredBy             { get; set; }
+    [JsonPropertyName("resident_name_at_checkin")]   public string?   ResidentNameAtCheckin    { get; set; }
     [JsonPropertyName("checked_in_at")] public DateTime  CheckedInAt  { get; set; }
     [JsonPropertyName("checked_out_at")]public DateTime? CheckedOutAt { get; set; }
     [JsonPropertyName("overnights")]    public int       Overnights   { get; set; }

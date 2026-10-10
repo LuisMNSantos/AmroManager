@@ -105,6 +105,11 @@
                     Exportar Excel
                 </MudMenuItem>
                 <MudDivider />
+                <MudMenuItem Icon="@Icons.Material.Filled.LockOpen"
+                             IconColor="Color.Default" OnClick="Logout">
+                    Bloquear sessão
+                </MudMenuItem>
+                <MudDivider />
                 <MudMenuItem Icon="@Icons.Material.Filled.DeleteSweep"
                              IconColor="Color.Error" OnClick="ClearAll">
                     Limpar Lista
@@ -581,6 +586,14 @@ else
     private async Task OnPinKey(KeyboardEventArgs e)
     {
         if (e.Key == "Enter") await TryUnlock();
+    }
+
+    private void Logout()
+    {
+        _sessionUnlocked = false;
+        _unlocked        = false;
+        _pinInput        = string.Empty;
+        _pinError        = false;
     }
 
     private async Task LoadResidents()

@@ -16,6 +16,8 @@ public class Resident
     public bool IsRenewer { get; set; }
     [JsonPropertyName("free_overnights")]
     public int FreeOvernights { get; set; }
+    [JsonPropertyName("moved_in_at")]
+    public DateTime MovedInAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 }
