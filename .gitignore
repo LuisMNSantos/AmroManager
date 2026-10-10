@@ -49,3 +49,6 @@ AppSecrets.cs
 *.appinstaller
 AmroStockManager/AmroStockManager_public.cer
 AmroManager_public.cer
+
+## Supabase SQL scripts (local only — contain DB structure details)
+supabase/

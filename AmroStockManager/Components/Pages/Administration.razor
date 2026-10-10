@@ -105,6 +105,15 @@
                     Exportar Excel
                 </MudMenuItem>
                 <MudDivider />
+                @if (_isDebugBuild)
+                {
+                    <MudMenuItem Icon="@Icons.Material.Filled.Storage"
+                                 IconColor="@(AppEnvironment.IsDev ? Color.Warning : Color.Success)"
+                                 OnClick="ToggleEnvironment">
+                        BD: @AppEnvironment.Label — Mudar para @(AppEnvironment.IsDev ? "PROD" : "DEV")
+                    </MudMenuItem>
+                    <MudDivider />
+                }
                 <MudMenuItem Icon="@Icons.Material.Filled.LockOpen"
                              IconColor="Color.Default" OnClick="Logout">
                     Bloquear sessão
@@ -477,6 +486,12 @@ else
 }
 
 @code {
+#if DEBUG
+    private const bool _isDebugBuild = true;
+#else
+    private const bool _isDebugBuild = false;
+#endif
+
     private static bool _sessionUnlocked = false;
 
     private bool _unlocked = _sessionUnlocked;
@@ -594,6 +609,19 @@ else
         _unlocked        = false;
         _pinInput        = string.Empty;
         _pinError        = false;
+    }
+
+    private async Task ToggleEnvironment()
+    {
+        var target = AppEnvironment.IsDev ? "PROD" : "DEV";
+        var confirmed = await DialogService.ShowMessageBox(
+            "Mudar Base de Dados",
+            $"Mudar para a base de dados de {target}? A app vai reiniciar automaticamente.",
+            yesText: $"Mudar para {target}", cancelText: "Cancelar");
+        if (confirmed != true) return;
+
+        AppEnvironment.IsDev = !AppEnvironment.IsDev;
+        Microsoft.Windows.AppLifecycle.AppInstance.Restart("");
     }
 
     private async Task LoadResidents()
