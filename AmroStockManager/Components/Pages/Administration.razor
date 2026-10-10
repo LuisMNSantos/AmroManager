@@ -105,12 +105,15 @@
                     Exportar Excel
                 </MudMenuItem>
                 <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Filled.Storage"
-                             IconColor="@(AppEnvironment.IsDev ? Color.Warning : Color.Success)"
-                             OnClick="ToggleEnvironment">
-                    BD: @AppEnvironment.Label — Mudar para @(AppEnvironment.IsDev ? "PROD" : "DEV")
-                </MudMenuItem>
-                <MudDivider />
+                @if (_isDebugBuild)
+                {
+                    <MudMenuItem Icon="@Icons.Material.Filled.Storage"
+                                 IconColor="@(AppEnvironment.IsDev ? Color.Warning : Color.Success)"
+                                 OnClick="ToggleEnvironment">
+                        BD: @AppEnvironment.Label — Mudar para @(AppEnvironment.IsDev ? "PROD" : "DEV")
+                    </MudMenuItem>
+                    <MudDivider />
+                }
                 <MudMenuItem Icon="@Icons.Material.Filled.LockOpen"
                              IconColor="Color.Default" OnClick="Logout">
                     Bloquear sessão
@@ -483,6 +486,12 @@ else
 }
 
 @code {
+#if DEBUG
+    private const bool _isDebugBuild = true;
+#else
+    private const bool _isDebugBuild = false;
+#endif
+
     private static bool _sessionUnlocked = false;
 
     private bool _unlocked = _sessionUnlocked;
