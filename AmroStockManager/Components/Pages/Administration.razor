@@ -370,9 +370,9 @@ else
                 {
                     <div class="d-flex align-center gap-1">
                         <MudText Typo="Typo.body2">@resident!.Name</MudText>
-                        @if (resident.IsRenewer && _residentsWithKit.Contains(resident.Id))
+                        @if (resident.IsRenewer)
                         {
-                            <MudTooltip Text="Kit de renovador entregue" Delay="300">
+                            <MudTooltip Text="Renovador" Delay="300">
                                 <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
                                          Color="Color.Success"
                                          Style="font-size:1rem;" />
